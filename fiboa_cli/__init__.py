@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import sys
 import time
+import multiprocessing
 
 from .convert import convert as convert_, list_all_converter_ids, list_all_converters
 from .create_geoparquet import create_geoparquet as create_geoparquet_
@@ -119,24 +120,32 @@ def validate(files, schema, ext_schema, fiboa_version, collection, data, timer):
         "collection": collection,
         "data": data,
     }
+
+    args = [[file, config] for file in files]
+
+    with multiprocessing.Pool() as pool:
+        results = pool.map(run_validate, args)
+
+    print(results)
+
     exit = 0
-    for file in files:
-        log(f"Validating {file}", "info")
-        try:
-            start_step = time.perf_counter()
-            result = validate_(file, config)
-            if result:
-                log("\n  => VALID\n", "success")
-            else:
-                log("\n  => INVALID\n", "error")
-                exit = 1
-        except Exception as e:
-            log(f"\n  => UNKNOWN: {e}\n", "error")
-            exit = 2
-        finally:
-            if timer:
-                end_step = time.perf_counter()
-                log(f"Validated {file} in {end_step - start_step:0.4f} seconds")
+    # for file in files:
+    #     log(f"Validating {file}", "info")
+    #     try:
+    #         start_step = time.perf_counter()
+    #         result = validate_(file, config)
+    #         if result:
+    #             log("\n  => VALID\n", "success")
+    #         else:
+    #             log("\n  => INVALID\n", "error")
+    #             exit = 1
+    #     except Exception as e:
+    #         log(f"\n  => UNKNOWN: {e}\n", "error")
+    #         exit = 2
+    #     finally:
+    #         if timer:
+    #             end_step = time.perf_counter()
+    #             log(f"Validated {file} in {end_step - start_step:0.4f} seconds")
 
     if timer:
         end = time.perf_counter()
@@ -144,6 +153,9 @@ def validate(files, schema, ext_schema, fiboa_version, collection, data, timer):
 
     sys.exit(exit)
 
+
+def run_validate(p):
+    return validate_(p[0], p[1])
 
 ## VALIDATE SCHEMA
 @click.command()
