@@ -89,6 +89,9 @@ def convert(
     del gdfs
 
     log("GeoDataFrame created from source(s):")
+    # Make it so that everything is shown, don't output ... if there are too many columns or rows
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
     print(gdf.head())
 
     # 1. Run global migration

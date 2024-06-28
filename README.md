@@ -154,7 +154,7 @@ Then you can run `pytest` to execute the tests.
 The following high-level description gives an idea how to implement a converter in fiboa CLI:
 
 1. Create a new file in `fiboa_cli/datasets` based on the `template.py`
-2. Implement the `convert()` function
+2. Implement the `convert()` function / test it / run it
 3. Add missing dependencies into a separate dependency group in `setup.py`
 4. Add the converter to the list above
 5. Create a PR to submit your converter for review
