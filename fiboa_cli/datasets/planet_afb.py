@@ -37,21 +37,23 @@ LICENSE = {
     "rel": "license"
 }
 
+EXTENSIONS = [
+    "https://fiboa.github.io/planet-extension/v0.1.0/schema.yaml"
+]
+
 COLUMNS = {
     "polygon_id": "id", #fiboa core field
     "area_ha": "area", #fiboa core field
     "geometry": "geometry", #fiboa core field
     "determination_datetime": "determination_datetime", #fiboa core field
-    "ca_ratio": "ca_ratio", #custom field for Planet
-    "micd": "micd", #custom field for Planet
-    "qa": "qa", #custom field for Planet
+    "ca_ratio": "planet:ca_ratio", #From Planet extension for fiboa
+    "micd": "planet:micd", #From Planet extension for fiboa 
+    "qa": "planet:qa", #From Planet extension for fiboa
 }
 
 ADD_COLUMNS = {
   "determination_method": "auto-imagery"
 }
-
-EXTENSIONS = []
 
 def FILE_MIGRATION(gdf, path, uri, layer = None):
     # The file name contains the date, so we can use that to add a
@@ -66,18 +68,6 @@ def FILE_MIGRATION(gdf, path, uri, layer = None):
     return gdf
 
 MISSING_SCHEMAS = {
-    "required": ["ca_ratio", "micd", "qa"], # i.e. non-nullable properties
-    "properties": {
-        "ca_ratio": {
-            "type": "float"
-        },
-        "micd": {
-            "type": "float"
-        },
-        "qa": {
-            "type": "uint8"
-        }
-    }
 }
 
 
