@@ -57,8 +57,8 @@ COLUMNS = {
 
 delim = re.compile(r'\s*,\s*')
 COLUMN_MIGRATIONS = {
-    'AFO': lambda column: column.map({'J': True}).fillna(value=False),
-    'KOND_LE': lambda column: column.map({'J': True}).fillna(value=False),
+    'AFO': lambda column: column.map({'J': True}).fillna(value=False).astype(bool),
+    'KOND_LE': lambda column: column.map({'J': True}).fillna(value=False).astype(bool),
     'AENDERUNG': lambda column: column.map({'Geaendert': True, 'Unveraendert': False, 'Neu': None}),
     'FBI_VJ': lambda column: column.str.split(delim, regex = True)
 }
