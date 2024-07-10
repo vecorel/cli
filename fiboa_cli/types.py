@@ -23,11 +23,11 @@ def is_temporal_type(dtype):
 def is_scalar_type(dtype):
     return dtype == "string" or dtype == "binary" or dtype == "boolean" or is_numerical_type(dtype) or is_temporal_type(dtype)
 
-def get_geopandas_dtype(type, required = False, schema = {}):
+def get_geopandas_dtype(type, required = False, schema = {}, return_category = False):
     """
     fiboa datatypes to geopandas datatypes
     """
-    if is_enum(schema) and (type == "string" or is_integer_type(type)):
+    if return_category and is_enum(schema) and (type == "string" or is_integer_type(type)):
         return "category"
     elif type == "boolean":
         if required:
