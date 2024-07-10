@@ -18,9 +18,9 @@ The work is licensed under a [Creative Commons Attribution-ShareAlike 4.0 Intern
 The project developed a new **Hierarchical Crop and Agriculture Taxonomy (HCAT)** that harmonises all declared crops across the European Union.
 In the data you'll find this as additional attributes:
 
-- `EC_trans_n`: The original crop name translated into English
-- `EC_hcat_n`: The machine-readable HCAT name of the crop
-- `EC_hcat_c`: The 10-digit HCAT code indicating the hierarchy of the crop
+- `ec:translated_name`: The original crop name translated into English
+- `ec:hcat_name`: The machine-readable HCAT name of the crop
+- `ec:hcat_code`: The 10-digit HCAT code indicating the hierarchy of the crop
 - `EC_nuts3`: The Nomenclature of Territorial Units for Statistics 3 (NUTS3) region, an approximate assignment of a crop parcel to a region
 
 Disclaimer: The Nomenclature of Territorial Units for Statistics 3 (NUTS3) region, which we added by hand, is just an approximate assignment of a
@@ -39,6 +39,10 @@ ATTRIBUTION = "Ministrstvo za kmetijstvo, gozdarstvo in prehrano"
 
 LICENSE = "CC-BY-4.0"
 
+EXTENSIONS = [
+    "https://fiboa.github.io/hcat-extension/v0.1.0/schema.yaml"
+]
+
 COLUMNS = {
     'geometry': 'geometry', #fiboa core field
     'ID': 'id', #fiboa core field
@@ -48,18 +52,20 @@ COLUMNS = {
     'RASTLINA': 'rastlina', #fiboa custom field
     'CROP_LAT_E': 'crop_lat_e', #fiboa custom field
     'COLOR': 'color', #fiboa custom field
-    'EC_trans_n': 'EC_trans_n', #fiboa custom field
-    'EC_hcat_n': 'EC_hcat_n', #fiboa custom field
-    'EC_hcat_c': 'EC_hcat_c', #fiboa custom field
+    'EC_trans_n': 'ec:translated_name', #fiboa hcat extension
+    'EC_hcat_n': 'ec:hcat_name', #fiboa hcat extension
+    'EC_hcat_c': 'ec:hcat_code', #fiboa hcat extension
     'EC_NUTS3': 'EC_NUTS3', #fiboa custom field
 }
 
-COLUMN_MIGRATIONS = {'AREA': lambda column:column * 0.0001}
+COLUMN_MIGRATIONS = {
+    'AREA': lambda column: column * 0.0001
+}
 
 ADD_COLUMNS = {}
 
 MISSING_SCHEMAS = {
-    'required': ['gerk_pid', 'crop_type_class', 'rastlina', 'crop_lat_e', 'color', 'EC_trans_n','EC_hcat_n'],
+    'required': ['gerk_pid', 'crop_type_class', 'rastlina', 'crop_lat_e', 'color'],
     'properties': {
         'gerk_pid': {
             'type': 'uint64'
@@ -75,15 +81,6 @@ MISSING_SCHEMAS = {
         },
         'color': {
             'type': 'string'
-        },
-        'EC_trans_n': {
-            'type': 'string'
-        },
-        'EC_hcat_n': {
-            'type': 'string'
-        },
-        'EC_hcat_c': {
-            'type': 'uint32'
         },
         'EC_NUTS3': {
             'type': 'string'
@@ -101,6 +98,7 @@ def convert(output_file, input_files = None, cache = None, source_coop_url = Non
         ID,
         TITLE,
         DESCRIPTION,
+        extensions=EXTENSIONS,
         input_files=input_files,
         providers=PROVIDERS,
         source_coop_url=source_coop_url,

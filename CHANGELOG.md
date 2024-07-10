@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `fiboa converters` is more readable by default
 - `fiboa converters` output can be customized with options `-p`, `-s` and `-v`.
 - Upgraded to geopandas 1.0.0rc.1, which migrates from fiona to pyogrio for data loading
+- The EuroCrops converter (prefix: `ec_`) use the HCAT fiboa extension
 
 ### Deprecated
 

@@ -34,15 +34,19 @@ ATTRIBUTION = "Institut National de l'Information Géographique et Forestière"
 
 LICENSE = "CC-BY-4.0"
 
+EXTENSIONS = [
+    "https://fiboa.github.io/hcat-extension/v0.1.0/schema.yaml"
+]
+
 COLUMNS = {
-    'geometry': 'geometry', #fiboa core field
-    'ID_PARCEL': 'id', #fiboa core field
-    'SURF_PARC': 'area', #fiboa core field
+    'geometry': 'geometry', #fiboa core
+    'ID_PARCEL': 'id', #fiboa core
+    'SURF_PARC': 'area', #fiboa core
     'CODE_CULTU': 'code_culture', #fiboa custom field
     'CODE_GROUP': 'code_group', #fiboa custom field
-    'EC_trans_n': 'EC_trans_n', #fiboa custom field
-    'EC_hcat_n': 'EC_hcat_n', #fiboa custom field
-    'EC_hcat_c': 'EC_hcat_c' #fiboa custom field
+    'EC_trans_n': 'ec:translated_name', #fiboa hcat extension
+    'EC_hcat_n': 'ec:hcat_name', #fiboa hcat extension
+    'EC_hcat_c': 'ec:hcat_code' #fiboa hcat extension
 }
 
 ADD_COLUMNS = {
@@ -50,22 +54,13 @@ ADD_COLUMNS = {
 }
 
 MISSING_SCHEMAS = {
-    'required': ['code_culture', 'code_group', 'EC_trans_n','EC_hcat_n', 'EC_hcat_c'],
+    'required': ['code_culture', 'code_group'],
     'properties': {
         'code_culture': {
             'type': 'string'
         },
         'code_group': {
             'type': 'uint16'
-        },
-        'EC_trans_n': {
-            'type': 'string'
-        },
-        'EC_hcat_n': {
-            'type': 'string'
-        },
-        'EC_hcat_c': {
-            'type': 'uint32'
         }
     }
 }
@@ -80,6 +75,7 @@ def convert(output_file, input_files = None, cache = None, source_coop_url = Non
         ID,
         TITLE,
         DESCRIPTION,
+        extensions=EXTENSIONS,
         input_files=input_files,
         providers=PROVIDERS,
         source_coop_url=source_coop_url,
