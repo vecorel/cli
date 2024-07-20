@@ -206,10 +206,10 @@ def parse_converter_input_files(ctx, param, value):
 
     sources = {}
     for v in value:
-        if not "=" in v:
+        if not "|" in v:
             sources[v] = name_from_uri(v)
         else:
-            uri, archive = v.split("=", 2)
+            uri, archive = v.split("|", 2)
             files = archive.split(",")
             sources[uri] = files
 

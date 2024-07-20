@@ -29,7 +29,7 @@ def test_converter(out_file, converter):
 
 
 @mark.parametrize('args', [
-    ['be_wa', 'tests/data-files/convert/be_wa/SIGEC_PARC_AGRI_ANON__2022_GEOPACKAGE_31370.zip=SIGEC_PARC_AGRI_ANON__2022.gpkg']
+    ['be_wa', 'tests/data-files/convert/be_wa/SIGEC_PARC_AGRI_ANON__2022_GEOPACKAGE_31370.zip|SIGEC_PARC_AGRI_ANON__2022.gpkg']
 ])
 def test_converter_with_input(out_file, args):
     converter, input_file = args
