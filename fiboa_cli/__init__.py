@@ -340,7 +340,7 @@ def jsonschema(schema, out, fiboa_version, id_):
 @click.option(
     '--input', '-i',
     type=click.STRING,
-    help='File(s) or URL(s) to read from. Can be used multiple times. Specific files from ZIP and 7Z archives can be picked by providing the archive path and the file path in the archive separated by an equal sign. To pick multiple files from a single archive separate them by comma. Example: /path/to/archive.zip=file1.gpkg,subfolder/file2.shp',
+    help='File(s) or URL(s) to read from. Can be used multiple times. Specific files from ZIP and 7Z archives can be picked by providing the archive path and the file path in the archive separated by a pipe sign. To pick multiple files from a single archive separate them by comma. Example: /path/to/archive.zip|file1.gpkg,subfolder/file2.gpkg',
     callback=parse_converter_input_files,
     multiple=True,
     default=None
