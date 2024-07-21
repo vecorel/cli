@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added a `FILE_MIGRATION` variable to the converter template for per-file migrations
 - Added a `LAYER_FILTER` variable to the converter template for loading specific layers from a file
 - Added `-i` parameter to specify input files for converters
+- `fiboa converters` output can be customized with options `-p`, `-s` and `-v`.
+- Converter for Slovenia via EuroCrops (`ec_lv`)
+- Converter for Planet's Automated Field Boundary (`planet_afb`)
+- Converter for Portugal (`pt`)
 - Further tests
 
 ### Changed
@@ -20,9 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `BBOX` is optional in the converter template as it will be computed automatically from the data.
 - The `PROVIDER_NAME` and `PROVIDER_URL` variables in the converter template were replaced by `PROVIDERS`
 - `fiboa converters` is more readable by default
-- `fiboa converters` output can be customized with options `-p`, `-s` and `-v`.
-- Upgraded to geopandas 1.0.0rc.1, which migrates from fiona to pyogrio for data loading
-- The EuroCrops converter (prefix: `ec_`) use the HCAT fiboa extension
+- Upgraded to geopandas 1.0.0, which migrates from fiona to pyogrio for data loading
+- The EuroCrops converters (prefix: `ec_`) use the HCAT fiboa extension
 
 ### Deprecated
 
