@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.6.0] - 2024-07-25
+
 ### Added
 
 - Added a `SHORT_NAME` variable to the converter template
@@ -29,14 +31,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `fiboa converters` is more readable by default
 - Upgraded to geopandas 1.0.0, which migrates from fiona to pyogrio for data loading
 - The EuroCrops converters (prefix: `ec_`) use the HCAT fiboa extension
-
-### Deprecated
-
-- ...
-
-### Removed
-
-- ...
 
 ### Fixed
 
@@ -291,7 +285,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release
 
-[Unreleased]: <https://github.com/fiboa/cli/compare/v0.5.0...main>
+[Unreleased]: <https://github.com/fiboa/cli/compare/v0.6.0...main>
+[v0.6.0]: <https://github.com/fiboa/cli/compare/v0.5.0...v0.6.0>
 [v0.5.0]: <https://github.com/fiboa/cli/compare/v0.4.0...v0.5.0>
 [v0.4.0]: <https://github.com/fiboa/cli/compare/v0.3.10...v0.4.0>
 [v0.3.10]: <https://github.com/fiboa/cli/compare/v0.3.9...v0.3.10>
