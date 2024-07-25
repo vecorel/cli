@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added a `LAYER_FILTER` variable to the converter template for loading specific layers from a file
 - Added `-i` parameter to specify input files for converters
 - `fiboa converters` output can be customized with options `-p`, `-s` and `-v`.
+- `fiboa convert` reads JSON file with custom logic, which allows to access nested objects through dot notation
 - Converter for Slovenia via EuroCrops (`ec_lv`)
 - Converter for Planet's Automated Field Boundary (`planet_afb`)
 - Converter for Portugal (`pt`)
