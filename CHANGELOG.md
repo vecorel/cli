@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Converter for Luís Eduardo Magalhães (LEM) and other municipalities in the west of Bahia state, Brazil (`br_ba_lem`)
 
+### Fixed
+
+- `fiboa convert`: Create output folder if it doesn't exist
+- Strip whitespaces/newlines from created STAC collections
+
 ## [v0.6.0] - 2024-07-25
 
 ### Added
