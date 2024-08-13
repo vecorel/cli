@@ -5,9 +5,9 @@ SOURCES = "https://www.ifap.pt/isip/ows/resources/2023/Continente.gpkg"
 LAYER_FILTER = lambda layer, uri: layer.startswith("Culturas_")
 
 ID = "pt"
-TITLE = "Field boundaries for Portugal (identificação de parcelas)"
+TITLE = "Field boundaries for Portugal"
 SHORT_NAME = "Portugal"
-DESCRIPTION = "Open field boundaries from Portugal"
+DESCRIPTION = "Open field boundaries (identificação de parcelas) from Portugal"
 PROVIDERS = [
     {
         "name": "IPAP - Instituto de Financiamento da Agricultura e Pescas",
