@@ -227,9 +227,9 @@ def create_collection(
         "fiboa_version": fiboa_version,
         "fiboa_extensions": extensions,
         "type": "Collection",
-        "id": id,
-        "title": title,
-        "description": description,
+        "id": id.strip(),
+        "title": title.strip(),
+        "description": description.strip(),
         "license": "proprietary",
         "providers": providers,
         "extent": {
