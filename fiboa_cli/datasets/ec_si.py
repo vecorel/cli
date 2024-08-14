@@ -1,5 +1,7 @@
 from ..convert_utils import convert as convert_
 
+# todo: create converter for original data and migrate this converter to use the add_eurocrops function
+
 SOURCES = {
   "https://zenodo.org/records/10118572/files/SI_2021.zip?download=1": ["SI_2021_EC21.shp"]
 }

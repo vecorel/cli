@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Converter for Luís Eduardo Magalhães (LEM) and other municipalities in the west of Bahia state, Brazil (`br_ba_lem`)
 - Converter for Denmark (`dk`)
+- Additional converters for EuroCrops datasets: `ec_be_vlg`, `ec_nl_crop`
+
+### Changed
+
+- The EuroCrops converters extend the original converters
 
 ### Fixed
 
