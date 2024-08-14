@@ -46,7 +46,9 @@ def convert(
         raise ValueError("If provided, the bounding box must consist of 4 numbers")
 
     # Create output folder if it doesn't exist
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    dir = os.path.dirname(output_file)
+    if dir:
+        os.makedirs(dir, exist_ok=True)
 
     if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
         log("Using user provided input file(s) instead of the pre-defined file(s)", "warning")

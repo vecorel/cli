@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `fiboa convert`: Create output folder if it doesn't exist
 - Strip whitespaces/newlines from created STAC collections
+- `fiboa create-geosjon`: Don't write FeatureCollections to folder if a filename is given
 
 ## [v0.6.0] - 2024-07-25
 
