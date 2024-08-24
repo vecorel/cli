@@ -1,20 +1,15 @@
 # This file is coming from GeoPandas and is modified to support additional metadata.
 # Can be removed once https://github.com/geopandas/geopandas/issues/3182 is fixed.
-
-import json
+# Code extracted from commit https://github.com/geopandas/geopandas/tree/80edc868454d3fae943b734ed1719c2197806815
 
 from geopandas._compat import import_optional_dependency
-from geopandas.io.arrow import _create_metadata, _encode_metadata, _validate_dataframe
+from geopandas.io.arrow import _validate_dataframe, _create_metadata, _encode_metadata
 from geopandas.io.file import _expand_user
-
-METADATA_VERSION = "1.0.0"
-SUPPORTED_VERSIONS = ["0.1.0", "0.4.0", "1.0.0-beta.1", "1.0.0"]
 
 
 def _geopandas_to_arrow(
     df,
     index=None,
-    geometry_encoding="WKB",
     schema_version=None,
     write_covering_bbox=None,
     schema = None
@@ -22,25 +17,20 @@ def _geopandas_to_arrow(
     """
     Helper function with main, shared logic for to_parquet/to_feather.
     """
-    from pyarrow import Table
-
-    from geopandas.io._geoarrow import geopandas_to_arrow
+    from pyarrow import StructArray, Table
 
     _validate_dataframe(df)
 
-    if schema_version is not None:
-        if geometry_encoding != "WKB" and schema_version != "1.1.0":
-            raise ValueError(
-                "'geoarrow' encoding is only supported with schema version >= 1.1.0"
-            )
+    # The following lines can be removed once the following PR is merged and released:
+    # https://github.com/geopandas/geopandas/pull/3412
+    geometry_encoding = {}
+    for col in df.columns[df.dtypes == "geometry"]:
+        geometry_encoding[col] = "WKB"
 
-    table, geometry_encoding_dict = geopandas_to_arrow(
-        df, geometry_encoding=geometry_encoding, index=index, interleaved=False
-    )
     geo_metadata = _create_metadata(
         df,
         schema_version=schema_version,
-        geometry_encoding=geometry_encoding_dict,
+        geometry_encoding=geometry_encoding, # can also be removed then
         write_covering_bbox=write_covering_bbox,
     )
 
@@ -49,6 +39,19 @@ def _geopandas_to_arrow(
     df = df.to_wkb()
 
     table = Table.from_pandas(df, schema = schema, preserve_index=index)
+
+    if write_covering_bbox:
+        if "bbox" in df.columns:
+            raise ValueError(
+                "An existing column 'bbox' already exists in the dataframe. "
+                "Please rename to write covering bbox."
+            )
+        bounds = df.bounds
+        bbox_array = StructArray.from_arrays(
+            [bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]],
+            names=["xmin", "ymin", "xmax", "ymax"],
+        )
+        table = table.append_column("bbox", bbox_array)
 
     # Store geopandas specific file-level metadata
     # This must be done AFTER creating the table or it is not persisted
@@ -66,6 +69,7 @@ def to_parquet(
     index=None,
     compression="snappy",
     schema_version=None,
+    write_covering_bbox=False,
     schema = None,
     **kwargs
 ):
@@ -96,6 +100,10 @@ def to_parquet(
     schema_version : {'0.1.0', '0.4.0', '1.0.0', None}
         GeoParquet specification version; if not provided will default to
         latest supported version.
+    write_covering_bbox : bool, default False
+        Writes the bounding box column for each row entry with column
+        name 'bbox'. Writing a bbox column can be computationally
+        expensive, hence is default setting is False.
     **kwargs
         Additional keyword arguments passed to pyarrow.parquet.write_table().
     """
@@ -108,6 +116,8 @@ def to_parquet(
         df,
         index=index,
         schema_version=schema_version,
+        write_covering_bbox=write_covering_bbox,
         schema = schema
     )
     parquet.write_table(table, path, compression=compression, **kwargs)
+
