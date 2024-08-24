@@ -2,6 +2,8 @@ from ..convert_utils import convert as convert_
 
 import pandas as pd
 
+# todo: create converter for original data and migrate this converter to use the add_eurocrops function
+
 SOURCES = {
   "https://zenodo.org/records/8229128/files/LV_2021.zip": ["LV_2021/LV_2021_EC21.shp"]
 }
