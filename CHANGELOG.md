@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Converter for Luís Eduardo Magalhães (LEM) and other municipalities in the west of Bahia state, Brazil (`br_ba_lem`)
 - Converter for Denmark (`dk`)
+- New parameter `--geoparquet1` to generate GeoParquet 1.0 without bbox column instead of GeoParquet 1.1 with bbox column
+
+### Changed
+
+- CLI creates GeoParquet 1.1 with bbox column by default
+- The function signature in the `convert` function of the converters has changed to a simpler more future-proof variant.
 
 ### Fixed
 
