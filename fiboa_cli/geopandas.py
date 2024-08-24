@@ -36,6 +36,8 @@ def _geopandas_to_arrow(
 
     if any(df[col].array.has_z.any() for col in df.columns[df.dtypes == "geometry"]):
         raise ValueError("Cannot write 3D geometries")
+
+    bounds = df.bounds # Must be retrieved before we convert to WKB, otherwise there are no bounds left
     df = df.to_wkb()
 
     table = Table.from_pandas(df, schema = schema, preserve_index=index)
@@ -46,7 +48,6 @@ def _geopandas_to_arrow(
                 "An existing column 'bbox' already exists in the dataframe. "
                 "Please rename to write covering bbox."
             )
-        bounds = df.bounds
         bbox_array = StructArray.from_arrays(
             [bounds["minx"], bounds["miny"], bounds["maxx"], bounds["maxy"]],
             names=["xmin", "ymin", "xmax", "ymax"],

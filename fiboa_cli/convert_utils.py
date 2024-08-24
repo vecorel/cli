@@ -37,6 +37,7 @@ def convert(
         store_collection = False,
         license = None,
         compression = None,
+        geoparquet1 = False,
         explode_multipolygon = False,
         **kwargs):
     """
@@ -202,7 +203,7 @@ def convert(
         "fiboa_version": fiboa_version,
     }
     columns = list(actual_columns.values())
-    pq_fields = create_parquet(gdf, columns, collection, output_file, config, missing_schemas, compression)
+    pq_fields = create_parquet(gdf, columns, collection, output_file, config, missing_schemas, compression, geoparquet1)
 
     if store_collection:
         external_collection = add_asset_to_collection(collection, output_file, rows = len(gdf), columns = pq_fields)
