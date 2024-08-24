@@ -13,7 +13,7 @@ from fsspec import AbstractFileSystem
 from fsspec.implementations.http import HTTPFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from geopandas.io.arrow import _arrow_to_geopandas
-from jsonschema.validators import Draft202012Validator
+from jsonschema.validators import Draft202012Validator, Draft7Validator
 from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 from typing import Union
@@ -304,9 +304,14 @@ def log_extensions(collection, logger):
 
 
 def create_validator(schema):
-    return Draft202012Validator(
+    if schema["$schema"] == "http://json-schema.org/draft-07/schema#":
+        instance = Draft7Validator
+    else:
+        instance = Draft202012Validator
+
+    return instance(
         schema,
-        format_checker = Draft202012Validator.FORMAT_CHECKER,
+        format_checker = instance.FORMAT_CHECKER,
         registry = referencing.Registry(retrieve = retrieve_remote_schema)
     )
 
