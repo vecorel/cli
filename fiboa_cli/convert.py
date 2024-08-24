@@ -18,7 +18,14 @@ def convert(dataset, output_file, input_files = None, cache = None, source_coop_
         log(converter.DATA_ACCESS.strip(), "info")
         raise Exception("Provide the file through the `-i` parameter.")
 
-    converter.convert(output_file, input_files = input_files, cache = cache, source_coop_url = source_coop_url, collection = collection, compression = compression)
+    converter.convert(
+        output_file,
+        input_files = input_files,
+        cache = cache,
+        source_coop_url = source_coop_url,
+        store_collection = collection,
+        compression = compression
+    )
 
 def list_all_converter_ids():
     datasets = importlib.import_module(".datasets", package="fiboa_cli")

@@ -74,8 +74,6 @@ def create_parquet(data, columns, collection, output_file, config, missing_schem
         compression = "zstd"
 
     # Write the data to the Parquet file
-    # Proprietary function exported from geopandas to solve
-    # https://github.com/geopandas/geopandas/issues/3182
     to_parquet(
         data,
         output_file,

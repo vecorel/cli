@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converter for Luís Eduardo Magalhães (LEM) and other municipalities in the west of Bahia state, Brazil (`br_ba_lem`)
 - Converter for Denmark (`dk`)
 
+### Changes
+
+- The function signature in the `convert` function of the converters has changed to a simpler more future-proof variant.
+
 ### Fixed
 
 - `fiboa convert`: Create output folder if it doesn't exist
