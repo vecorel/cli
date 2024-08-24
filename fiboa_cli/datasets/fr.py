@@ -22,7 +22,7 @@ PROVIDERS = [
     }
 ]
 # Attribution example as described in the open license
-ATTRIBUTION = "IGN — Original data downloaded from https://geoservices.ign.fr/rpg, updated on June 14 2024"
+ATTRIBUTION = "IGN — Original data from https://geoservices.ign.fr/rpg"
 LICENSE = {"title": "Licence Ouverte / Open Licence", "href": "https://etalab.gouv.fr/licence-ouverte-open-licence", "type": "text/html", "rel": "license"}
 
 COLUMNS = {
@@ -31,10 +31,6 @@ COLUMNS = {
     'surf_parc': 'area',
     'code_cultu': 'crop_code',
     'code_group': 'group_code',
-}
-
-ADD_COLUMNS = {
-    "determination_datetime": "2022-01-15T00:00:00Z"
 }
 
 COLUMN_FILTERS = {
@@ -65,7 +61,6 @@ def convert(output_file, input_files = None, cache = None, source_coop_url = Non
         providers=PROVIDERS,
         source_coop_url=source_coop_url,
         missing_schemas=MISSING_SCHEMAS,
-        column_additions=ADD_COLUMNS,
         column_filters=COLUMN_FILTERS,
         attribution=ATTRIBUTION,
         store_collection=collection,

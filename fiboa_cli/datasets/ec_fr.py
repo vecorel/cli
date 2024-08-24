@@ -1,11 +1,13 @@
 from ..convert_utils import convert as convert_
 
 SOURCES = {
-  "https://zenodo.org/records/10118572/files/FR_2018.zip": ["FR_2018/FR_2018_EC21.shp"]
+    "https://zenodo.org/records/10118572/files/FR_2018.zip": [
+        "FR_2018/FR_2018_EC21.shp"
+    ]
 }
 
 ID = "ec_fr"
-SHORT_NAME = "France (Eurocrops, 2018)"
+SHORT_NAME = "France - Eurocrops, 2018"
 TITLE = "Field boundaries for France from EuroCrops (2018)"
 DESCRIPTION = """
 This dataset contains the field boundaries for all of France in 2018. The data was collected by the French government and harmonized
@@ -30,7 +32,7 @@ PROVIDERS = [
         "roles": ["producer", "licensor"]
     }
 ]
-ATTRIBUTION = "Institut National de l'Information Géographique et Forestière"
+ATTRIBUTION = "Institut National de l'Information G�ographique et Foresti�re"
 
 LICENSE = "CC-BY-4.0"
 
@@ -85,4 +87,5 @@ def convert(output_file, input_files = None, cache = None, source_coop_url = Non
         store_collection=collection,
         license=LICENSE,
         compression=compression,
+        explode_multipolygon=True
     )

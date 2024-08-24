@@ -5,7 +5,7 @@ SOURCES = {
 }
 
 ID = "ec_si"
-SHORT_NAME = "Slovenia (Eurocrops, 2021)"
+SHORT_NAME = "Slovenia - Eurocrops, 2021"
 TITLE = "Field boundaries for Slovenia from EuroCrops (2021)"
 DESCRIPTION = """
 This dataset contains the field boundaries for all of Slovenia in 2021. The data was collected by the Slovenian government and harmonized

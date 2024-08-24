@@ -164,14 +164,15 @@ def convert(
     # 5. Duplicate columns if needed
     actual_columns = {}
     for old_key, new_key in columns.items():
-        # If new keys are a list, duplicate the column
-        if isinstance(new_key, list):
-            for key in new_key:
-                gdf[key] = gdf.loc[:, old_key]
-                actual_columns[key] = key
-        # If new key is a string, plan to rename the column
-        elif old_key in gdf.columns:
-            actual_columns[old_key] = new_key
+        if old_key in gdf.columns:
+            # If the new keys are a list, duplicate the column
+            if isinstance(new_key, list):
+                for key in new_key:
+                    gdf[key] = gdf.loc[:, old_key]
+                    actual_columns[key] = key
+            # If the new key is a string, plan to rename the column
+            elif old_key in gdf.columns:
+                actual_columns[old_key] = new_key
         # If old key is not found, remove from the schema and warn
         else:
             log(f"Column '{old_key}' not found in dataset, removing from schema", "warning")

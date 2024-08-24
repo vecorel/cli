@@ -7,7 +7,7 @@ SOURCES = {
 }
 
 ID = "ec_lv"
-SHORT_NAME = "Latvia (Eurocrops, 2021)"
+SHORT_NAME = "Latvia - Eurocrops, 2021"
 TITLE = "Field boundaries for Latvia from EuroCrops (2021)"
 DESCRIPTION = """
 This dataset contains the field boundaries for all of Latvia in 2021. The data was collected by the Latvian government and harmonized
@@ -62,12 +62,12 @@ COLUMN_MIGRATIONS = {
 
 MISSING_SCHEMAS = {
     'required': [
-        'year', 
-        'parcel_id', 
+        'year',
+        'parcel_id',
         'crop_id',
-        'subsidy_type', 
-        'EC_NUTS3', 
-        # 'PRODUCT_DE', 
+        'subsidy_type',
+        'EC_NUTS3',
+        # 'PRODUCT_DE',
     ],
     'properties': {
         'year': {
