@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.7.0] - 2024-08-24
+
 ### Added
 
 - Converter for Luís Eduardo Magalhães (LEM) and other municipalities in the west of Bahia state, Brazil (`br_ba_lem`)
@@ -24,7 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `fiboa convert`: Create output folder if it doesn't exist
 - Strip whitespaces/newlines from created STAC collections
-- `fiboa create-geosjon`: Don't write FeatureCollections to folder if a filename is given
+- `fiboa create-geojson`: Don't write FeatureCollections to folder if a filename is given
 
 ## [v0.6.0] - 2024-07-25
 
@@ -304,7 +306,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release
 
-[Unreleased]: <https://github.com/fiboa/cli/compare/v0.6.0...main>
+[Unreleased]: <https://github.com/fiboa/cli/compare/v0.7.0...main>
+[v0.7.0]: <https://github.com/fiboa/cli/compare/v0.6.0...v0.7.0>
 [v0.6.0]: <https://github.com/fiboa/cli/compare/v0.5.0...v0.6.0>
 [v0.5.0]: <https://github.com/fiboa/cli/compare/v0.4.0...v0.5.0>
 [v0.4.0]: <https://github.com/fiboa/cli/compare/v0.3.10...v0.4.0>
