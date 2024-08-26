@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converter for Slovenia via EuroCrops (`ec_lv`)
 - Converter for Planet's Automated Field Boundary (`planet_afb`)
 - Converter for Portugal (`pt`)
+- Converter for Varda FieldID (`varda`)
 - Converter for DigiFarm (`digifarm`)
 - Converter for AI4SmallFarms in Cambodia and Vietnam (`ai4sf`)
 - Further tests
