@@ -38,7 +38,8 @@ def cli():
 @click.option(
     '--num', '-n',
     type=click.IntRange(min=0),
-    help='Number of rows to show. Defaults to 10.',
+    help='Number of rows to show.',
+    show_default=True,
     default=10
 )
 @click.option(
@@ -210,7 +211,8 @@ def validate_schema(files, metaschema):
 @click.option(
     '--fiboa-version', '-f',
     type=click.STRING,
-    help=f'The applicable fiboa version if no collection is provided. Defaults to {fiboa_version_}.',
+    help=f'The applicable fiboa version if no collection is provided.',
+    show_default=True,
     default=fiboa_version_
 )
 def create_geoparquet(files, out, collection, schema, ext_schema, fiboa_version):
@@ -298,7 +300,8 @@ def create_geojson(file, out, features = False, num = None, indent = None):
 @click.option(
     '--fiboa-version', '-f',
     type=click.STRING,
-    help=f'The fiboa version to validate against. Defaults to {fiboa_version_}.',
+    help=f'The fiboa version to validate against.',
+    show_default=True,
     default=fiboa_version_
 )
 @click.option(
@@ -367,8 +370,9 @@ def jsonschema(schema, out, fiboa_version, id_):
 @click.option(
     '--compression', '-pc',
     type=click.Choice(["brotli", "gzip", "lz4", "snappy", "zstd", "none"]),
-    help='Compression method for the Parquet file. Defaults to zstd.',
-    default="zstd"
+    help='Compression method for the Parquet file.',
+    show_default=True,
+    default="brotli"
 )
 @click.option(
     '--geoparquet1', '-gp1',
@@ -457,7 +461,8 @@ def converters(providers, sources, verbose):
 @click.option(
     '--org', '-o',
     type=click.STRING,
-    help='Slug of the GitHub Organization. Defaults to `fiboa`',
+    help='Slug of the GitHub Organization.',
+    show_default=True,
     default="fiboa"
 )
 @click.option(

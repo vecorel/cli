@@ -69,9 +69,8 @@ def create_parquet(data, columns, collection, output_file, config, missing_schem
     pq_schema = pa.schema(pq_fields)
     pq_schema = pq_schema.with_metadata({"fiboa": json.dumps(collection).encode("utf-8")})
 
-    # See also https://github.com/fiboa/cli/pull/30
     if compression is None:
-        compression = "zstd"
+        compression = "brotli"
 
     # Write the data to the Parquet file
     to_parquet(

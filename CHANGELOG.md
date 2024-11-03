@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Converter for Croatia (`hr`)
 
+### Changed
+
+- `fiboa convert`: Default compression changed from `zstd` to `brotli`
+
 ## [v0.7.0] - 2024-08-24
 
 ### Added
