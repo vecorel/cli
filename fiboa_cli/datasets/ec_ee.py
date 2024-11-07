@@ -3,6 +3,9 @@ import pandas as pd
 from ..convert_utils import convert as convert_
 from .commons.ec import add_eurocrops
 
+# todo: The dataset doesn't validate due to a self intersecting polygon
+# How do we want to handle this?
+
 SOURCES = "https://zenodo.org/records/8229128/files/EE_2021.zip?download=1"
 
 ID = "ec_es"
