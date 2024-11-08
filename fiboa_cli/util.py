@@ -105,6 +105,8 @@ def get_fs(url_or_path: str) -> AbstractFileSystem:
     parsed = urlparse(url_or_path)
 
     if parsed.scheme in ('http', 'https'):
+        if re.search(r"[?&]blocksize=0", url_or_path):
+            return HTTPFileSystem(block_size=0)
         return HTTPFileSystem()
 
     if parsed.scheme == "s3":
