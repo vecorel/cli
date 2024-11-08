@@ -46,7 +46,6 @@ COLUMNS = {
     "crop_name": "crop_name",
     "crop_code": "crop_code",
     "id": "id",
-    "area": "area",
     "determination_datetime": "determination_datetime",
 }
 
@@ -67,7 +66,6 @@ def migration(gdf):
     gdf['crop_code'] = gdf['crop_code'].str.extract(r'\.(\d+)$', expand=False)
     gdf['crop_name'] = gdf['crop_name'].str.strip()  # .str.replace("  ", " ").str.replace("( ", "(")
     gdf["determination_datetime"] = "2022-01-01T00:00:00Z"
-    gdf["area"] = gdf["geometry"].area
     gdf["id"] = gdf.index
     return gdf
 
