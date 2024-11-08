@@ -105,6 +105,10 @@ def get_fs(url_or_path: str) -> AbstractFileSystem:
     parsed = urlparse(url_or_path)
 
     if parsed.scheme in ('http', 'https'):
+        if re.search(r"[?&]blocksize=0", url_or_path):
+            # We read in chunks. Some origin-server don't support http-range request
+            # Add an additional blocksize=0 parameter to your url for a workaround
+            return HTTPFileSystem(block_size=0)
         return HTTPFileSystem()
 
     if parsed.scheme == "s3":

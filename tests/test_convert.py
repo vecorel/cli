@@ -14,7 +14,7 @@ def out_file():
         yield out
 
 
-@mark.parametrize('converter', ['at', 'be_vlg', 'br_ba_lem', 'de_sh', 'ec_lv', 'ec_si', 'fi', 'fr', 'hr', 'nl', 'nl_crop', 'pt', 'dk'])
+@mark.parametrize('converter', ['at', 'be_vlg', 'br_ba_lem', 'de_sh', 'ec_lv', 'ec_si', 'fi', 'fr', 'hr', 'nl', 'nl_crop', 'pt', 'dk', 'be_wa'])
 def test_converter(out_file, converter):
     path = f"tests/data-files/convert/{converter}"
     runner = CliRunner()
@@ -29,7 +29,6 @@ def test_converter(out_file, converter):
 
 
 @mark.parametrize('args', [
-    ['be_wa', ['tests/data-files/convert/be_wa/SIGEC_PARC_AGRI_ANON__2022_GEOPACKAGE_31370.zip|SIGEC_PARC_AGRI_ANON__2022.gpkg']],
     ['ai4sf', ['tests/data-files/convert/ai4sf/1_vietnam_areas.gpkg', 'tests/data-files/convert/ai4sf/4_cambodia_areas.gpkg']]
 ])
 def test_converter_with_input(out_file, args):
