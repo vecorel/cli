@@ -21,7 +21,7 @@ PROVIDERS = [
         "roles": ["producer", "licensor"]
     }
 ]
-ATTRIBUTION = "Finnish Food Authority"
+ATTRIBUTION = "Jordbruksverket"
 
 LICENSE = "CC-0"  # "Open Data"
 COLUMNS = {
