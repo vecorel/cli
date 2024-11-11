@@ -9,11 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Converter for Croatia (`hr`)
+- Converter for Croatia
 - Converter for Germany, Mecklenburg-Western Pomerania
 - Converter for Germany, Saarland
 - Converter for Germany, Saxony
 - Converter for Estonia (EuroCrops)
+- Converter for Sweden
+- Converter for Luxembourg
+- Converter for Ireland
 
 ### Changed
 
