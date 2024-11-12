@@ -41,6 +41,9 @@ setup(
         # ]
         "ie": [
             "zipfile-deflate64"
+        ],
+        "si": [
+            "rarfile>=4.0"
         ]
     },
     packages=find_packages(),
