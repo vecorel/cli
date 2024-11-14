@@ -20,7 +20,6 @@ PROVIDERS = [
         "roles": ["producer", "licensor"]
     }
 ]
-ATTRIBUTION = ""
 
 LICENSE = {
     "title": "Javno dostopni podatki: Publicly available data",
@@ -74,7 +73,6 @@ def convert(output_file, cache = None, mapping_file=None, **kwargs):
         providers=PROVIDERS,
         missing_schemas=MISSING_SCHEMAS,
         column_migrations=COLUMN_MIGRATIONS,
-        attribution=ATTRIBUTION,
         license=LICENSE,
         **kwargs
     )
