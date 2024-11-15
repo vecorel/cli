@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - MultiPolygons are converted to Polygons by default
 - `fiboa validate` uses custom schemas for validation
 - `fiboa merge` keeps custom schemas when needed
+- Extended converter for Croatia; with crop_code and crop_name
 
 ### Removed
 - `fiboa convert`: Removed the explicit parameter `explode_multipolygon` from the converter
