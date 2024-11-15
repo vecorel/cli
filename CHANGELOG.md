@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Converter for Lithuania (EuroCrops)
+- Converter for Switzerland
+
+### Fixed
+
+- Fix converter for Estland to use the id `ec_ee` instead of `ec_es`
+
+## [v0.8.0] - 2024-11-12
+
+### Added
+
 - Merge command: `fiboa merge`
 - Converter for Croatia
 - Converter for Germany, Mecklenburg-Western Pomerania
@@ -18,10 +29,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converter for Sweden
 - Converter for Luxembourg
 - Converter for Ireland
+- Converter for Lacuna Labels (A region-wide, multi-year set of crop field boundary labels for Africa)
 
 ### Changed
 
 - `fiboa convert`: Default compression changed from `zstd` to `brotli`
+- The default row group size of exported parquet files was changed from ~1.000.000 to 25.000
 
 ### Fixed
 
@@ -327,7 +340,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release
 
-[Unreleased]: <https://github.com/fiboa/cli/compare/v0.7.0...main>
+[Unreleased]: <https://github.com/fiboa/cli/compare/v0.8.0...main>
+[v0.8.0]: <https://github.com/fiboa/cli/compare/v0.7.0...v0.8.0>
 [v0.7.0]: <https://github.com/fiboa/cli/compare/v0.6.0...v0.7.0>
 [v0.6.0]: <https://github.com/fiboa/cli/compare/v0.5.0...v0.6.0>
 [v0.5.0]: <https://github.com/fiboa/cli/compare/v0.4.0...v0.5.0>
