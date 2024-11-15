@@ -9,10 +9,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Command `fiboa improve` with helpers to
+  - change the CRS
+  - change the GeoParquet version and compression
+  - fill missing perimeter/area values
+  - fix invalid geometries
+  - rename columns
 - Converter for Lithuania (EuroCrops)
-- Converter for Switzerland
 - Converter for Slovenia
 - Converter for Slovakia
+- Converter for Switzerland
+- `fiboa convert`: New parameter `--original-geometries` / `-og` to keep the original geometries
+
+### Changed
+
+- `fiboa convert`:
+  - Writes custom schemas to collection metadata
+  - Geometries are made valid using GeoPanda's `make_valid` method by default
+  - MultiPolygons are converted to Polygons by default
+- `fiboa validate` uses custom schemas for validation
+- `fiboa merge` keeps custom schemas when needed
+
+### Removed
+- `fiboa convert`: Removed the explicit parameter `explode_multipolygon` from the converter
 
 ### Fixed
 

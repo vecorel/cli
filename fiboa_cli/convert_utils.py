@@ -40,7 +40,7 @@ def convert(
         license = None,
         compression = None,
         geoparquet1 = False,
-        explode_multipolygon = False,
+        original_geometries = False,
         index_as_id = False,
         **kwargs):
     """
@@ -160,11 +160,12 @@ def convert(
             else:
                 log(f"Column '{key}' not found in dataset, skipping migration", "warning")
 
-    # 4b. For geometry column, convert multipolygon type to polygon
-    if explode_multipolygon:
+    # 4b. For geometry column, fix geometries
+    if not original_geometries:
+        gdf.geometry = gdf.geometry.make_valid()
         gdf = gdf.explode()
 
-    if has_migration or has_col_migrations or has_col_filters or has_col_additions or explode_multipolygon:
+    if has_migration or has_col_migrations or has_col_filters or has_col_additions:
         log("GeoDataFrame after migrations and filters:")
         print(gdf.head())
 
