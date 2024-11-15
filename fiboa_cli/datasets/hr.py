@@ -1,3 +1,4 @@
+from .commons.data import read_data_csv
 from ..convert_utils import convert as convert_
 import numpy as np
 
@@ -155,27 +156,10 @@ MISSING_SCHEMAS = {
 }
 
 
-CATEGORIES = """\
-200;Oranica;Arable land
-210;Staklenici na oranici;Greenhouses on the arable land
-310;Livada;Meadow
-320;Pašnjak;Pasture
-321;Krški pašnjak;Karst pasture
-410;Vinograd;Vineyard
-411;Iskrčeni vinograd;Cleared vineyard
-421;Maslinik;Olive grove
-422;Voćnjak	Poljoprivredno;Orchard
-430;Kulture kratke ophodnje;Short tour cultures
-450;Rasadnik;Nursery
-490;Mješoviti višegodišnji nasadi;Mixed perennial plantations
-900;Ostale vrste uporabe zemljišta;Other types of land use
-910;Privremeno neodržavana parcela;Temporarily unmaintained plot"""
-
-
 def migration(gdf):
-    rows = [line.split(";") for line in CATEGORIES.split('\n')]
-    mapping = {int(row[0]): row[1] for row in rows}
-    mapping_en = {int(row[0]): row[2] for row in rows}
+    rows = read_data_csv("hr_categories.csv", delimiter=";")
+    mapping = {int(row["code"]): row["name"] for row in rows}
+    mapping_en = {int(row["code"]): row["name_en"] for row in rows}
     gdf['crop_name'] = gdf['land_use_id'].map(mapping)
     gdf['crop_name_en'] = gdf['land_use_id'].map(mapping_en)
     gdf['area'] = np.where(gdf['area'] == 0, gdf['geometry'].area / 10000, gdf['area'] / 10000)
