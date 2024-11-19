@@ -3,4 +3,6 @@ from os.path import dirname, join
 
 
 def read_data_csv(name, **kwargs):
-    return list(DictReader(open(join(dirname(dirname(__file__)), "data-files", name), 'r'), **kwargs))
+    path = join(dirname(dirname(__file__)), "data-files", name)
+    with open(path, 'r') as f:
+        return list(DictReader(f, **kwargs))
