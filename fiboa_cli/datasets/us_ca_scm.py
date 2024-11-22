@@ -8,8 +8,8 @@ SOURCES = {
     "https://data.cnra.ca.gov/dataset/6c3d65e3-35bb-49e1-a51e-49d5a2cf09a9/resource/f38d3f6f-dcf1-4553-9f07-4f381d494320/download/i15_crop_mapping_2022_provisional_gdb.zip": ["i15_Crop_Mapping_2022_Provisional_GDB/i15_Crop_Mapping_2022_Provisional.gdb"]
 }
 ID = "us_ca_scm"
-SHORT_NAME = "CA SCM"
-TITLE = "California Statewide Crop Mapping"
+SHORT_NAME = "US, California (SCM)"
+TITLE = "California (US) Statewide Crop Mapping"
 DESCRIPTION = """
 For many years, the California Department of Water Resources (DWR) has collected land use data throughout the state
 and used this information to develop water use estimates for statewide and regional planning efforts, including water
