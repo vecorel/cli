@@ -33,7 +33,7 @@ COLUMNS = {
     "UniqueID": "id",
     'MAIN_CROP': 'crop:code',
     'crop:name': 'crop:name',
-    'COUNTY': "administrative_area_level_2",
+    'COUNTY': "admin_level_2",
 }
 
 ADD_COLUMNS = {
