@@ -42,12 +42,17 @@ def convert(
         geoparquet1 = False,
         original_geometries = False,
         index_as_id = False,
+        mapping_file = None,
+        open_options = None,
         **kwargs):
     """
     Converts a field boundary datasets to fiboa.
     """
     if bbox is not None and len(bbox) != 4:
         raise ValueError("If provided, the bounding box must consist of 4 numbers")
+
+    if open_options:
+        kwargs.update(open_options)
 
     # Create output folder if it doesn't exist
     dir = os.path.dirname(output_file)
