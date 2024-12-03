@@ -92,6 +92,7 @@ def convert(
                 except IndexError as e:
                     if str(e).startswith("index 0 is out of bounds"):
                         log(f"read 0 feature from {path}", "warning")
+                        continue
                     else:
                         raise
 

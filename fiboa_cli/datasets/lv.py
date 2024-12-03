@@ -51,7 +51,7 @@ MISSING_SCHEMAS = {
 
 
 def convert(output_file, cache = None, mapping_file = None, **kwargs):
-    count = 10000
+    count = 3000
     sources = {
         f"{SOURCES}?request=GetFeature&service=wfs&version=2.0.0&typeNames=Lauki&count={count}&startindex={count * i}": f"lv_{i}_{count}.xml"
         for i in range(500000 // count)  # TODO number should be dynamic, stop reading with 0 results
