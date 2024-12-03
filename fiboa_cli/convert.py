@@ -69,6 +69,10 @@ def list_all_converters(keys):
             pass
     return converters
 
-def read_converter(id):
-    module_name = f".datasets.{id}"
-    return importlib.import_module(module_name, package="fiboa_cli")
+
+def read_converter(_id):
+    module_name = f".datasets.{_id}"
+    package = importlib.import_module(module_name, package="fiboa_cli")
+    if hasattr(package, "Converter"):
+        return package.Converter(_id)
+    return package

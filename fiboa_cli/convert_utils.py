@@ -452,3 +452,34 @@ def read_geojson(path, **kwargs):
     obj["features"] = list(map(normalize_geojson_properties, obj["features"]))
 
     return gpd.GeoDataFrame.from_features(obj, crs = "EPSG:4326")
+
+
+class BaseConverter:
+    sources: None | dict[str, str] | str = None
+    columns: None | list[str] = None
+
+    def __init__(self, _id):
+        self.id = _id
+
+    def convert(self, output_file, cache=None, input_files = None, source_coop_url=None, collection=False, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
+        convert(
+            output_file,
+            cache=cache,
+            sources=input_files or self.sources,
+            columns=self.columns,
+            id=self._id,
+            title=self.title,
+            description=self.description,
+            extensions=self.extensions,
+            providers=self.providers,
+            missing_schemas=self.missing_schemas,
+            attribution=self.attribution,
+            license=self.license,
+            source_coop_url=source_coop_url,
+            collection=collection,
+            compression=compression,
+            geoparquet1=geoparquet1,
+            mapping_file=mapping_file,
+            original_geometries=original_geometries,
+            **kwargs
+        )
