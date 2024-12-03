@@ -1,6 +1,8 @@
 from .commons.ec import load_ec_mapping
 from ..convert_utils import convert as convert_
+import numpy as np
 
+SOURCES = "https://karte.lad.gov.lv/arcgis/services/lauki/MapServer/WFSServer"
 ID = "lv"
 SHORT_NAME = "Latvia"
 TITLE = "Latvia Lauki Parcels"
@@ -33,7 +35,7 @@ COLUMNS = {
     'PARCEL_ID': 'parcel_id',
     "geometry": "geometry",
     "DATA_CHANGED_DATE": "determination_datetime",
-    "AREA_DECLARED": "area",
+    "area": "area",
     "crop:code_list": "crop:code_list",
     "PRODUCT_CODE": "crop:code",
     "crop:name": "crop:name",
@@ -49,10 +51,9 @@ MISSING_SCHEMAS = {
 
 
 def convert(output_file, cache = None, mapping_file = None, **kwargs):
-    base = "https://karte.lad.gov.lv/arcgis/services/lauki/MapServer/WFSServer"
     count = 10000
     sources = {
-        f"{base}?request=GetFeature&service=wfs&version=2.0.0&typeNames=Lauki&count={count}&startindex={count * i}": f"lv_{i}_{count}.xml"
+        f"{SOURCES}?request=GetFeature&service=wfs&version=2.0.0&typeNames=Lauki&count={count}&startindex={count * i}": f"lv_{i}_{count}.xml"
         for i in range(500000 // count)  # TODO number should be dynamic, stop reading with 0 results
     }
 
@@ -61,6 +62,7 @@ def convert(output_file, cache = None, mapping_file = None, **kwargs):
     name_mapping = {int(e["original_code"]): e["translated_name"] for e in ec_mapping}
 
     def migrate(gdf):
+        gdf['area'] = np.where(gdf['AREA_DECLARED'] == 0, gdf.area / 10000, gdf['AREA_DECLARED'])
         gdf["crop:code_list"] = f"https://raw.githubusercontent.com/maja601/EuroCrops/refs/heads/main/csvs/country_mappings/lv_2021.csv"
         gdf['crop:name'] = gdf['PRODUCT_CODE'].map(original_name_mapping)
         gdf['crop:name_en'] = gdf['PRODUCT_CODE'].map(name_mapping)
