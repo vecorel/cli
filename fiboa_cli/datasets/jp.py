@@ -4,6 +4,7 @@ import pandas as pd
 YEARS = [
     f"https://data.source.coop/pacificspatial/field-polygon-jp/parquet/jp_field_polygons_{year}.parquet"
     for year in range(2021, 2024+1)]
+SOURCES = YEARS[-1]
 
 ID = "jp"
 SHORT_NAME = "Japan"
