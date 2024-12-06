@@ -193,6 +193,11 @@ def convert(
     # 6. Rename columns
     gdf.rename(columns = actual_columns, inplace = True)
 
+    # If a column was renamed to "geometry", we need to update the dataframe with gdf.set_geometry
+    geometry_renamed = any(True for k, v in actual_columns.items() if v == "geometry" and k != v)
+    if geometry_renamed:
+        gdf.set_geometry("geometry", inplace=True)
+
     # 7. Remove all columns that are not listed
     drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
     gdf.drop(columns = drop_columns, inplace = True)

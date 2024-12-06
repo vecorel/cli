@@ -32,7 +32,7 @@ ATTRIBUTION = "Fude Polygon Data (2021-2024). Japanese Ministry of Agriculture, 
 LICENSE = "CC-BY-4.0"
 
 COLUMNS = {
-    "geometry": "geometry",
+    "GEOM": "geometry",
     'polygon_uuid': 'id',
     'land_type_en': "land_type_en",
     'local_government_cd': 'admin_local_code',
@@ -52,10 +52,6 @@ MISSING_SCHEMAS = {
         },
     }
 }
-def migrate(df):
-    df.rename(columns={"GEOM": "geometry"}, inplace=True)
-    df.set_geometry("geometry", inplace=True)
-    return df
 
 
 def convert(output_file, cache = None, **kwargs):
@@ -70,7 +66,6 @@ def convert(output_file, cache = None, **kwargs):
         DESCRIPTION,
         missing_schemas=MISSING_SCHEMAS,
         column_migrations=COLUMN_MIGRATIONS,
-        migration=migrate,
         providers=PROVIDERS,
         attribution=ATTRIBUTION,
         license=LICENSE,
