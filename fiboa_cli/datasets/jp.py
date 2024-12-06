@@ -69,6 +69,7 @@ def convert(output_file, cache = None, **kwargs):
         providers=PROVIDERS,
         attribution=ATTRIBUTION,
         license=LICENSE,
+        # todo: See https://github.com/fiboa/cli/pull/135/files#r1872310136
         open_options={"columns": ["GEOM", "polygon_uuid", "land_type_en", "local_government_cd", "issue_year"]},
         **kwargs
     )
