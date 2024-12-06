@@ -21,7 +21,7 @@ import rarfile
 
 def convert(
         output_file, cache_path,
-        urls, columns,
+        urls, column_map,
         id, title, description,
         input_files = None,
         bbox = None,
@@ -43,16 +43,12 @@ def convert(
         original_geometries = False,
         index_as_id = False,
         mapping_file = None,
-        open_options = None,
         **kwargs):
     """
     Converts a field boundary datasets to fiboa.
     """
     if bbox is not None and len(bbox) != 4:
         raise ValueError("If provided, the bounding box must consist of 4 numbers")
-
-    if open_options:
-        kwargs.update(open_options)
 
     # Create output folder if it doesn't exist
     dir = os.path.dirname(output_file)
@@ -153,7 +149,7 @@ def convert(
         log("Adding columns")
         for key, value in column_additions.items():
             gdf[key] = value
-            columns[key] = key
+            column_map[key] = key
 
     # 4. Run column migrations
     has_col_migrations = len(column_migrations) > 0
@@ -176,7 +172,7 @@ def convert(
 
     # 5. Duplicate columns if needed
     actual_columns = {}
-    for old_key, new_key in columns.items():
+    for old_key, new_key in column_map.items():
         if old_key in gdf.columns:
             # If the new keys are a list, duplicate the column
             if isinstance(new_key, list):
@@ -219,8 +215,8 @@ def convert(
     config = {
         "fiboa_version": fiboa_version,
     }
-    columns = list(actual_columns.values())
-    pq_fields = create_parquet(gdf, columns, collection, output_file, config, missing_schemas, compression, geoparquet1)
+    column_map = list(actual_columns.values())
+    pq_fields = create_parquet(gdf, column_map, collection, output_file, config, missing_schemas, compression, geoparquet1)
 
     if store_collection:
         external_collection = add_asset_to_collection(collection, output_file, rows = len(gdf), columns = pq_fields)
