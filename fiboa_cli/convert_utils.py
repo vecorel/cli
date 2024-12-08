@@ -90,8 +90,8 @@ def convert(
                 try:
                     data = gpd.read_file(path, **kwargs)
                 except IndexError as e:
-                    if str(e).startswith("index 0 is out of bounds"):
-                        log(f"read 0 feature from {path}", "warning")
+                    if str(e).startswith("index 0 is out of bounds") and len(paths) > 1:
+                        log(f"read 0 features from {path}", "warning")
                         continue
                     else:
                         raise
