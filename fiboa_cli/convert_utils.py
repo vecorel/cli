@@ -90,6 +90,7 @@ def convert(
                 try:
                     data = gpd.read_file(path, **kwargs)
                 except IndexError as e:
+                    # Error may occur due to paged reading of APIs, e.g. in the LV converter
                     if str(e).startswith("index 0 is out of bounds") and len(paths) > 1:
                         log(f"read 0 features from {path}", "warning")
                         continue
