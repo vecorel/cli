@@ -455,19 +455,31 @@ def read_geojson(path, **kwargs):
 
 
 class BaseConverter:
-    sources: None | dict[str, str] | str = None
-    columns: None | list[str] = None
+    id: str = None
+    short_name: str = None
+    title: str = None
+    attribution: str = None
+    description: str = None
+    providers: list[dict] = None
 
-    def __init__(self, _id):
-        self.id = _id
+    sources: None | dict[str, str] | str = None
+    columns: None | dict[str, str] = None
+    columns_filters: dict[str, callable] = None
+    column_migrations: dict[str, callable] = None
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def migrate(self, gdf):
+        return gdf
 
     def convert(self, output_file, cache=None, input_files = None, source_coop_url=None, collection=False, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
         convert(
             output_file,
-            cache=cache,
-            sources=input_files or self.sources,
-            columns=self.columns,
-            id=self._id,
+            cache,
+            input_files or self.sources,
+            self.columns,
+            id=self.id,
             title=self.title,
             description=self.description,
             extensions=self.extensions,
