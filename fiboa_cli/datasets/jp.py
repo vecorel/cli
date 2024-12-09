@@ -1,10 +1,12 @@
 from ..convert_utils import convert as convert_
 import pandas as pd
 
-YEARS = [
-    f"https://data.source.coop/pacificspatial/field-polygon-jp/parquet/jp_field_polygons_{year}.parquet"
-    for year in range(2021, 2024+1)]
-SOURCES = YEARS[-1]
+YEARS = {
+    2021: "https://data.source.coop/pacificspatial/field-polygon-jp/parquet/jp_field_polygons_2021.parquet",
+    2022: "https://data.source.coop/pacificspatial/field-polygon-jp/parquet/jp_field_polygons_2022.parquet",
+    2023: "https://data.source.coop/pacificspatial/field-polygon-jp/parquet/jp_field_polygons_2023.parquet",
+    2024: "https://data.source.coop/pacificspatial/field-polygon-jp/parquet/jp_field_polygons_2024.parquet",
+}
 
 ID = "jp"
 SHORT_NAME = "Japan"
@@ -55,7 +57,8 @@ MISSING_SCHEMAS = {
 
 
 def convert(output_file, cache = None, **kwargs):
-    sources = {YEARS[-1]: YEARS[-1].rsplit("/", 1)[-1]}
+    year = 2024  # TODO make parameter
+    sources = {YEARS[year]: f"jp_field_polygons_{year}.parquet"}
     convert_(
         output_file,
         cache,
