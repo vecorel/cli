@@ -79,4 +79,12 @@ def list_all_converters(keys):
 
 def read_converter(_id):
     module_name = f".datasets.{_id}"
-    return importlib.import_module(module_name, package="fiboa_cli")
+    module = importlib.import_module(module_name, package="fiboa_cli")
+    if not hasattr(module, "convert"):
+        try:
+            clazz = next(v for v in module.__dict__.values()
+                         if type(v) is type and issubclass(v, BaseConverter) and v != BaseConverter)
+            return clazz()
+        except StopIteration:
+            log("Missing convert function or Converter class for module {_id}", "warning")
+    return module

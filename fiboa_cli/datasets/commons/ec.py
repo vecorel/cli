@@ -101,10 +101,14 @@ class EuroCropsConverterMixin:
         return self.add_hcat(gdf)
 
 
+def ec_url(csv_file):
+    return f"https://raw.githubusercontent.com/maja601/EuroCrops/refs/heads/main/csvs/country_mappings/{csv_file}"
+
+
 def load_ec_mapping(csv_file=None, url=None):
     if not (csv_file or url):
         raise ValueError("Either csv_file or url must be specified")
     if not url:
-        url = f"https://raw.githubusercontent.com/maja601/EuroCrops/refs/heads/main/csvs/country_mappings/{csv_file}"
+        url = ec_url(csv_file)
     content = load_file(url)
     return list(csv.DictReader(StringIO(content.decode('utf-8'))))

@@ -146,6 +146,7 @@ class BaseConverter:
 
     sources: Optional[dict[str, str] | str] = None
     source_variants: Optional[dict[dict[str, str] | str]] = None
+    variant: str = None
 
     columns: dict[str, str] = None
     column_additions: dict[str, str] = EMPTY_DICT
@@ -252,17 +253,17 @@ class BaseConverter:
 
         return paths
 
-    def get_urls(self, variant):
+    def get_urls(self):
         urls = self.sources
         if not urls and self.source_variants:
-            if variant in self.source_variants:
-                urls = self.source_variants[variant]
-            elif variant is None:
-                urls = next(iter(self.source_variants.values()))
-                log(f"Choosing first variant {urls}", "warning")
+            if self.variant is None:
+                self.variant = next(iter(self.source_variants))
+                log(f"Choosing first variant {self.variant}", "warning")
+            if self.variant in self.source_variants:
+                urls = self.source_variants[self.variant]
             else:
                 opts = ", ".join(self.source_variants.keys())
-                raise ValueError(f"Unknown variant '{variant}', choose from {opts}")
+                raise ValueError(f"Unknown variant '{self.variant}', choose from {opts}")
         return urls
 
     def read_data(self, paths, **kwargs):
@@ -301,7 +302,7 @@ class BaseConverter:
         return pd.concat(gdfs)
 
     def filter_rows(self, gdf):
-        if  len(self.column_filters) > 0:
+        if len(self.column_filters) > 0:
             log("Applying filters")
             for key, fn in self.column_filters.items():
                 if key in gdf.columns:
@@ -380,27 +381,27 @@ class BaseConverter:
             collection["attribution"] = self.attribution
 
         # Update license
-        if isinstance(license, dict):
+        if isinstance(self.license, dict):
             collection["links"].append(license)
-        elif isinstance(license, str):
-            if license.lower() == "dl-de/by-2-0":
+        elif isinstance(self.license, str):
+            if self.license.lower() == "dl-de/by-2-0":
                 collection["links"].append({
                     "href": "https://www.govdata.de/dl-de/by-2-0",
                     "title": "Data licence Germany - attribution - Version 2.0",
                     "type": "text/html",
                     "rel": "license"
                 })
-            elif license.lower() == "dl-de/zero-2-0":
+            elif self.license.lower() == "dl-de/zero-2-0":
                 collection["links"].append({
                     "href": "https://www.govdata.de/dl-de/zero-2-0",
                     "title": "Data licence Germany - Zero - Version 2.0",
                     "type": "text/html",
                     "rel": "license"
                 })
-            elif re.match(r"^[\w\.-]+$", license):
-                collection["license"] = license
+            elif re.match(r"^[\w\.-]+$", self.license):
+                collection["license"] = self.license
             else:
-                log(f"Invalid license identifier: {license}", "warning")
+                log(f"Invalid license identifier: {self.license}", "warning")
         else:
             log(f"License information missing", "warning")
 
@@ -408,7 +409,7 @@ class BaseConverter:
 
     def convert(self, output_file, cache=None, input_files=None, source_coop_url=None, store_collection=False, variant=None, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
         columns = self.columns.copy()
-
+        self.variant = variant
         """
         Converts a field boundary datasets to fiboa.
         """
@@ -420,7 +421,7 @@ class BaseConverter:
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-        urls = self.get_urls(variant)
+        urls = self.get_urls()
         if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
             log("Using user provided input file(s) instead of the pre-defined file(s)", "warning")
             urls = input_files
