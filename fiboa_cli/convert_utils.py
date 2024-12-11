@@ -243,7 +243,7 @@ class BaseConverter:
                     with rarfile.RarFile(cache_file, 'r') as w:
                         w.extractall(zip_folder)
                 else:
-                    raise ValueError("Only ZIP and 7Z files are supported for extraction")
+                    raise ValueError(f"Only ZIP and 7Z files are supported for extraction: {cache_file}")
 
             if is_archive:
                 for filename in target:
