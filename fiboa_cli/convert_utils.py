@@ -1,3 +1,7 @@
+from functools import partial
+from types import MappingProxyType
+from typing import Optional
+
 from .const import STAC_TABLE_EXTENSION
 from .version import fiboa_version
 from .util import log, get_fs, name_from_uri, to_iso8601
@@ -18,6 +22,7 @@ import py7zr
 import flatdict
 import rarfile
 
+EMPTY_DICT = MappingProxyType({})
 
 def convert(
         output_file, cache_path,
@@ -42,6 +47,7 @@ def convert(
         geoparquet1 = False,
         original_geometries = False,
         index_as_id = False,
+        variant = None,  # noqa unused
         **kwargs):
     """
     Converts a field boundary datasets to fiboa.
@@ -458,40 +464,76 @@ class BaseConverter:
     id: str = None
     short_name: str = None
     title: str = None
+    license: str | dict[str, str] = None
     attribution: str = None
     description: str = None
     providers: list[dict] = None
 
-    sources: None | dict[str, str] | str = None
-    columns: None | dict[str, str] = None
-    columns_filters: dict[str, callable] = None
-    column_migrations: dict[str, callable] = None
+    sources: Optional[dict[str, str] | str] = None
+    source_variants: Optional[dict[dict[str, str] | str]] = None
+
+    columns: dict[str, str] = None
+    column_additions: dict[str, str] = EMPTY_DICT
+    column_filters: dict[str, callable] = EMPTY_DICT
+    column_migrations: dict[str, callable] = EMPTY_DICT
+    missing_schemas: dict[str, str] = EMPTY_DICT
+    extensions: list[str] = tuple()
+
+    index_as_id = False
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        for key in ("id", "short_name", "title", "license", "columns"):
+            assert getattr(self, key) is not None, f"{self.__class__.__name__} misses required attribute {key}"
 
     def migrate(self, gdf):
         return gdf
 
-    def convert(self, output_file, cache=None, input_files = None, source_coop_url=None, collection=False, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
+    def file_migration(self, data, path, uri, layer):  # noqa
+        return data
+
+    def layer_filter(self, layer, uri):  # noqa
+        return True
+
+    def convert(self, output_file, variant=None, cache=None, input_files=None, source_coop_url=None, store_collection=False, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
+        sources = self.sources
+        if not sources and self.source_variants:
+            if variant in self.source_variants:
+                sources = self.source_variants[variant]
+            else:
+                opts = ", ".join(self.source_variants.keys())
+                raise ValueError(f"Unknown variant '{variant}', choose from {opts}")
+
         convert(
             output_file,
             cache,
-            input_files or self.sources,
+            sources,
             self.columns,
             id=self.id,
             title=self.title,
             description=self.description,
+            input_files=input_files,
             extensions=self.extensions,
             providers=self.providers,
             missing_schemas=self.missing_schemas,
+            column_additions=self.column_additions,
+            column_migrations=self.column_migrations,
+            column_filters=self.column_filters,
+            migration=self.migrate,
+            file_migration=self.file_migration,
+            layer_filter=self.layer_filter,
             attribution=self.attribution,
             license=self.license,
             source_coop_url=source_coop_url,
-            collection=collection,
+            store_collection=store_collection,
             compression=compression,
             geoparquet1=geoparquet1,
             mapping_file=mapping_file,
             original_geometries=original_geometries,
+            index_as_id=self.index_as_id,
             **kwargs
         )
+
+    def __call__(self, *args, **kwargs):
+        self.convert(*args, **kwargs)
+

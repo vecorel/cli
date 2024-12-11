@@ -6,12 +6,12 @@ base = "https://service.pdok.nl/rvo/brpgewaspercelen/atom/v1_0/downloads"
 
 
 class NLCropConverter(BaseConverter):
-    years = {
-        2024: f"{base}/brpgewaspercelen_concept_2024.gpkg",
-        2023: f"{base}/brpgewaspercelen_definitief_2023.gpkg",
-        2022: f"{base}/brpgewaspercelen_definitief_2022.gpkg",
-        2021: f"{base}/brpgewaspercelen_definitief_2021.gpkg",
-        2020: f"{base}/brpgewaspercelen_definitief_2020.gpkg",
+    source_variants = {
+        "2024": f"{base}/brpgewaspercelen_concept_2024.gpkg",
+        "2023": f"{base}/brpgewaspercelen_definitief_2023.gpkg",
+        "2022": f"{base}/brpgewaspercelen_definitief_2022.gpkg",
+        "2021": f"{base}/brpgewaspercelen_definitief_2021.gpkg",
+        "2020": f"{base}/brpgewaspercelen_definitief_2020.gpkg",
         # {r: {base}/brpgewaspercelen_definitief_{r}.zip for r in range(2009, 2020)}
     }
 
@@ -62,14 +62,15 @@ class NLCropConverter(BaseConverter):
         'jaar': lambda col: pd.to_datetime(col, format='%Y') + pd.DateOffset(months=4, days=14)
     }
 
+    index_as_id = True
+
     def migrate(self, gdf):
         # Projection is in CRS 28992 (RD New), this is the area calculation method of the source organization
         # todo: remove in favor of generic solution for area calculation
         gdf['area'] = gdf.area / 10000
         return gdf
 
-
-    MISSING_SCHEMAS = {
+    missing_schemas = {
         "properties": {
             "category": {
                 "type": "string",
@@ -85,22 +86,4 @@ class NLCropConverter(BaseConverter):
     }
 
 
-    def convert(output_file, cache = None, **kwargs):
-        convert_(
-            output_file,
-            cache,
-            SOURCES,
-            COLUMNS,
-            ID,
-            TITLE,
-            DESCRIPTION,
-            providers=PROVIDERS,
-            missing_schemas=MISSING_SCHEMAS,
-            column_filters=COLUMN_FILTERS,
-            column_migrations=COLUMN_MIGRATIONS,
-            migration=migrate,
-            attribution=ATTRIBUTION,
-            license=LICENSE,
-            index_as_id=True,
-            **kwargs
-        )
+convert = NLCropConverter()

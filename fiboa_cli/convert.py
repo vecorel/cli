@@ -1,5 +1,7 @@
 import importlib
 import os
+
+from .convert_utils import BaseConverter
 from .util import log
 
 IGNORED_DATASET_FILES = ["__init__.py", "template.py"]
@@ -7,6 +9,7 @@ IGNORED_DATASET_FILES = ["__init__.py", "template.py"]
 def convert(
         dataset,
         output_file,
+        variant = None,
         input_files = None,
         cache = None,
         source_coop_url = None,
@@ -31,6 +34,7 @@ def convert(
 
     converter.convert(
         output_file,
+        variant = variant,
         input_files = input_files,
         cache = cache,
         source_coop_url = source_coop_url,
@@ -72,7 +76,4 @@ def list_all_converters(keys):
 
 def read_converter(_id):
     module_name = f".datasets.{_id}"
-    package = importlib.import_module(module_name, package="fiboa_cli")
-    if hasattr(package, "Converter"):
-        return package.Converter(_id)
-    return package
+    return importlib.import_module(module_name, package="fiboa_cli")
