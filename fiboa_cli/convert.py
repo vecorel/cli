@@ -57,8 +57,8 @@ def list_all_converters(keys):
         try:
             converter = read_converter(id)
             for key in keys:
-                if isinstance(converter.convert, BaseConverter):
-                    value = getattr(converter.convert, key.lower())
+                if isinstance(converter, BaseConverter):
+                    value = getattr(converter, key.lower())
                 else:
                     value = getattr(converter, key, None)
 

@@ -510,12 +510,9 @@ class BaseConverter:
         collection = self.create_collection(gdf, source_coop_url=source_coop_url)
 
         log("Creating GeoParquet file: " + output_file)
-        config = {
-            "fiboa_version": fiboa_version,
-        }
+        config = {"fiboa_version": fiboa_version}
         columns = list(actual_columns.values())
         pq_fields = create_parquet(gdf, columns, collection, output_file, config, self.missing_schemas, compression, geoparquet1)
-
         if store_collection:
             external_collection = add_asset_to_collection(collection, output_file, rows = len(gdf), columns = pq_fields)
             collection_file = os.path.join(os.path.dirname(output_file), "collection.json")
