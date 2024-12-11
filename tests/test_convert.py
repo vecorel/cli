@@ -12,7 +12,7 @@ test_path = "tests/data-files/convert"
 extra_convert_parameters = {
     "nl_crop": ["2023"],
     "br_ba_lem": ["-i", f"{test_path}/br_ba_lem/LEM_dataset.zip"],
-    "lv": ["-i", f"{test_path}/lv/1_100.xml"],
+    "lv": ["-i", f"{test_path}/lv/1_100.xml", "-m", f"{test_path}/lv/lv_2021.csv"],
     "se": ["-m", f"{test_path}/se/se_2021.csv"],
     "ch": ["-i", f"{test_path}/ch/lwb_nutzungsflaechen_v2_0_lv95.gpkg"],
     "ai4sf": ['-i', f'{test_path}/ai4sf/1_vietnam_areas.gpkg', '-i', f'{test_path}/ai4sf/4_cambodia_areas.gpkg'],
