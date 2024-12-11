@@ -47,12 +47,12 @@ class NLCropConverter(BaseConverter):
         'id': 'id',
         'area': "area",
         'category': 'category',
-        'gewascode': 'crop_code',
-        'gewas': 'crop_name',
+        'gewascode': 'crop:code',
+        'gewas': 'crop:name',
         'jaar': 'determination_datetime'
     }
 
-    columns_filter = {
+    column_filters = {
         # category = "Grasland" | "Bouwland" | "Sloot" | "Landschapselement"
         'category': lambda col: col.isin(["Grasland", "Bouwland"])
     }
@@ -61,7 +61,10 @@ class NLCropConverter(BaseConverter):
         # Add 15th of may to original "year" (jaar) column
         'jaar': lambda col: pd.to_datetime(col, format='%Y') + pd.DateOffset(months=4, days=14)
     }
-
+    extensions = ["https://fiboa.github.io/crop-extension/v0.1.0/schema.yaml"]
+    column_additions = {
+        "crop:code_list": "https://raw.githubusercontent.com/maja601/EuroCrops/refs/heads/main/csvs/country_mappings/nl_2020.csv",
+    }
     index_as_id = True
 
     def migrate(self, gdf):
@@ -75,12 +78,6 @@ class NLCropConverter(BaseConverter):
             "category": {
                 "type": "string",
                 "enum": ["Grasland", "Bouwland"]
-            },
-            "crop_name": {
-                "type": "string"
-            },
-            "crop_code": {
-                "type": "string"
             },
         }
     }
