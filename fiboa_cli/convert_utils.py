@@ -27,7 +27,7 @@ EMPTY_DICT = MappingProxyType({})
 
 def convert(
         output_file, cache,
-        urls, columns,
+        urls, column_map,
         id, title, description,
         input_files = None,
         bbox = None,
@@ -51,7 +51,7 @@ def convert(
         variant = None,  # noqa unused
         **kwargs):
 
-    converter = BaseConverter(sources=urls, columns=columns, id=id, title=title, description=description, bbox=bbox,
+    converter = BaseConverter(sources=urls, columns=column_map, id=id, title=title, description=description, bbox=bbox,
                               providers=providers, short_name=id,
                               extensions=extensions, missing_schemas=missing_schemas, column_additions=column_additions,
                               column_filters=column_filters, column_migrations=column_migrations,
