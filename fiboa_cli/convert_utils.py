@@ -1,3 +1,4 @@
+from io import StringIO
 from types import MappingProxyType
 from typing import Optional
 
@@ -51,6 +52,7 @@ def convert(
         variant = None,  # noqa unused
         **kwargs):
 
+    # this function is a (temporary) bridge from function-based converters to class-based converters
     converter = BaseConverter(sources=urls, columns=column_map, id=id, title=title, description=description, bbox=bbox,
                               providers=providers, short_name=id,
                               extensions=extensions, missing_schemas=missing_schemas, column_additions=column_additions,
@@ -60,96 +62,6 @@ def convert(
     converter.convert(output_file, cache, input_files=input_files, source_coop_url=source_coop_url,
                       store_collection=store_collection, compression=compression, geoparquet1=geoparquet1,
                       original_geometries=original_geometries, **kwargs)
-
-
-def create_collection(
-        gdf,
-        id, title, description, bbox = None,
-        providers = [],
-        source_coop_url = None,
-        extensions = [],
-        attribution = None,
-        license = None
-    ):
-    """
-    Creates a collection for the field boundary datasets.
-    """
-    if bbox is None:
-        bbox = list(gpd.GeoSeries([box(*gdf.total_bounds)], crs=gdf.crs).to_crs(epsg=4326).total_bounds)
-
-    collection = {
-        "fiboa_version": fiboa_version,
-        "fiboa_extensions": extensions,
-        "type": "Collection",
-        "id": id.strip(),
-        "title": title.strip(),
-        "description": description.strip(),
-        "license": "proprietary",
-        "providers": providers,
-        "extent": {
-            "spatial": {
-                "bbox": [bbox]
-            },
-        },
-        "links": []
-    }
-
-    if "determination_datetime" in gdf.columns:
-        dates = pd.to_datetime(gdf['determination_datetime'])
-        min_time = to_iso8601(dates.min())
-        max_time = to_iso8601(dates.max())
-
-        collection["extent"]["temporal"] = {
-            "interval": [[min_time, max_time]]
-        }
-        # Without temporal extent it's not valid STAC
-        collection["stac_version"] = "1.0.0"
-
-    # Add fiboa CLI to providers
-    collection["providers"].append({
-        "name": "fiboa CLI",
-        "roles": ["processor"],
-        "url": "https://pypi.org/project/fiboa-cli"
-    })
-
-    # Add source coop to providers if applicable
-    if source_coop_url is not None:
-        collection["providers"].append({
-            "name": "Source Cooperative",
-            "roles": ["host"],
-            "url": source_coop_url
-        })
-
-    # Update attribution
-    if attribution is not None:
-        collection["attribution"] = attribution
-
-    # Update license
-    if isinstance(license, dict):
-        collection["links"].append(license)
-    elif isinstance(license, str):
-        if license.lower() == "dl-de/by-2-0":
-            collection["links"].append({
-                "href": "https://www.govdata.de/dl-de/by-2-0",
-                "title": "Data licence Germany - attribution - Version 2.0",
-                "type": "text/html",
-                "rel": "license"
-            })
-        elif license.lower() == "dl-de/zero-2-0":
-            collection["links"].append({
-                "href": "https://www.govdata.de/dl-de/zero-2-0",
-                "title": "Data licence Germany - Zero - Version 2.0",
-                "type": "text/html",
-                "rel": "license"
-            })
-        elif re.match(r"^[\w\.-]+$", license):
-            collection["license"] = license
-        else:
-            log(f"Invalid license identifier: {license}", "warning")
-    else:
-        log(f"License information missing", "warning")
-
-    return collection
 
 
 def add_asset_to_collection(collection, output_file, rows = None, columns = None):
@@ -184,80 +96,6 @@ def add_asset_to_collection(collection, output_file, rows = None, columns = None
     c["assets"]["data"] = asset
 
     return c
-
-
-def download_files(uris, cache_folder = None):
-    """Download (and cache) files from various sources"""
-    if cache_folder is None:
-        args = {}
-        if sys.version_info.major >= 3 and sys.version_info.minor >= 12:
-            args["delete"] = False # only available in Python 3.12 and later
-        with TemporaryDirectory(**args) as tmp_folder:
-            cache_folder = tmp_folder
-
-    if isinstance(uris, str):
-        uris = {uris: name_from_uri(uris)}
-
-    paths = []
-    i = 0
-    for uri, target in uris.items():
-        i = i + 1
-        is_archive = isinstance(target, list)
-        if is_archive:
-            try:
-                name = name_from_uri(uri)
-                # if there's no file extension, it's likely a folder, which may not be unique
-                if "." not in name:
-                    name = str(i)
-            except:
-                name = str(i)
-        else:
-            name = target
-
-        source_fs = get_fs(uri)
-        cache_fs = get_fs(cache_folder)
-        if not cache_fs.exists(cache_folder):
-            cache_fs.makedirs(cache_folder)
-
-        if isinstance(source_fs, LocalFileSystem):
-            cache_file = uri
-        else:
-            cache_file = os.path.join(cache_folder, name)
-
-        zip_folder = os.path.join(cache_folder, "extracted." + os.path.splitext(name)[0])
-        must_extract = is_archive and not os.path.exists(zip_folder)
-
-        if (not is_archive or must_extract) and not cache_fs.exists(cache_file):
-            with cache_fs.open(cache_file, mode='wb') as file:
-                stream_file(source_fs, uri, file)
-
-        if must_extract:
-            if zipfile.is_zipfile(cache_file):
-                try:
-                    with zipfile.ZipFile(cache_file, 'r') as zip_file:
-                        zip_file.extractall(zip_folder)
-                except NotImplementedError as e:
-                    if str(e) != "That compression method is not supported":
-                        raise
-                    import zipfile_deflate64
-                    with zipfile_deflate64.ZipFile(cache_file, 'r') as zip_file:
-                        zip_file.extractall(zip_folder)
-            elif py7zr.is_7zfile(cache_file):
-                with py7zr.SevenZipFile(cache_file, 'r') as sz_file:
-                    sz_file.extractall(zip_folder)
-            elif name.endswith(".rar"):
-                with rarfile.RarFile(cache_file, 'r') as w:
-                    w.extractall(zip_folder)
-            else:
-                raise ValueError("Only ZIP and 7Z files are supported for extraction")
-
-        if is_archive:
-            for filename in target:
-                paths.append((os.path.join(zip_folder, filename), uri))
-        else:
-            paths.append((cache_file, uri))
-
-    return paths
 
 
 def stream_file(fs, src_uri, dst_file, chunk_size = 10 * 1024 * 1024):
@@ -336,40 +174,96 @@ class BaseConverter:
     def layer_filter(self, layer, uri):  # noqa
         return True
 
-    def convert(self, output_file, cache=None, input_files=None, source_coop_url=None, store_collection=False, variant=None, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
-        columns = self.columns.copy()
-        sources = self.sources
-        if not sources and self.source_variants:
+    def post_migrate(self, gdf):
+        return gdf
+
+    def download_files(self, uris, cache_folder=None):
+        """Download (and cache) files from various sources"""
+        if cache_folder is None:
+            args = {}
+            if sys.version_info.major >= 3 and sys.version_info.minor >= 12:
+                args["delete"] = False  # only available in Python 3.12 and later
+            with TemporaryDirectory(**args) as tmp_folder:
+                cache_folder = tmp_folder
+
+        if isinstance(uris, str):
+            uris = {uris: name_from_uri(uris)}
+
+        paths = []
+        i = 0
+        for uri, target in uris.items():
+            i = i + 1
+            is_archive = isinstance(target, list)
+            if is_archive:
+                try:
+                    name = name_from_uri(uri)
+                    # if there's no file extension, it's likely a folder, which may not be unique
+                    if "." not in name:
+                        name = str(i)
+                except:
+                    name = str(i)
+            else:
+                name = target
+
+            source_fs = get_fs(uri)
+            cache_fs = get_fs(cache_folder)
+            if not cache_fs.exists(cache_folder):
+                cache_fs.makedirs(cache_folder)
+
+            if isinstance(source_fs, LocalFileSystem):
+                cache_file = uri
+            else:
+                cache_file = os.path.join(cache_folder, name)
+
+            zip_folder = os.path.join(cache_folder, "extracted." + os.path.splitext(name)[0])
+            must_extract = is_archive and not os.path.exists(zip_folder)
+
+            if (not is_archive or must_extract) and not cache_fs.exists(cache_file):
+                with cache_fs.open(cache_file, mode='wb') as file:
+                    stream_file(source_fs, uri, file)
+
+            if must_extract:
+                if zipfile.is_zipfile(cache_file):
+                    try:
+                        with zipfile.ZipFile(cache_file, 'r') as zip_file:
+                            zip_file.extractall(zip_folder)
+                    except NotImplementedError as e:
+                        if str(e) != "That compression method is not supported":
+                            raise
+                        import zipfile_deflate64
+                        with zipfile_deflate64.ZipFile(cache_file, 'r') as zip_file:
+                            zip_file.extractall(zip_folder)
+                elif py7zr.is_7zfile(cache_file):
+                    with py7zr.SevenZipFile(cache_file, 'r') as sz_file:
+                        sz_file.extractall(zip_folder)
+                elif name.endswith(".rar"):
+                    with rarfile.RarFile(cache_file, 'r') as w:
+                        w.extractall(zip_folder)
+                else:
+                    raise ValueError("Only ZIP and 7Z files are supported for extraction")
+
+            if is_archive:
+                for filename in target:
+                    paths.append((os.path.join(zip_folder, filename), uri))
+            else:
+                paths.append((cache_file, uri))
+
+        return paths
+
+    def get_urls(self, variant):
+        urls = self.sources
+        if not urls and self.source_variants:
             if variant in self.source_variants:
-                sources = self.source_variants[variant]
+                urls = self.source_variants[variant]
             elif variant is None:
-                sources = next(iter(self.source_variants.values()))
-                log(f"Choosing first variant {sources}", "warning")
+                urls = next(iter(self.source_variants.values()))
+                log(f"Choosing first variant {urls}", "warning")
             else:
                 opts = ", ".join(self.source_variants.keys())
                 raise ValueError(f"Unknown variant '{variant}', choose from {opts}")
-        urls = sources
+        return urls
 
-        """
-        Converts a field boundary datasets to fiboa.
-        """
-        if self.bbox is not None and len(self.bbox) != 4:
-            raise ValueError("If provided, the bounding box must consist of 4 numbers")
-
-        # Create output folder if it doesn't exist
-        directory = os.path.dirname(output_file)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-
-        if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
-            log("Using user provided input file(s) instead of the pre-defined file(s)", "warning")
-            urls = input_files
-        elif urls is None:
-            raise ValueError("No input files provided")
-
-        log("Getting file(s) if not cached yet")
-        paths = download_files(urls, cache)
-
+    def read_data(self, paths, **kwargs):
         gdfs = []
         for path, uri in paths:
             log(f"Reading {path} into GeoDataFrame(s)")
@@ -402,27 +296,10 @@ class BaseConverter:
 
                 gdfs.append(data)
 
-        gdf = pd.concat(gdfs)
-        del gdfs
+        return pd.concat(gdfs)
 
-        log("GeoDataFrame created from source(s):")
-        # Make it so that everything is shown, don't output ... if there are too many columns or rows
-        pd.set_option('display.max_columns', None)
-        pd.set_option('display.max_rows', None)
-        print(gdf.head())
-
-        if self.index_as_id:
-            gdf["id"] = gdf.index
-
-        # 1. Run global migration
-        log("Applying global migrations")
-        gdf = self.migrate(gdf)
-        if not isinstance(gdf, gpd.GeoDataFrame):
-            raise ValueError("Migration function must return a GeoDataFrame")
-
-        # 2. Run filters to remove rows that shall not be in the final data
-        has_col_filters = len(self.column_filters) > 0
-        if has_col_filters:
+    def filter_rows(self, gdf):
+        if  len(self.column_filters) > 0:
             log("Applying filters")
             for key, fn in self.column_filters.items():
                 if key in gdf.columns:
@@ -443,18 +320,143 @@ class BaseConverter:
                     gdf = gdf[mask]
                 else:
                     log(f"Column '{key}' not found in dataset, skipping filter", "warning")
+        return gdf
+
+    def create_collection(self, gdf, source_coop_url):
+        """
+        Creates a collection for the field boundary datasets.
+        """
+        bbox = self.bbox
+        if bbox is None:
+            bbox = list(gpd.GeoSeries([box(*gdf.total_bounds)], crs=gdf.crs).to_crs(epsg=4326).total_bounds)
+
+        collection = {
+            "fiboa_version": fiboa_version,
+            "fiboa_extensions": self.extensions,
+            "type": "Collection",
+            "id": self.id.strip(),
+            "title": self.title.strip(),
+            "description": self.description.strip(),
+            "license": "proprietary",
+            "providers": self.providers,
+            "extent": {
+                "spatial": {
+                    "bbox": [bbox]
+                },
+            },
+            "links": []
+        }
+
+        if "determination_datetime" in gdf.columns:
+            dates = pd.to_datetime(gdf['determination_datetime'])
+            min_time = to_iso8601(dates.min())
+            max_time = to_iso8601(dates.max())
+
+            collection["extent"]["temporal"] = {
+                "interval": [[min_time, max_time]]
+            }
+            # Without temporal extent it's not valid STAC
+            collection["stac_version"] = "1.0.0"
+
+        # Add fiboa CLI to providers
+        collection["providers"].append({
+            "name": "fiboa CLI",
+            "roles": ["processor"],
+            "url": "https://pypi.org/project/fiboa-cli"
+        })
+
+        # Add source coop to providers if applicable
+        if source_coop_url is not None:
+            collection["providers"].append({
+                "name": "Source Cooperative",
+                "roles": ["host"],
+                "url": source_coop_url
+            })
+
+        # Update attribution
+        if self.attribution is not None:
+            collection["attribution"] = self.attribution
+
+        # Update license
+        if isinstance(license, dict):
+            collection["links"].append(license)
+        elif isinstance(license, str):
+            if license.lower() == "dl-de/by-2-0":
+                collection["links"].append({
+                    "href": "https://www.govdata.de/dl-de/by-2-0",
+                    "title": "Data licence Germany - attribution - Version 2.0",
+                    "type": "text/html",
+                    "rel": "license"
+                })
+            elif license.lower() == "dl-de/zero-2-0":
+                collection["links"].append({
+                    "href": "https://www.govdata.de/dl-de/zero-2-0",
+                    "title": "Data licence Germany - Zero - Version 2.0",
+                    "type": "text/html",
+                    "rel": "license"
+                })
+            elif re.match(r"^[\w\.-]+$", license):
+                collection["license"] = license
+            else:
+                log(f"Invalid license identifier: {license}", "warning")
+        else:
+            log(f"License information missing", "warning")
+
+        return collection
+
+    def convert(self, output_file, cache=None, input_files=None, source_coop_url=None, store_collection=False, variant=None, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
+        columns = self.columns.copy()
+
+        """
+        Converts a field boundary datasets to fiboa.
+        """
+        if self.bbox is not None and len(self.bbox) != 4:
+            raise ValueError("If provided, the bounding box must consist of 4 numbers")
+
+        # Create output folder if it doesn't exist
+        directory = os.path.dirname(output_file)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
+        urls = self.get_urls(variant)
+        if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
+            log("Using user provided input file(s) instead of the pre-defined file(s)", "warning")
+            urls = input_files
+        elif urls is None:
+            raise ValueError("No input files provided")
+
+        log("Getting file(s) if not cached yet")
+        paths = self.download_files(urls, cache)
+
+        gdf = self.read_data(paths, **kwargs)
+
+        log("GeoDataFrame created from source(s):")
+        # Make it so that everything is shown, don't output ... if there are too many columns or rows
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.max_rows', None)
+        print(gdf.head())
+
+        if self.index_as_id:
+            gdf["id"] = gdf.index
+
+        hash_before = hash_df(gdf)
+        # 1. Run global migration
+        log("Applying global migrations")
+        gdf = self.migrate(gdf)
+        assert isinstance(gdf, gpd.GeoDataFrame), "Migration function must return a GeoDataFrame"
+
+        # 2. Run filters to remove rows that shall not be in the final data
+        gdf = self.filter_rows(gdf)
 
         # 3. Add constant columns
-        has_col_additions = len(self.column_additions) > 0
-        if has_col_additions:
+        if self.column_additions:
             log("Adding columns")
             for key, value in self.column_additions.items():
                 gdf[key] = value
                 columns[key] = key
 
         # 4. Run column migrations
-        has_col_migrations = len(self.column_migrations) > 0
-        if has_col_migrations:
+        if self.column_migrations:
             log("Applying column migrations")
             for key, fn in self.column_migrations.items():
                 if key in gdf.columns:
@@ -467,7 +469,9 @@ class BaseConverter:
             gdf.geometry = gdf.geometry.make_valid()
             gdf = gdf.explode()
 
-        if has_col_migrations or has_col_filters or has_col_additions:
+        gdf = self.post_migrate(gdf)
+
+        if hash_before != hash_df(gdf):
             log("GeoDataFrame after migrations and filters:")
             print(gdf.head())
 
@@ -489,6 +493,9 @@ class BaseConverter:
 
         # 6. Rename columns
         gdf.rename(columns = actual_columns, inplace = True)
+        geometry_renamed = any(True for k, v in actual_columns.items() if v == "geometry" and k != v)
+        if geometry_renamed:
+            gdf.set_geometry("geometry", inplace=True)
 
         # 7. Remove all columns that are not listed
         drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
@@ -497,15 +504,7 @@ class BaseConverter:
         log("GeoDataFrame fully migrated:")
         print(gdf.head())
 
-        collection = create_collection(
-            gdf,
-            self.id, self.title, self.description, self.bbox,
-            providers = self.providers,
-            source_coop_url = source_coop_url,
-            extensions = self.extensions,
-            attribution = self.attribution,
-            license = self.license
-        )
+        collection = self.create_collection(gdf, source_coop_url=source_coop_url)
 
         log("Creating GeoParquet file: " + output_file)
         config = {
@@ -526,3 +525,9 @@ class BaseConverter:
     def __call__(self, *args, **kwargs):
         self.convert(*args, **kwargs)
 
+
+def hash_df(df):
+    # dataframe is unhashable, simple way to
+    buf = StringIO()
+    df.info(buf=buf)
+    return hash(buf.getvalue())
