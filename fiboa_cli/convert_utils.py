@@ -382,7 +382,7 @@ class BaseConverter:
 
         # Update license
         if isinstance(self.license, dict):
-            collection["links"].append(license)
+            collection["links"].append(self.license)
         elif isinstance(self.license, str):
             if self.license.lower() == "dl-de/by-2-0":
                 collection["links"].append({
