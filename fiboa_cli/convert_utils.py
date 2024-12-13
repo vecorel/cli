@@ -171,8 +171,8 @@ class BaseConverter:
     def migrate(self, gdf):
         return gdf
 
-    def file_migration(self, data, path, uri, layer):  # noqa
-        return data
+    def file_migration(self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None) -> gpd.GeoDataFrame:  # noqa
+        return gdf
 
     def layer_filter(self, layer, uri):  # noqa
         return True
