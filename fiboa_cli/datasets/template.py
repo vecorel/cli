@@ -26,12 +26,12 @@ class TemplateConverter(BaseConverter):
     #   "https://fiboa.example/north_america.zip": ["us.gpkg", "canaga.gpkg"]
     # }
 
-    # If multiple variants are available (e.g. different years), you can replace sources by source_variants.
+    # If multiple years are available, you can replace sources by years.
     # The dict-key can be used on the cli command line, the value will be used as 'sources'
     #
-    # source_variants = {
-    #    "2023": "https://fiboa.example/file_2023.xyz"
-    #    "2024": "https://fiboa.example/file_2023.xyz"
+    # years = {
+    #    2023: "https://fiboa.example/file_2023.xyz"
+    #    2024: "https://fiboa.example/file_2023.xyz"
     # }
 
     # Override filter function for the layer in the file(s) to read.

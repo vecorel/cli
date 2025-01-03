@@ -9,8 +9,8 @@ IGNORED_DATASET_FILES = ["__init__.py", "template.py"]
 def convert(
         dataset,
         output_file,
-        variant = None,
         input_files = None,
+        year = None,
         cache = None,
         source_coop_url = None,
         collection = False,
@@ -34,8 +34,8 @@ def convert(
 
     converter.convert(
         output_file,
-        variant = variant,
         input_files = input_files,
+        year = year,
         cache = cache,
         source_coop_url = source_coop_url,
         store_collection = collection,

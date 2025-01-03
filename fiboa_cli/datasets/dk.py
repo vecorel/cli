@@ -3,8 +3,8 @@ from ..convert_utils import BaseConverter
 
 
 class DKConverter(BaseConverter):
-    source_variants = {
-        str(year): f"https://landbrugsgeodata.fvm.dk/Download/Marker/Marker_{year}.zip"
+    years = {
+        year: f"https://landbrugsgeodata.fvm.dk/Download/Marker/Marker_{year}.zip"
         for year in range(2024, 2008-1, -1)
     }
     id = "dk"
@@ -38,5 +38,5 @@ class DKConverter(BaseConverter):
     }
 
     def migrate(self, gdf):
-        gdf["determination_datetime"] = f"{self.variant}-01-01T00:00:00Z"
+        gdf["determination_datetime"] = f"{self.year}-01-01T00:00:00Z"
         return gdf

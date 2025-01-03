@@ -51,7 +51,7 @@ def convert(
         geoparquet1 = False,
         original_geometries = False,
         index_as_id = False,
-        variant = None,  # noqa unused
+        year = None,  # noqa unused
         **kwargs):
 
     # this function is a (temporary) bridge from function-based converters to class-based converters
@@ -145,8 +145,8 @@ class BaseConverter:
     providers: list[dict] = None
 
     sources: Optional[dict[str, str] | str] = None
-    source_variants: Optional[dict[dict[str, str] | str]] = None
-    variant: str = None
+    years: Optional[dict[dict[int, str] | str]] = None
+    year: str = None
 
     columns: dict[str, str] = None
     column_additions: dict[str, str] = EMPTY_DICT
@@ -255,15 +255,15 @@ class BaseConverter:
 
     def get_urls(self):
         urls = self.sources
-        if not urls and self.source_variants:
-            if self.variant is None:
-                self.variant = next(iter(self.source_variants))
-                log(f"Choosing first variant {self.variant}", "warning")
-            if self.variant in self.source_variants:
-                urls = self.source_variants[self.variant]
+        if not urls and self.years:
+            opts = ", ".join([str(s) for s in self.years.keys()])
+            if self.year is None:
+                self.year = next(iter(self.years))
+                log(f"Choosing first available year {self.year} from {opts}", "warning")
+            if self.year in self.years:
+                urls = self.years[self.year]
             else:
-                opts = ", ".join(self.source_variants.keys())
-                raise ValueError(f"Unknown variant '{self.variant}', choose from {opts}")
+                raise ValueError(f"Unknown year '{self.year}', choose from {opts}")
         return urls
 
     def read_data(self, paths, **kwargs):
@@ -407,9 +407,9 @@ class BaseConverter:
 
         return collection
 
-    def convert(self, output_file, cache=None, input_files=None, source_coop_url=None, store_collection=False, variant=None, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
+    def convert(self, output_file, cache=None, input_files=None, source_coop_url=None, store_collection=False, year=None, compression=None, geoparquet1=False, mapping_file=None, original_geometries=False, **kwargs):
         columns = self.columns.copy()
-        self.variant = variant
+        self.year = year
         """
         Converts a field boundary datasets to fiboa.
         """

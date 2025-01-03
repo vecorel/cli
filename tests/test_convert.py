@@ -10,7 +10,7 @@ Create input files with: `ogr2ogr output.gpkg -limit 100 input.gpkg`
 tests = ['at', 'be_vlg', 'br_ba_lem', 'de_sh', 'ec_lv', 'ec_si', 'fi', 'fr', 'hr', 'nl', 'nl_crop', 'pt', 'dk', 'be_wal', 'se', 'ai4sf', 'ch', 'cz', 'us_usda_cropland', 'jp', 'lv', 'ie']
 test_path = "tests/data-files/convert"
 extra_convert_parameters = {
-    "nl_crop": ["2023"],
+    "nl_crop": ["--year=2023"],
     "br_ba_lem": ["-i", f"{test_path}/br_ba_lem/LEM_dataset.zip"],
     "fr": ["-m", f"{test_path}/fr/fr_2018.csv"],
     "lv": ["-i", f"{test_path}/lv/1_100.xml", "-m", f"{test_path}/lv/lv_2021.csv"],

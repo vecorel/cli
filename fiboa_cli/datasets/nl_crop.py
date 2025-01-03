@@ -7,12 +7,12 @@ base = "https://service.pdok.nl/rvo/brpgewaspercelen/atom/v1_0/downloads"
 
 
 class NLCropConverter(BaseConverter):
-    source_variants = {
-        "2024": f"{base}/brpgewaspercelen_concept_2024.gpkg",
-        "2023": f"{base}/brpgewaspercelen_definitief_2023.gpkg",
-        "2022": f"{base}/brpgewaspercelen_definitief_2022.gpkg",
-        "2021": f"{base}/brpgewaspercelen_definitief_2021.gpkg",
-        "2020": f"{base}/brpgewaspercelen_definitief_2020.gpkg",
+    years = {
+        2024: f"{base}/brpgewaspercelen_concept_2024.gpkg",
+        2023: f"{base}/brpgewaspercelen_definitief_2023.gpkg",
+        2022: f"{base}/brpgewaspercelen_definitief_2022.gpkg",
+        2021: f"{base}/brpgewaspercelen_definitief_2021.gpkg",
+        2020: f"{base}/brpgewaspercelen_definitief_2020.gpkg",
         # {r: {base}/brpgewaspercelen_definitief_{r}.zip for r in range(2009, 2020)}
     }
 
