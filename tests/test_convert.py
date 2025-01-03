@@ -17,7 +17,7 @@ extra_convert_parameters = {
 
 
 @mark.parametrize('converter', tests)
-def test_converter(tmp_file, converter):
+def test_converter(tmp_file, converter, block_stream_file):
     path = f"tests/data-files/convert/{converter}"
     runner = CliRunner()
     args = [converter, '-o', tmp_file.name, '-c', path] + extra_convert_parameters.get(converter, [])
