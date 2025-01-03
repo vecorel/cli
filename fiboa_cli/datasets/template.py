@@ -35,7 +35,7 @@ class TemplateConverter(BaseConverter):  # change this class name to your use ca
     # }
 
     # Override filter function for the layer in the file(s) to read.
-    # def layer_filter(self, layer, uri):
+    # def layer_filter(self, layer: str, uri: str) -> bool:
     #     return True
 
     # Unique identifier for the collection

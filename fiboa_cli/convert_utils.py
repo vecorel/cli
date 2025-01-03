@@ -177,7 +177,7 @@ class BaseConverter:
     def file_migration(self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None) -> gpd.GeoDataFrame:  # noqa
         return gdf
 
-    def layer_filter(self, layer, uri):  # noqa
+    def layer_filter(self, layer: str, uri: str) -> bool:
         return True
 
     def post_migrate(self, gdf):

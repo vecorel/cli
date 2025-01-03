@@ -51,5 +51,5 @@ class IEConverter(BaseConverter):
         return gml_assure_columns(gdf, path, uri, layer,
                                   crop_name={"ElementPath": "specificLandUse@title", "Type": "String", "Width": 255})
 
-    def layer_filter(self, layer, uri):
+    def layer_filter(self, layer: str, uri: str) -> bool:
         return layer == "ExistingLandUseObject"
