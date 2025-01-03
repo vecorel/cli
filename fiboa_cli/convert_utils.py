@@ -162,6 +162,7 @@ class BaseConverter:
     def __init__(self, **kwargs):
         # This init method allows you to override all properties & methods
         # It's a bit hacky but allows a gradual conversion from function-based to class-based converters
+        # todo remove this once class-based converters have been fully implemented
         self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
         for key in ("id", "short_name", "title", "license", "columns"):
             assert getattr(self, key) is not None, f"{self.__class__.__name__} misses required attribute {key}"

@@ -57,6 +57,7 @@ def list_all_converters(keys):
         try:
             converter = read_converter(id)
             for key in keys:
+                # todo remove this if once class-based converters have been fully implemented
                 if isinstance(converter, BaseConverter):
                     value = getattr(converter, key.lower())
                 else:
