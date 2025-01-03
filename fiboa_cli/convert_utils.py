@@ -55,6 +55,8 @@ def convert(
         **kwargs):
 
     # this function is a (temporary) bridge from function-based converters to class-based converters
+    # todo: this convert-function should be removed once class-based converters have been fully implemented
+
     converter = BaseConverter(sources=urls, columns=column_map, id=id, title=title, description=description, bbox=bbox,
                               providers=providers, short_name=id,
                               extensions=extensions, missing_schemas=missing_schemas, column_additions=column_additions,

@@ -80,6 +80,7 @@ def list_all_converters(keys):
 def read_converter(_id):
     module_name = f".datasets.{_id}"
     module = importlib.import_module(module_name, package="fiboa_cli")
+    # todo: remove conditional once class-based converters have been fully implemented
     if not hasattr(module, "convert"):
         try:
             clazz = next(v for v in module.__dict__.values()
