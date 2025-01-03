@@ -1,5 +1,6 @@
 from .commons.ec import ec_url
 from ..convert_utils import BaseConverter
+import geopandas as gpd
 
 
 class DKConverter(BaseConverter):
@@ -37,6 +38,6 @@ class DKConverter(BaseConverter):
         'Afgroede': 'crop:name',
     }
 
-    def migrate(self, gdf):
+    def migrate(self, gdf) -> gpd.GeoDataFrame:
         gdf["determination_datetime"] = f"{self.year}-01-01T00:00:00Z"
         return gdf

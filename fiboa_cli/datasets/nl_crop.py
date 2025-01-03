@@ -1,6 +1,7 @@
 from .commons.ec import ec_url
 from ..convert_utils import BaseConverter
 import pandas as pd
+import geopandas as gpd
 
 # see https://service.pdok.nl/rvo/brpgewaspercelen/atom/v1_0/basisregistratie_gewaspercelen_brp.xml
 base = "https://service.pdok.nl/rvo/brpgewaspercelen/atom/v1_0/downloads"
@@ -66,7 +67,7 @@ class NLCropConverter(BaseConverter):
     column_additions = {"crop:code_list": ec_url("nl_2020.csv")}
     index_as_id = True
 
-    def migrate(self, gdf):
+    def migrate(self, gdf) -> gpd.GeoDataFrame:
         # Projection is in CRS 28992 (RD New), this is the area calculation method of the source organization
         # todo: remove in favor of generic solution for area calculation
         gdf['area'] = gdf.area / 10000

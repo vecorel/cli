@@ -1,5 +1,6 @@
 from ..convert_gml import gml_assure_columns
-from ..convert_utils import convert as convert_, BaseConverter
+from ..convert_utils import BaseConverter
+import geopandas as gpd
 
 
 class IEConverter(BaseConverter):
@@ -39,15 +40,15 @@ class IEConverter(BaseConverter):
         }
     }
 
-    def migrate(self, gdf):
+    def migrate(self, gdf) -> gpd.GeoDataFrame:
         # crop_name can be multiple: "crop1, crop2, crop3". We only read the main crop (first).
         gdf['crop_name'] = gdf['crop_name'].str.split(', ').str.get(0)
         gdf = gdf[gdf['crop_name'] != 'Void']  # Exclude non-agriculture fields
         gdf["determination_datetime"] = gdf["observationDate"].str.replace("+01:00", "T00:00:00Z")
         return gdf
 
-    def file_migration(self, data, path, uri, layer):
-        return gml_assure_columns(data, path, uri, layer,
+    def file_migration(self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None) -> gpd.GeoDataFrame:
+        return gml_assure_columns(gdf, path, uri, layer,
                                   crop_name={"ElementPath": "specificLandUse@title", "Type": "String", "Width": 255})
 
     def layer_filter(self, layer, uri):

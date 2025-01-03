@@ -171,7 +171,7 @@ class BaseConverter:
     def ID(self):  # noqa backwards compatibility for function-based converters
         return self.id
 
-    def migrate(self, gdf):
+    def migrate(self, gdf) -> gpd.GeoDataFrame:
         return gdf
 
     def file_migration(self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None) -> gpd.GeoDataFrame:  # noqa

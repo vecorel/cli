@@ -1,6 +1,7 @@
 import csv
 from io import StringIO
 from fiboa_cli.util import load_file
+import geopandas as gpd
 
 
 def add_eurocrops(base, year = None):
@@ -96,7 +97,7 @@ class EuroCropsConverterMixin:
         gdf['EC_hcat_c'] = crop_code_col.map(map_to("HCAT3_code"))
         return gdf
 
-    def migrate(self, gdf):
+    def migrate(self, gdf) -> gpd.GeoDataFrame:
         gdf = super().migrate(gdf)
         return self.add_hcat(gdf)
 
