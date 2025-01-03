@@ -2,6 +2,7 @@ import csv
 from io import StringIO
 from fiboa_cli.util import load_file
 import geopandas as gpd
+from .dictobject import DictObject
 
 
 def add_eurocrops(base, year = None):
@@ -55,10 +56,6 @@ In the data you'll find this as additional attributes:
 
     return ID, SHORT_NAME, TITLE, DESCRIPTION, PROVIDERS, EXTENSIONS, COLUMNS, LICENSE
 
-
-class DictObject(object):
-    def __init__(self, dict_):
-        self.__dict__.update(dict_)
 
 
 class EuroCropsConverterMixin:

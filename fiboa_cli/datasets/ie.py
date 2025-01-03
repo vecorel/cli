@@ -1,9 +1,10 @@
+from .commons.admin import AdminConverterMixin
 from ..convert_gml import gml_assure_columns
 from ..convert_utils import BaseConverter
 import geopandas as gpd
 
 
-class IEConverter(BaseConverter):
+class IEConverter(AdminConverterMixin, BaseConverter):
     sources = {
       "https://osi-inspire-atom.s3-eu-west-1.amazonaws.com/IACSdata/IACS_GSAA_2022.zip": ["IACS_GSAA_2022.gml"]
     }

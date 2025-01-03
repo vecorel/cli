@@ -1,3 +1,4 @@
+from .commons.admin import AdminConverterMixin
 from .commons.ec import ec_url
 from ..convert_utils import BaseConverter
 import pandas as pd
@@ -7,7 +8,7 @@ import geopandas as gpd
 base = "https://service.pdok.nl/rvo/brpgewaspercelen/atom/v1_0/downloads"
 
 
-class NLCropConverter(BaseConverter):
+class NLCropConverter(AdminConverterMixin, BaseConverter):
     years = {
         2024: f"{base}/brpgewaspercelen_concept_2024.gpkg",
         2023: f"{base}/brpgewaspercelen_definitief_2023.gpkg",
