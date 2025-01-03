@@ -328,6 +328,10 @@ class BaseConverter:
                     log(f"Column '{key}' not found in dataset, skipping filter", "warning")
         return gdf
 
+    def get_title(self):
+        title = self.title.strip()
+        return f"{title} ({self.year})" if self.year else title
+
     def create_collection(self, gdf, source_coop_url):
         """
         Creates a collection for the field boundary datasets.
@@ -341,7 +345,7 @@ class BaseConverter:
             "fiboa_extensions": self.extensions,
             "type": "Collection",
             "id": self.id.strip(),
-            "title": self.title.strip(),
+            "title": self.get_title(),
             "description": self.description.strip(),
             "license": "proprietary",
             "providers": self.providers,
