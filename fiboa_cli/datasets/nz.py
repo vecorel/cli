@@ -9,12 +9,14 @@ class NZCropConverter(BaseConverter):
     id = "nz"
     short_name = "New Zealand"
     title = "Irrigated land area"
-    description = """This dataset covers Irrigated Land. Adapted by Ministry for the Environment and Statistics
-     New Zealand to provide for environmental reporting transparency
+    description = """
+This dataset covers Irrigated Land. Adapted by Ministry for the Environment and Statistics
+New Zealand to provide for environmental reporting transparency
 
-     The spatial data covers all mainland regions of New Zealand, with the exception of Nelson, which is not believed to
-     contain significant irrigated areas. The spatial dataset is an update of the national dataset that was first
-     created in 2017. The current update has incorporated data from the 2019 – 2020 irrigation season."""
+The spatial data covers all mainland regions of New Zealand, with the exception of Nelson, which is not believed to
+contain significant irrigated areas. The spatial dataset is an update of the national dataset that was first
+created in 2017. The current update has incorporated data from the 2019 – 2020 irrigation season.
+"""
 
     providers = [
         {
