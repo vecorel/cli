@@ -1,9 +1,10 @@
+from .commons.data import read_data_csv
 from ..convert_utils import BaseConverter
 import pandas as pd
 
 
 class NZCropConverter(BaseConverter):
-    DATA_ACCESS = """Download manually from https://data.mfe.govt.nz/layer/105407-irrigated-land-area-raw-2020-update/"""
+    DATA_ACCESS = "Download manually from https://data.mfe.govt.nz/layer/105407-irrigated-land-area-raw-2020-update/"
 
     id = "nz"
     short_name = "New Zealand"
@@ -36,7 +37,7 @@ class NZCropConverter(BaseConverter):
         "type": "type",
         "area_ha": "area",
         "yearmapped": "determination_datetime",
-        "Region": "admin:subdivision",
+        "Region": "admin:subdivision_code",
     }
     column_migrations = {
         'yearmapped': lambda col: pd.to_datetime(col, format='%Y')
@@ -49,8 +50,12 @@ class NZCropConverter(BaseConverter):
             "type": {
                 "type": "string",
             },
-            "admin:subdivision": {
-                "type": "string",
-            },
         }
     }
+
+    def migrate(self, gdf):
+        # MAP back; https://www.iso.org/obp/ui/#iso:code:3166:NZ
+        rows = read_data_csv("nz_region_codes.csv")
+        mapping = {row["Subdivision name"]: row["3166-2 code"][len("NZ-"):] for row in rows}
+        gdf['Region'] = gdf["Region"].map(mapping)
+        return gdf
