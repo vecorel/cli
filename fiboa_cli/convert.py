@@ -56,6 +56,10 @@ def list_all_converters(keys):
         obj = {}
         try:
             converter = read_converter(id)
+            # todo remove this if once class-based converters have been fully implemented
+            if isinstance(converter, BaseConverter):
+                assert converter.__class__.__name__ != "TemplateConverter", f"Please change TemplateConverter for {id}"
+
             for key in keys:
                 # todo remove this if once class-based converters have been fully implemented
                 if isinstance(converter, BaseConverter):

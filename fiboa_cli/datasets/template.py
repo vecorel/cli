@@ -7,7 +7,7 @@
 from ..convert_utils import BaseConverter
 
 
-class TemplateConverter(BaseConverter):
+class TemplateConverter(BaseConverter):  # change this class name to your use case
     # File(s) to read the data from, usually publicly accessible URLs.
     # Can read any (zipped) tabular data format that GeoPandas can read through read_file() or read_parquet().
     # Supported protocols: HTTP(S), GCS, S3, or the local file system
