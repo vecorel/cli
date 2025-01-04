@@ -478,6 +478,9 @@ class BaseConverter:
         if not original_geometries:
             gdf.geometry = gdf.geometry.make_valid()
             gdf = gdf.explode()
+            if gdf.geometry.array.has_z.any():
+                log("Removing Z geometry dimension", "info")
+                gdf.geometry = gdf.geometry.force_2d()
 
         gdf = self.post_migrate(gdf)
 
