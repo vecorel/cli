@@ -180,7 +180,7 @@ class BaseConverter:
     def layer_filter(self, layer: str, uri: str) -> bool:
         return True
 
-    def post_migrate(self, gdf):
+    def post_migrate(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         return gdf
 
     def download_files(self, uris, cache_folder=None):
