@@ -3,6 +3,7 @@ from .commons.ec import ec_url
 from ..convert_utils import BaseConverter
 import geopandas as gpd
 
+
 class DKConverter(AdminConverterMixin, BaseConverter):
     years = {
         year: f"https://landbrugsgeodata.fvm.dk/Download/Marker/Marker_{year}.zip"
