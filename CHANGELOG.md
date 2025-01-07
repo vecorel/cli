@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Rewrite to class-based converters
+
 ## [v0.9.0] - 2025-01-07
 
 ### Added
@@ -26,6 +30,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converter for California (US) Statewide Crop Mapping
 - Converter for Latvia (from original source)
 - Converter for Japan, currently based on supplied (non-fiboa) parquet files
+- Many converters implement the admin extension
+- Assure tests don't download external sources
 - `fiboa convert`: New parameter `--original-geometries` / `-og` to keep the original geometries
 
 ### Changed
