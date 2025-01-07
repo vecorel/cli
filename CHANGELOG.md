@@ -24,11 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converter for Czech
 - Converter for US Department of Agriculture Crop Sequence Boundaries
 - Converter for California (US) Statewide Crop Mapping
-- `fiboa convert`: New parameter `--original-geometries` / `-og` to keep the original geometries
 - Converter for Latvia (from original source)
 - Converter for Japan, currently based on supplied (non-fiboa) parquet files
-- Many converters implement the admin extension
-- Assure tests don't download external sources
+- `fiboa convert`: New parameter `--original-geometries` / `-og` to keep the original geometries
 
 ### Changed
 
@@ -39,6 +37,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `fiboa validate` uses custom schemas for validation
 - `fiboa merge` keeps custom schemas when needed
 - Extended converter for Croatia; with crop_code and crop_name
+- Many converters implement the admin extension
 
 ### Removed
 
@@ -47,6 +46,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fix converter for Estland to use the id `ec_ee` instead of `ec_es`
+- Assure tests don't download external sources
 
 ## [v0.8.0] - 2024-11-12
 
