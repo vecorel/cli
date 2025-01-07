@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from copy import copy
 from io import StringIO
+import inspect
 from typing import Optional
 
 from .const import STAC_TABLE_EXTENSION
@@ -162,6 +164,12 @@ class BaseConverter:
         self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
         for key in ("id", "short_name", "title", "license", "columns"):
             assert getattr(self, key) is not None, f"{self.__class__.__name__} misses required attribute {key}"
+
+        # In BaseConverter and mixins we use class-based members as instance based-members
+        # Every instance should be allowed to modify its member attributes, so here we make a copy of dicts/lists
+        for key, item in inspect.getmembers(self):
+            if not key.startswith("_") and isinstance(item, (list, dict)):
+                setattr(self, key, copy(item))
 
     @property
     def ID(self):  # noqa backwards compatibility for function-based converters
