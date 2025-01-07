@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.9.0] - 2025-01-07
+
 ### Added
 
 - Command `fiboa improve` with helpers to
@@ -39,6 +41,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Extended converter for Croatia; with crop_code and crop_name
 
 ### Removed
+
 - `fiboa convert`: Removed the explicit parameter `explode_multipolygon` from the converter
 
 ### Fixed
@@ -370,7 +373,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release
 
-[Unreleased]: <https://github.com/fiboa/cli/compare/v0.8.0...main>
+[Unreleased]: <https://github.com/fiboa/cli/compare/v0.9.0...main>
+[v0.9.0]: <https://github.com/fiboa/cli/compare/v0.8.0...v0.9.0>
 [v0.8.0]: <https://github.com/fiboa/cli/compare/v0.7.0...v0.8.0>
 [v0.7.0]: <https://github.com/fiboa/cli/compare/v0.6.0...v0.7.0>
 [v0.6.0]: <https://github.com/fiboa/cli/compare/v0.5.0...v0.6.0>
