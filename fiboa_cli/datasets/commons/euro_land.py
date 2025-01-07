@@ -1,12 +1,23 @@
-class EuroLandConverterMixin:
+from fiboa_cli.convert_utils import BaseConverter
+
+
+class BaseEuroLandConverter(BaseConverter):
     """
     Datasets have been published by the
     [Euroland project](https://europe-land.eu/news/harmonized-database-of-european-land-use-data-published/)
     as open data. See https://zenodo.org/records/14384070 for a list of open data sets.
 
-    Use this abstract class to create converters based on the euroland repository
-    Subclasses should declare: id, short_name, title, description, providers, license, attribution,
-    crop_code_list,
+    Use this base class to create converters based on the euroland repository
+    Subclasses should still declare the required attributes from BaseConverter
+
+    id = ""
+    short_name = ""
+    title = ""
+    description = ""
+    providers = []
+
+    # And additionally declare a crop_code_list
+    crop_code_list = ec_url(ec_mapping_csv)
     """
     crop_code_list = None  # e.g. ec_url(ec_mapping_csv)
     extensions = [
@@ -34,7 +45,7 @@ class EuroLandConverterMixin:
                 "type": "string"
             },
             "organic": {
-                "type": "string"
+                "type": "uint8"
             },
         }
     }

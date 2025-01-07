@@ -1,11 +1,8 @@
-import geopandas as gpd
-
-from fiboa_cli.convert_utils import BaseConverter
 from fiboa_cli.datasets.commons.ec import ec_url
-from fiboa_cli.datasets.commons.euro_land import EuroLandConverterMixin
+from fiboa_cli.datasets.commons.euro_land import BaseEuroLandConverter
 
 
-class LTConverter(EuroLandConverterMixin, BaseConverter):
+class LTConverter(BaseEuroLandConverter):
     id = "lt"
     short_name = "Lithuania"
     title = "Lithuania crop fields"

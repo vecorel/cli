@@ -1,8 +1,7 @@
 from fiboa_cli import converters
 from click.testing import CliRunner
 
-from fiboa_cli.convert_utils import BaseConverter
-from fiboa_cli.datasets.commons.euro_land import EuroLandConverterMixin
+from fiboa_cli.datasets.commons.euro_land import BaseEuroLandConverter
 from fiboa_cli.datasets.lt import LTConverter
 
 
@@ -17,7 +16,7 @@ def test_describe():
     assert "None" not in result.output
 
 
-class MyConverter(EuroLandConverterMixin, BaseConverter):
+class MyConverter(BaseEuroLandConverter):
     id = "test"
     short_name = title = description = "Test"
     crop_code_list = "test"
