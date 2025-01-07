@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from io import StringIO
-from types import MappingProxyType
 from typing import Optional
 
 from .const import STAC_TABLE_EXTENSION
@@ -23,9 +22,6 @@ import zipfile
 import py7zr
 import flatdict
 import rarfile
-
-# unmodifiable empty dict, avoids accidental mutation
-EMPTY_DICT = MappingProxyType({})
 
 
 def convert(
@@ -144,18 +140,18 @@ class BaseConverter:
     license: str | dict[str, str] = None
     attribution: str = None
     description: str = None
-    providers: list[dict] = None
+    providers: list[dict] = []
 
     sources: Optional[dict[str, str] | str] = None
     years: Optional[dict[dict[int, str] | str]] = None
     year: str = None
 
-    columns: dict[str, str] = None
-    column_additions: dict[str, str] = EMPTY_DICT
-    column_filters: dict[str, callable] = EMPTY_DICT
-    column_migrations: dict[str, callable] = EMPTY_DICT
-    missing_schemas: dict[str, str] = EMPTY_DICT
-    extensions: list[str] = tuple()
+    columns: dict[str, str] = {}
+    column_additions: dict[str, str] = {}
+    column_filters: dict[str, callable] = {}
+    column_migrations: dict[str, callable] = {}
+    missing_schemas: dict[str, str] = {}
+    extensions: list[str] = []
 
     index_as_id = False
 

@@ -42,9 +42,9 @@ class EuroLandConverterMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert self.crop_code_list, f"Please declare a crop_code_list attribute on {self.__class__}"
-        self.column_additions = {**self.column_additions, "crop:code_list": self.crop_code_list}
-        self.providers = [*self.providers, {
+        self.column_additions["crop:code_list"] = self.crop_code_list
+        self.providers.append({
             "name": "Europe-LAND HE Project",
             "url": "https://doi.org/10.5281/zenodo.14230620",
             "roles": ["processor"]
-        }]
+        })
