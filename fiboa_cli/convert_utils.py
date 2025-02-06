@@ -16,14 +16,17 @@ from shapely.geometry import box
 
 import os
 import re
+from glob import glob
 import json
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import sys
 import zipfile
 import py7zr
 import flatdict
 import rarfile
+import hashlib
 
 
 def convert(
@@ -51,7 +54,6 @@ def convert(
         index_as_id = False,
         year = None,  # noqa unused
         **kwargs):
-
     # this function is a (temporary) bridge from function-based converters to class-based converters
     # todo: this convert-function should be removed once class-based converters have been fully implemented
 
@@ -131,7 +133,7 @@ def read_geojson(path, **kwargs):
 
     obj["features"] = list(map(normalize_geojson_properties, obj["features"]))
 
-    return gpd.GeoDataFrame.from_features(obj, crs = "EPSG:4326")
+    return gpd.GeoDataFrame.from_features(obj, crs="EPSG:4326")
 
 
 class BaseConverter:
@@ -145,6 +147,9 @@ class BaseConverter:
     providers: list[dict] = []
 
     sources: Optional[dict[str, str] | str] = None
+    source_variants: Optional[dict[dict[str, str] | str]] = None
+    variant: str = None
+    open_options = {}
     years: Optional[dict[dict[int, str] | str]] = None
     year: str = None
 
@@ -187,38 +192,42 @@ class BaseConverter:
     def post_migrate(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         return gdf
 
-    def download_files(self, uris, cache_folder=None):
-        """Download (and cache) files from various sources"""
+    def get_cache(self, cache_folder=None, force=False):
         if cache_folder is None:
-            args = {}
+            if not force:
+                return None, None
+            _kwargs = {}
             if sys.version_info.major >= 3 and sys.version_info.minor >= 12:
-                args["delete"] = False  # only available in Python 3.12 and later
-            with TemporaryDirectory(**args) as tmp_folder:
+                _kwargs["delete"] = False  # only available in Python 3.12 and later
+            with TemporaryDirectory(**_kwargs) as tmp_folder:
                 cache_folder = tmp_folder
 
+        cache_fs = get_fs(cache_folder)
+        if not cache_fs.exists(cache_folder):
+            cache_fs.makedirs(cache_folder)
+        return cache_fs, cache_folder
+
+    def download_files(self, uris, cache_folder=None):
+        """Download (and cache) files from various sources"""
         if isinstance(uris, str):
             uris = {uris: name_from_uri(uris)}
 
         paths = []
-        i = 0
         for uri, target in uris.items():
-            i = i + 1
             is_archive = isinstance(target, list)
             if is_archive:
                 try:
                     name = name_from_uri(uri)
                     # if there's no file extension, it's likely a folder, which may not be unique
                     if "." not in name:
-                        name = str(i)
+                        name = hashlib.sha256(uri.encode()).hexdigest()
                 except:
-                    name = str(i)
+                    name = hashlib.sha256(uri.encode()).hexdigest()
             else:
                 name = target
 
             source_fs = get_fs(uri)
-            cache_fs = get_fs(cache_folder)
-            if not cache_fs.exists(cache_folder):
-                cache_fs.makedirs(cache_folder)
+            cache_fs, cache_folder = self.get_cache(cache_folder, force=True)
 
             if isinstance(source_fs, LocalFileSystem):
                 cache_file = uri
@@ -246,11 +255,11 @@ class BaseConverter:
                 elif py7zr.is_7zfile(cache_file):
                     with py7zr.SevenZipFile(cache_file, 'r') as sz_file:
                         sz_file.extractall(zip_folder)
-                elif name.endswith(".rar"):
+                elif rarfile.is_rarfile(cache_file):
                     with rarfile.RarFile(cache_file, 'r') as w:
                         w.extractall(zip_folder)
                 else:
-                    raise ValueError(f"Only ZIP and 7Z files are supported for extraction: {cache_file}")
+                    raise ValueError(f"Only ZIP and 7Z files are supported for extraction, fails for: {cache_file}")
 
             if is_archive:
                 for filename in target:
@@ -273,15 +282,19 @@ class BaseConverter:
                 raise ValueError(f"Unknown year '{self.year}', choose from {opts}")
         return urls
 
-    def read_data(self, paths, **kwargs):
-        gdfs = []
+    def get_data(self, paths, **kwargs):
         for path, uri in paths:
+            # e.g. allow "*.shp" to identify the single relevant file without knowing the name in advance
+            if "*" in path:
+                lst = glob(path)
+                assert len(lst) == 1, f"Can not match {path} to a single file"
+                path = lst[0]
             log(f"Reading {path} into GeoDataFrame(s)")
             is_parquet = path.endswith(".parquet") or path.endswith(".geoparquet")
             is_json = path.endswith(".json") or path.endswith(".geojson")
             layers = [None]
-            # Parquet doesn't support layers
-            if not is_parquet:
+            # Parquet and geojson don't support layers
+            if not (is_parquet or is_json):
                 all_layers = gpd.list_layers(path)
                 layers = [layer for layer in all_layers["name"] if self.layer_filter(str(layer), path)]
                 if len(layers) == 0:
@@ -299,12 +312,16 @@ class BaseConverter:
                 else:
                     data = gpd.read_file(path, **kwargs)
 
-                # 0. Run migration per file/layer
-                data = self.file_migration(data, path, uri, layer)
-                if not isinstance(data, gpd.GeoDataFrame):
-                    raise ValueError("Per-file/layer migration function must return a GeoDataFrame")
+                yield data, path, uri, layer
 
-                gdfs.append(data)
+    def read_data(self, paths, **kwargs):
+        gdfs = []
+        for data, path, uri, layer in self.get_data(paths, **kwargs):
+            # 0. Run migration per file/layer
+            data = self.file_migration(data, path, uri, layer)
+            if not isinstance(data, gpd.GeoDataFrame):
+                raise ValueError("Per-file/layer migration function must return a GeoDataFrame")
+            gdfs.append(data)
 
         return pd.concat(gdfs)
 
@@ -432,28 +449,31 @@ class BaseConverter:
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-        urls = self.get_urls()
         if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
             log("Using user provided input file(s) instead of the pre-defined file(s)", "warning")
             urls = input_files
-        elif urls is None:
-            raise ValueError("No input files provided")
+        else:
+            urls = self.get_urls()
+            if urls is None:
+                raise ValueError("No input files provided")
 
         log("Getting file(s) if not cached yet")
         paths = self.download_files(urls, cache)
 
+        kwargs.update(self.open_options)
         gdf = self.read_data(paths, **kwargs)
 
         log("GeoDataFrame created from source(s):")
         # Make it so that everything is shown, don't output ... if there are too many columns or rows
         pd.set_option('display.max_columns', None)
         pd.set_option('display.max_rows', None)
+
+        hash_before = hash_df(gdf.head())
         print(gdf.head())
 
         if self.index_as_id:
             gdf["id"] = gdf.index
 
-        hash_before = hash_df(gdf)
         # 1. Run global migration
         log("Applying global migrations")
         gdf = self.migrate(gdf)
@@ -480,7 +500,7 @@ class BaseConverter:
 
         gdf = self.post_migrate(gdf)
 
-        if hash_before != hash_df(gdf):
+        if hash_before != hash_df(gdf.head()):
             log("GeoDataFrame after migrations and filters:")
             print(gdf.head())
 
@@ -511,6 +531,7 @@ class BaseConverter:
         if not original_geometries:
             gdf.geometry = gdf.geometry.make_valid()
             gdf = gdf.explode()
+            gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
             if gdf.geometry.array.has_z.any():
                 log("Removing Z geometry dimension", "info")
                 gdf.geometry = gdf.geometry.force_2d()
@@ -544,7 +565,10 @@ class BaseConverter:
 
 
 def hash_df(df):
-    # dataframe is unhashable, simple way to
+    # dataframe is unhashable, this is a simple way to create a dafaframe-hash
     buf = StringIO()
     df.info(buf=buf)
     return hash(buf.getvalue())
+
+
+

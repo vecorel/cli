@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Rewrite to class-based converters
+- Converters for Spain: Aragon, Andalusia, Balearic Islands, Basque Country, Catalonia, Cantabria, Castilla y León, Castilla-La Mancha, Canary Islands, Extremadura, Galicia, Madrid, Navarra, Valencia
+- Start to use `https://fiboa.org/code/` prefixed codes for our own code lists
 - Use only unix line-endings in source files
 - Use set instead of list for Converter.extensions
 - Converted datasets are hilbert-curve sorted
@@ -34,7 +36,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converter for Latvia (from original source)
 - Converter for Japan, currently based on supplied (non-fiboa) parquet files
 - Many converters implement the admin extension
-- Assure tests don't download external sources
 - `fiboa convert`: New parameter `--original-geometries` / `-og` to keep the original geometries
 
 ### Changed
