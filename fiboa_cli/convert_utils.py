@@ -486,6 +486,8 @@ class BaseConverter:
                 log("Removing Z geometry dimension", "info")
                 gdf.geometry = gdf.geometry.force_2d()
 
+        gdf.sort_values('geometry', inplace=True, ignore_index=True)
+
         gdf = self.post_migrate(gdf)
 
         if hash_before != hash_df(gdf):
@@ -521,7 +523,6 @@ class BaseConverter:
         log("GeoDataFrame fully migrated:")
         print(gdf.head())
 
-        gdf.sort_values('geometry', inplace=True, ignore_index=True)
         collection = self.create_collection(gdf, source_coop_url=source_coop_url)
 
         log("Creating GeoParquet file: " + output_file)
