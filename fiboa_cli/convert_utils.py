@@ -498,15 +498,6 @@ class BaseConverter:
                 else:
                     log(f"Column '{key}' not found in dataset, skipping migration", "warning")
 
-        # 4b. For geometry column, fix geometries
-        if not original_geometries:
-            gdf.geometry = gdf.geometry.make_valid()
-            gdf = gdf.explode()
-            gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
-            if gdf.geometry.array.has_z.any():
-                log("Removing Z geometry dimension", "info")
-                gdf.geometry = gdf.geometry.force_2d()
-
         gdf = self.post_migrate(gdf)
 
         if hash_before != hash_df(gdf.head()):
@@ -535,7 +526,19 @@ class BaseConverter:
         if geometry_renamed:
             gdf.set_geometry("geometry", inplace=True)
 
-        # 7. Remove all columns that are not listed
+        # 7. For geometry column, fix geometries
+        # This was previously in step 4, but some datasets have a geometry column that is not named "geometry"
+        if not original_geometries:
+            gdf.geometry = gdf.geometry.make_valid()
+            gdf = gdf.explode()
+            gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
+            if gdf.geometry.array.has_z.any():
+                log("Removing Z geometry dimension", "info")
+                gdf.geometry = gdf.geometry.force_2d()
+
+        gdf.sort_values('geometry', inplace=True, ignore_index=True)
+
+        # 8. Remove all columns that are not listed
         drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
         gdf.drop(columns = drop_columns, inplace = True)
 
