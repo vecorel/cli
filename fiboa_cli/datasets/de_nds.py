@@ -1,5 +1,5 @@
-from .commons.admin import AdminConverterMixin
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -13,26 +13,26 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "ML/SLA Niedersachsen",
             "url": "https://sla.niedersachsen.de/landentwicklung/LEA/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "© ML/SLA Niedersachsen (2024), dl-de/by-2-0 (www.govdata.de/dl-de/by-2-0), Daten bearbeitet"
     license = "dl-de/by-2-0"
     extensions = {"https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"}
     columns = {
-        'geometry': 'geometry',
-        'FLIK': ['id', 'flik'],
-        'STAND': 'determination_datetime',
-        'ANT_JAHR': 'ant_jahr',
-        'BNK': 'bnk',
-        'BNK_TXT': 'bnk_txt',
-        'FLAECHE': 'area',
-        'SHAPE_Leng': "perimeter",
+        "geometry": "geometry",
+        "FLIK": ["id", "flik"],
+        "STAND": "determination_datetime",
+        "ANT_JAHR": "ant_jahr",
+        "BNK": "bnk",
+        "BNK_TXT": "bnk_txt",
+        "FLAECHE": "area",
+        "SHAPE_Leng": "perimeter",
     }
     missing_schemas = {
-        'properties': {
-            'ant_jahr': {'type': 'int16'},
-            'bnk': {'type': 'string'},
-            'bnk_txt': {'type': 'string'}
+        "properties": {
+            "ant_jahr": {"type": "int16"},
+            "bnk": {"type": "string"},
+            "bnk_txt": {"type": "string"},
         }
     }

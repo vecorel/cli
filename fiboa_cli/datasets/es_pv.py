@@ -1,12 +1,15 @@
-from .. import log
-import requests
 import pandas as pd
+import requests
+
+from .. import log
 from .es import ESBaseConverter
 
 
 class ESPVConverter(ESBaseConverter):
     source_variants = {
-        str(year): f"https://www.geo.euskadi.eus/cartografia/DatosDescarga/Agricultura/SIGPAC/SIGPAC_CAMPA%C3%91A_{year}_V1/"
+        str(
+            year
+        ): f"https://www.geo.euskadi.eus/cartografia/DatosDescarga/Agricultura/SIGPAC/SIGPAC_CAMPA%C3%91A_{year}_V1/"
         for year in range(2024, 2015, -1)
     }
     id = "es_pv"
@@ -23,7 +26,7 @@ class ESPVConverter(ESBaseConverter):
         {
             "name": "Basque Government",
             "url": "https://www.euskadi.eus/gobierno-vasco/inicio/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "Basque Government / Gobierno Vasco"
@@ -36,9 +39,7 @@ class ESPVConverter(ESBaseConverter):
         "crop:name": "crop:name",
     }
 
-    column_migrations = {
-        'CAMPANA': lambda col: pd.to_datetime(col, format='%Y')
-    }
+    column_migrations = {"CAMPANA": lambda col: pd.to_datetime(col, format="%Y")}
     use_code_attribute = "USO"
     index_as_id = True
 
@@ -53,9 +54,15 @@ class ESPVConverter(ESBaseConverter):
 
         # Parse list of zips in two steps from source url
         host = "https://www.geo.euskadi.eus"
-        base = f"/cartografia/DatosDescarga/Agricultura/SIGPAC/SIGPAC_CAMPA%C3%91A_{self.variant}_V1/"
+        base = (
+            f"/cartografia/DatosDescarga/Agricultura/SIGPAC/SIGPAC_CAMPA%C3%91A_{self.variant}_V1/"
+        )
         soup = BeautifulSoup(requests.get(f"{host}/{base}").content, "html.parser")
-        pages = [p['href'] for p in soup.find_all("a") if p['href'].startswith(base)]
-        parsed = [BeautifulSoup(requests.get(f"{host}/{page}").content, "html.parser") for page in pages]
-        zips = [p['href'] for soup in parsed for p in soup.find_all("a") if p['href'].endswith(".zip")]
+        pages = [p["href"] for p in soup.find_all("a") if p["href"].startswith(base)]
+        parsed = [
+            BeautifulSoup(requests.get(f"{host}/{page}").content, "html.parser") for page in pages
+        ]
+        zips = [
+            p["href"] for soup in parsed for p in soup.find_all("a") if p["href"].endswith(".zip")
+        ]
         return {f"{host}{z}": z.rsplit("/", 1)[1] for z in zips}

@@ -1,30 +1,28 @@
-from .commons.data import read_data_csv
-from ..convert_utils import BaseConverter
 import pandas as pd
+
+from ..convert_utils import BaseConverter
+from .commons.data import read_data_csv
 
 
 class ESCatConverter(BaseConverter):
     # Catalonia has its own coding list, not sublass of ESBaseConverter
     source_variants = {
         "2023": {
-            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/b4299961-52ee-4fa0-a276-4594c8c094bc?download=true&filename=Cultius_DUN2023_GPKG.zip":
-                ["Cultius_DUN2023_GPKG/CULTIUS_DUN2023.gpkg"]
+            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/b4299961-52ee-4fa0-a276-4594c8c094bc?download=true&filename=Cultius_DUN2023_GPKG.zip": [
+                "Cultius_DUN2023_GPKG/CULTIUS_DUN2023.gpkg"
+            ]
         },
         "2022": {
-            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/f1c8c463-ef4a-4821-8516-ff1884c0386a?download=true&filename=Cultius_DUN2022_SHP.zip":
-                "Cultius_DUN2022.zip"
+            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/f1c8c463-ef4a-4821-8516-ff1884c0386a?download=true&filename=Cultius_DUN2022_SHP.zip": "Cultius_DUN2022.zip"
         },
         "2021": {
-            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/aef79c3c-c663-46ed-a535-ceb03a64b46b?download=true&filename=Cultius_DUN2021_SHP.zip":
-                "Cultius_DUN2021.zip"
+            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/aef79c3c-c663-46ed-a535-ceb03a64b46b?download=true&filename=Cultius_DUN2021_SHP.zip": "Cultius_DUN2021.zip"
         },
         "2020": {
-            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/b47b0ab9-8324-40c7-b553-1015793a38a4?download=true&filename=Cultius_DUN2020_SHP.zip":
-                "Cultius_DUN2020.zip"
+            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/b47b0ab9-8324-40c7-b553-1015793a38a4?download=true&filename=Cultius_DUN2020_SHP.zip": "Cultius_DUN2020.zip"
         },
         "2019": {
-            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/58d46b1e-522f-428e-b089-aa8e4668fae9?download=true&filename=Cultius_DUN2019.zip":
-                "Cultius_DUN2019.zip"
+            "https://analisi.transparenciacatalunya.cat/api/views/yh94-j2n9/files/58d46b1e-522f-428e-b089-aa8e4668fae9?download=true&filename=Cultius_DUN2019.zip": "Cultius_DUN2019.zip"
         },
         # More data at https://agricultura.gencat.cat/ca/ambits/desenvolupament-rural/sigpac/mapa-cultius/
     }
@@ -39,7 +37,7 @@ class ESCatConverter(BaseConverter):
         {
             "name": "Catalonia Department of Agriculture, Livestock, Fisheries and Food",
             "url": "https://agricultura.gencat.cat/ca/ambits/desenvolupament-rural/sigpac/mapa-cultius/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "Catalonia Department of Agriculture, Livestock, Fisheries and Food"
@@ -47,7 +45,7 @@ class ESCatConverter(BaseConverter):
         "title": "The Open Information Use License - Catalonia",
         "href": "https://administraciodigital.gencat.cat/ca/dades/dades-obertes/informacio-practica/llicencies/",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
     extensions = {"https://fiboa.github.io/crop-extension/v0.1.0/schema.yaml"}
     column_additions = {
@@ -59,12 +57,12 @@ class ESCatConverter(BaseConverter):
         "campanya": "determination_datetime",
         "ha": "area",
         "cultiu": "crop:name",
-        'crop:code': 'crop:code',
-        'crop:name_en': 'crop:name_en',
+        "crop:code": "crop:code",
+        "crop:name_en": "crop:name_en",
     }
-    open_options = dict(encoding='utf-8')
+    open_options = dict(encoding="utf-8")
     column_migrations = {
-        "campanya": lambda col: pd.to_datetime(col, format='%Y'),
+        "campanya": lambda col: pd.to_datetime(col, format="%Y"),
     }
 
     index_as_id = True
@@ -81,8 +79,8 @@ class ESCatConverter(BaseConverter):
         rows = read_data_csv("es_cat.csv")
         mapping = {row["original_name"]: row["original_code"] for row in rows}
         mapping_en = {row["original_name"]: row["translated_name"] for row in rows}
-        missing = {k for k in gdf['cultiu'].unique() if k not in mapping}
+        missing = {k for k in gdf["cultiu"].unique() if k not in mapping}
         assert len(missing) == 0, f"Can not map crops {missing}"
-        gdf['crop:code'] = gdf['cultiu'].map(mapping)
-        gdf['crop:name_en'] = gdf['cultiu'].map(mapping_en)
+        gdf["crop:code"] = gdf["cultiu"].map(mapping)
+        gdf["crop:name_en"] = gdf["cultiu"].map(mapping_en)
         return gdf

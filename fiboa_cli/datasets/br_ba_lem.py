@@ -1,5 +1,5 @@
-from .commons.admin import AdminConverterMixin
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -24,27 +24,27 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Mendeley Data",
             "url": "https://data.mendeley.com/datasets/vz6d7tw87f/1#file-5ac1542b-12ef-4dce-8258-113b5c5d87c9",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "Copyright © 2024 Elsevier inc, its licensors, and contributors."
     license = "CC-BY-4.0"
     columns = {
-        'geometry': 'geometry',
-        'id': 'id',
-        'Oct_2019': '2019-10',
-        'Nov_2019': '2019-11',
-        'Dec_2019': '2019-12',
-        'Jan_2020': '2020-01',
-        'Feb_2020': '2020-02',
-        'Mar_2020': '2020-03',
-        'Apr_2020': '2020-04',
-        'May_2020': '2020-05',
-        'Jun_2020': '2020-06',
-        'Jul_2020': '2020-07',
-        'Aug_2020': '2020-08',
-        'Sep_2020': '2020-09',
-        'note': 'note'
+        "geometry": "geometry",
+        "id": "id",
+        "Oct_2019": "2019-10",
+        "Nov_2019": "2019-11",
+        "Dec_2019": "2019-12",
+        "Jan_2020": "2020-01",
+        "Feb_2020": "2020-02",
+        "Mar_2020": "2020-03",
+        "Apr_2020": "2020-04",
+        "May_2020": "2020-05",
+        "Jun_2020": "2020-06",
+        "Jul_2020": "2020-07",
+        "Aug_2020": "2020-08",
+        "Sep_2020": "2020-09",
+        "note": "note",
     }
     type_schema = {
         "type": "string",
@@ -65,14 +65,22 @@ class Converter(AdminConverterMixin, BaseConverter):
             "Sorghum",
             "Soybean",
             "Uncultivated soil",
-        ]
+        ],
     }
     missing_schemas = {
         "required": [
-            "2019-10", "2019-11", "2019-12",
-            "2020-01", "2020-02", "2020-03",
-            "2020-04", "2020-05", "2020-06",
-            "2020-07", "2020-08", "2020-09"
+            "2019-10",
+            "2019-11",
+            "2019-12",
+            "2020-01",
+            "2020-02",
+            "2020-03",
+            "2020-04",
+            "2020-05",
+            "2020-06",
+            "2020-07",
+            "2020-08",
+            "2020-09",
         ],
         "properties": {
             "2019-10": type_schema,
@@ -87,8 +95,6 @@ class Converter(AdminConverterMixin, BaseConverter):
             "2020-07": type_schema,
             "2020-08": type_schema,
             "2020-09": type_schema,
-            "note": {
-                "type": "string"
-            }
-        }
+            "note": {"type": "string"},
+        },
     }

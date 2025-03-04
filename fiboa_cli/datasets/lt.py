@@ -12,11 +12,13 @@ class LTConverter(EuroLandBaseConverter):
         {
             "name": "Nacionalinė mokėjimo agentūra prie Žemės ūkio ministerijos",
             "url": "https://www.nma.lt/",
-            "roles": ['producer', 'licensor']
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "Nacionalinė mokėjimo agentūra prie Žemės ūkio ministerijos"
     crop_code_list = ec_url("lt_2021.csv")
     sources = {
-        "https://zenodo.org/records/14384070/files/LT_2024.zip?download=1": ["GSA-LT-2024.geoparquet"]
+        "https://zenodo.org/records/14384070/files/LT_2024.zip?download=1": [
+            "GSA-LT-2024.geoparquet"
+        ]
     }

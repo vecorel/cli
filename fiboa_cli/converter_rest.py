@@ -1,13 +1,11 @@
+import os
 from urllib.parse import urlencode
 
+import geopandas as gpd
 import requests
 
 from .convert_utils import stream_file
 from .util import get_fs
-
-import os
-import geopandas as gpd
-import pandas as pd
 
 
 class EsriRESTConverterMixin:
@@ -20,7 +18,11 @@ class EsriRESTConverterMixin:
         return next(iter(layers))
 
     def get_urls(self):
-        assert self.rest_base_url, "Either define {c}.rest_base_url or override {c}.get_urls()".format(c=self.__class__.__name__)
+        assert self.rest_base_url, (
+            "Either define {c}.rest_base_url or override {c}.get_urls()".format(
+                c=self.__class__.__name__
+            )
+        )
         return {"REST": self.rest_base_url}
 
     def download_files(self, uris, cache_folder=None):
@@ -50,7 +52,7 @@ class EsriRESTConverterMixin:
             "returnGeometry": "true",
             "f": "geojson",
             "sortBy": self.rest_attribute,
-            "resultRecordCount": page_size
+            "resultRecordCount": page_size,
         }
         gdfs = []
         last_id = -1
@@ -58,14 +60,18 @@ class EsriRESTConverterMixin:
             get_dict["where"] = f"{self.rest_attribute}>{last_id}"
             url = f"{layer_url}?{urlencode(get_dict)}"
             if cache_fs is not None:
-                cache_file = os.path.join(cache_folder, f"{self.id}_{layer['id']}_{last_id}.geojson")
+                cache_file = os.path.join(
+                    cache_folder, f"{self.id}_{layer['id']}_{last_id}.geojson"
+                )
                 if not cache_fs.exists(cache_file):
-                    with cache_fs.open(cache_file, mode='wb') as file:
+                    with cache_fs.open(cache_file, mode="wb") as file:
                         stream_file(source_fs, url, file)
                 url = cache_file
 
             data = gpd.read_file(url)
-            print(f"Read {len(data)} features, page {len(gdfs)} from [{data.iloc[0, 0]} ... {data.iloc[-1, 0]}]")
+            print(
+                f"Read {len(data)} features, page {len(gdfs)} from [{data.iloc[0, 0]} ... {data.iloc[-1, 0]}]"
+            )
             last_id = data[self.rest_attribute].values[-1]
 
             yield data, base_url, base_url, layer["id"]

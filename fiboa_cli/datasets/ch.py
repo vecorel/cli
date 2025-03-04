@@ -1,7 +1,8 @@
-from .commons.admin import AdminConverterMixin
-from ..convert_utils import convert as convert_, BaseConverter
-import pandas as pd
 import numpy as np
+import pandas as pd
+
+from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -26,7 +27,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Konferenz der kantonalen Geoinformations- und Katasterstellen",
             "url": "https://www.kgk-cgc.ch/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     index_as_id = True
@@ -34,27 +35,25 @@ class Converter(AdminConverterMixin, BaseConverter):
         "title": "opendata.swiss terms of use",
         "href": "https://opendata.swiss/en/terms-of-use",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
     columns = {
-        'geometry': 'geometry',
-        'id': 'id',
-        'flaeche_m2': 'area',
-        'kanton': 'admin:subdivision_code',
+        "geometry": "geometry",
+        "id": "id",
+        "flaeche_m2": "area",
+        "kanton": "admin:subdivision_code",
         "nutzung": "crop_name",
-        'bezugsjahr': 'determination_datetime'
+        "bezugsjahr": "determination_datetime",
     }
     column_filters = {
-        'ist_ueberlagernd': lambda col: col == False,
+        "ist_ueberlagernd": lambda col: col == False,
     }
     column_migrations = {
-        'flaeche_m2': lambda column: np.where(column > 0, column / 10000, 0.001),
-        'bezugsjahr': lambda col: pd.to_datetime(col, format='%Y'),
+        "flaeche_m2": lambda column: np.where(column > 0, column / 10000, 0.001),
+        "bezugsjahr": lambda col: pd.to_datetime(col, format="%Y"),
     }
     missing_schemas = {
-        'properties': {
-            'crop_name': {
-                'type': 'string'
-            },
+        "properties": {
+            "crop_name": {"type": "string"},
         }
     }

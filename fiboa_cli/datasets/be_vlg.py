@@ -1,12 +1,14 @@
+from ..convert_utils import BaseConverter
 from .commons.admin import AdminConverterMixin
 from .commons.ec import ec_url
-from ..convert_utils import BaseConverter
 
 PREFIX = "https://www.landbouwvlaanderen.be/bestanden/gis/"
 
+
 class Converter(AdminConverterMixin, BaseConverter):
     years = {
-        k: {PREFIX + v: [v.replace("_GPKG.zip", ".gpkg")]} for k, v in (
+        k: {PREFIX + v: [v.replace("_GPKG.zip", ".gpkg")]}
+        for k, v in (
             (2024, "Landbouwgebruikspercelen_2024_-_Voorlopig_(extractie_15-10-2024)_GPKG.zip"),
             (2023, "Landbouwgebruikspercelen_2023_-_Definitief_(extractie_28-03-2024)_GPKG.zip"),
             (2022, "Landbouwgebruikspercelen_2022_-_Definitief_(extractie_26-06-2023)_GPKG.zip"),
@@ -29,7 +31,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Agentschap Landbouw & Zeevisserij (Government)",
             "url": "https://landbouwcijfers.vlaanderen.be/open-geodata-landbouwgebruikspercelen",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
 
@@ -38,7 +40,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         "title": "Licentie modellicentie-gratis-hergebruik/v1.0",
         "href": "https://data.vlaanderen.be/id/licentie/modellicentie-gratis-hergebruik/v1.0",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
 
     columns = {
@@ -53,16 +55,7 @@ class Converter(AdminConverterMixin, BaseConverter):
     extensions = {"https://fiboa.github.io/crop-extension/v0.1.0/schema.yaml"}
     column_additions = {
         "determination_datetime": "2024-03-28T00:00:00Z",
-        "crop:code_list": ec_url("be_vlg_2021.csv")
+        "crop:code_list": ec_url("be_vlg_2021.csv"),
     }
 
-    missing_schemas = {
-        "properties": {
-            "source": {
-                "type": "string"
-            },
-            "typology": {
-                "type": "string"
-            }
-        }
-    }
+    missing_schemas = {"properties": {"source": {"type": "string"}, "typology": {"type": "string"}}}

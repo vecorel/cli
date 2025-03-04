@@ -2,8 +2,8 @@
 import os
 import re
 
-from .commons.admin import AdminConverterMixin
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -22,22 +22,16 @@ class Converter(AdminConverterMixin, BaseConverter):
     For more information, see the [field boundaries technical specification](https://planet.widen.net/s/5vq8w5wjvf/2403.08_mar-9444-field-boundaries-technical-specification-sheet-3)
     """
     providers = [
-        {
-            "name": "Planet Labs, PBC",
-            "url": "https://planet.com",
-            "roles": ["producer", "licensor"]
-        }
+        {"name": "Planet Labs, PBC", "url": "https://planet.com", "roles": ["producer", "licensor"]}
     ]
     attribution = "© 2024 Planet Labs, PBC"
     license = {
         "title": "Proprietary License",
         "href": "https://www.planet.com/licensing-information/",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
-    extensions = {
-        "https://fiboa.github.io/planet-extension/v0.1.0/schema.yaml"
-    }
+    extensions = {"https://fiboa.github.io/planet-extension/v0.1.0/schema.yaml"}
     columns = {
         "polygon_id": "id",  # fiboa core field
         "area_ha": "area",  # fiboa core field
@@ -47,9 +41,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         "micd": "planet:micd",  # From Planet extension for fiboa
         "qa": "planet:qa",  # From Planet extension for fiboa
     }
-    column_additions = {
-        "determination_method": "auto-imagery"
-    }
+    column_additions = {"determination_method": "auto-imagery"}
     missing_schemas = {}
 
     def file_migration(self, gdf, path, uri, layer=None):

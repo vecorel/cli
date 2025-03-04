@@ -1,8 +1,10 @@
-from ..convert_utils import convert as convert_, BaseConverter
-from .commons.admin import add_admin, AdminConverterMixin
-
 import re
+
 import pandas as pd
+
+from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
+
 
 class Converter(AdminConverterMixin, BaseConverter):
     sources = "https://www.geoproxy.geoportal-th.de/download-service/opendata/agrar/DGK_Thue.zip"
@@ -32,95 +34,78 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Thüringer Landesamt für Landwirtschaft und Ländlichen Raum",
             "url": "https://geomis.geoportal-th.de/geonetwork/srv/ger/catalog.search#/metadata/D872F2D6-60BC-11D6-B67D-00E0290F5BA0",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "© GDI-Th"
     license = "dl-de/by-2-0"
 
-    extensions = {
-        "https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"
-    }
+    extensions = {"https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"}
 
     columns = {
-        'geometry': 'geometry',
-        'BEZUGSJAHR': 'valid_year',
-        'FBI': 'flik',
-        'FBI_KURZ': 'id',
-        'FB_FLAECHE': 'area',
-        'FBI_VJ': 'flik_last_year',
-        'FB_FL_VJ': 'area_last_year',
-        'TK10': 'tk10',
-        'AFO': 'afo',
+        "geometry": "geometry",
+        "BEZUGSJAHR": "valid_year",
+        "FBI": "flik",
+        "FBI_KURZ": "id",
+        "FB_FLAECHE": "area",
+        "FBI_VJ": "flik_last_year",
+        "FB_FL_VJ": "area_last_year",
+        "TK10": "tk10",
+        "AFO": "afo",
         # Don't add LF, all values are 'LF' after the filter below
         #   'LF': 'lf',
-        'BNK': 'bnk',
-        'KOND_LE': 'kond_le',
-        'AENDERUNG': 'change',
-        'GEO_UPDAT': 'determination_datetime'
+        "BNK": "bnk",
+        "KOND_LE": "kond_le",
+        "AENDERUNG": "change",
+        "GEO_UPDAT": "determination_datetime",
     }
 
-    delim = re.compile(r'\s*,\s*')
+    delim = re.compile(r"\s*,\s*")
     column_migrations = {
-        'AFO': lambda column: column.map({'J': True}).fillna(value=False).astype(bool),
-        'KOND_LE': lambda column: column.map({'J': True}).fillna(value=False).astype(bool),
-        'AENDERUNG': lambda column: column.map({'Geaendert': True, 'Unveraendert': False, 'Neu': None}),
-        'FBI_VJ': lambda column: column.str.split(Converter.delim, regex=True)
+        "AFO": lambda column: column.map({"J": True}).fillna(value=False).astype(bool),
+        "KOND_LE": lambda column: column.map({"J": True}).fillna(value=False).astype(bool),
+        "AENDERUNG": lambda column: column.map(
+            {"Geaendert": True, "Unveraendert": False, "Neu": None}
+        ),
+        "FBI_VJ": lambda column: column.str.split(Converter.delim, regex=True),
     }
 
     def migrate(self, gdf):
         col = "GEO_UPDAT"
-        gdf[col] = pd.to_datetime(gdf[col], format = "%d.%m.%Y", utc = True)
+        gdf[col] = pd.to_datetime(gdf[col], format="%d.%m.%Y", utc=True)
         return gdf
 
-    column_filters = {
-        "LF": lambda col: col == "LF"
-    }
+    column_filters = {"LF": lambda col: col == "LF"}
 
     # Schemas for the fields that are not defined in fiboa
     # Keys must be the values from the COLUMNS dict, not the keys
     missing_schemas = {
-        'required': [
-            'valid_year',
-            'area_last_year',
-            'tk10',
-            'bnk'
-        ],
-        'properties': {
-            'valid_year': {
+        "required": ["valid_year", "area_last_year", "tk10", "bnk"],
+        "properties": {
+            "valid_year": {
                 # could also be uint16 or string
-                'type': 'int16'
+                "type": "int16"
             },
-            'flik_last_year': {
-                'type': 'array',
-                'items': {
+            "flik_last_year": {
+                "type": "array",
+                "items": {
                     # as defined in the flik extension schema
-                    'type': 'string',
-                    'minLength': 16,
-                    'maxLength': 16,
-                    'pattern': "^[A-Z]{2}[A-Z0-9]{2}[A-Z0-9]{2}[A-Z0-9]{10}$"
-                }
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 16,
+                    "pattern": "^[A-Z]{2}[A-Z0-9]{2}[A-Z0-9]{2}[A-Z0-9]{10}$",
+                },
             },
-            'area_last_year': {
+            "area_last_year": {
                 # as define in the area schema
-                'type': 'float',
-                'exclusiveMinimum': 0,
-                'maximum': 100000
+                "type": "float",
+                "exclusiveMinimum": 0,
+                "maximum": 100000,
             },
-            'tk10': {
-                'type': 'string'
-            },
-            'afo': {
-                'type': 'boolean'
-            },
-            'bnk': {
-                'type': 'string'
-            },
-            'kond_le': {
-                'type': 'boolean'
-            },
-            'change': {
-                'type': 'boolean'
-            }
-        }
+            "tk10": {"type": "string"},
+            "afo": {"type": "boolean"},
+            "bnk": {"type": "string"},
+            "kond_le": {"type": "boolean"},
+            "change": {"type": "boolean"},
+        },
     }

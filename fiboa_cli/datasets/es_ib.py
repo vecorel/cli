@@ -1,8 +1,9 @@
 import re
 
+import pandas as pd
+
 from fiboa_cli.converter_rest import EsriRESTConverterMixin
 from fiboa_cli.datasets.es import ESBaseConverter
-import pandas as pd
 
 
 class ESIBConverter(EsriRESTConverterMixin, ESBaseConverter):
@@ -20,7 +21,7 @@ class ESIBConverter(EsriRESTConverterMixin, ESBaseConverter):
         {
             "name": "Govern de les Illes Balears",
             "url": "https://gobiernoabierto.navarra.es/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     columns = {
@@ -35,26 +36,24 @@ class ESIBConverter(EsriRESTConverterMixin, ESBaseConverter):
         "ANYS": "determination_datetime",
     }
     column_migrations = {
-        "DN_SURFACE": lambda x: x/10000,
-        'ANYS': lambda col: pd.to_datetime(col, format='%Y')
+        "DN_SURFACE": lambda x: x / 10000,
+        "ANYS": lambda col: pd.to_datetime(col, format="%Y"),
     }
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
 
     # See https://ideib.caib.es/geoserveis/rest/services/public/GOIB_SIGPAC_IB/MapServer/ for current variants
-    source_variants = {str(year): str(year) for year in range(2024, 2010-1, -1)}
+    source_variants = {str(year): str(year) for year in range(2024, 2010 - 1, -1)}
     use_code_attribute = "USO_SIGPAC"
 
     rest_base_url = "https://ideib.caib.es/geoserveis/rest/services/public/GOIB_SIGPAC_IB/MapServer"
-    rest_params = {"where": "USO_SIGPAC NOT IN ('AG','CA','ED','FO','IM','IS','IV','TH','ZC','ZU','ZV','MT')"}
+    rest_params = {
+        "where": "USO_SIGPAC NOT IN ('AG','CA','ED','FO','IM','IS','IV','TH','ZC','ZU','ZV','MT')"
+    }
 
     def rest_layer_filter(self, layers):
         if not self.variant:

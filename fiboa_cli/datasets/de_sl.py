@@ -1,15 +1,16 @@
+import re
+
 from ..convert_utils import BaseConverter
 from .commons.admin import AdminConverterMixin
-import re
 
 
 def parse_flik(x):
-    match = re.search(r'flik:\s*([A-Z]{6}\d{10})', x, re.I)
+    match = re.search(r"flik:\s*([A-Z]{6}\d{10})", x, re.I)
     return match.group(1) if match else None
 
 
 def parse_size(x):
-    match = re.search(r'Size in ha: (\d+(\.\d+)?)+', x, re.I)
+    match = re.search(r"Size in ha: (\d+(\.\d+)?)+", x, re.I)
     return float(match.group(1)) if match else None
 
 
@@ -24,8 +25,12 @@ bboxes = [
     # Add more bboxes if needed
 ]
 
+
 class Converter(AdminConverterMixin, BaseConverter):
-    sources = {url.format(bbox=",".join(map(str, bbox))): f"{i}.gml" for i, bbox in enumerate(bboxes, start=1)}
+    sources = {
+        url.format(bbox=",".join(map(str, bbox))): f"{i}.gml"
+        for i, bbox in enumerate(bboxes, start=1)
+    }
 
     id = "de_sl"
     admin_subdivision_code = "SL"
@@ -36,26 +41,22 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Ministerium für Umwelt, Klima, Mobilität, Agrar und Verbraucherschutz",
             "url": "https://geoportal.saarland.de",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "©GDI-SL 2024"
     license = "cc-by-4.0"
     extensions = {"https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"}
     columns = {
-        'geometry': 'geometry',
-        'identifier': 'id',
-        'flik': 'flik',
-        'area': 'area',
-        'name': 'name',
+        "geometry": "geometry",
+        "identifier": "id",
+        "flik": "flik",
+        "area": "area",
+        "name": "name",
     }
-    missing_schemas = {
-        'properties': {
-            'name': {'type': 'string'}
-        }
-    }
+    missing_schemas = {"properties": {"name": {"type": "string"}}}
 
     def migrate(self, gdf):
-        gdf['flik'] = gdf['description'].apply(parse_flik)
-        gdf['area'] = gdf['description'].apply(parse_size)
+        gdf["flik"] = gdf["description"].apply(parse_flik)
+        gdf["area"] = gdf["description"].apply(parse_size)
         return gdf

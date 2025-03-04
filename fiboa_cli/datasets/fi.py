@@ -1,8 +1,9 @@
-from .commons.ec import ec_url
+import numpy as np
+import pandas as pd
+
 from ..convert_utils import BaseConverter
 from .commons.admin import AdminConverterMixin
-import pandas as pd
-import numpy as np
+from .commons.ec import ec_url
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -19,7 +20,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Finnish Food Authority",
             "url": "https://www.ruokavirasto.fi/en/about-us/open-information/spatial-data-sets/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "Finnish Food Authority"
@@ -35,21 +36,17 @@ class Converter(AdminConverterMixin, BaseConverter):
     }
     column_migrations = {
         # Make year (1st January) from column "VUOSI"
-        "VUOSI": lambda col: pd.to_datetime(col, format='%Y'),
+        "VUOSI": lambda col: pd.to_datetime(col, format="%Y"),
     }
     extensions = {"https://fiboa.github.io/crop-extension/v0.1.0/schema.yaml"}
-    column_additions = {
-        "crop:code_list": ec_url("fi_2020.csv")
-    }
+    column_additions = {"crop:code_list": ec_url("fi_2020.csv")}
 
     def migrate(self, gdf):
-        gdf['area'] = np.where(gdf['PINTA_ALA'] == 0, gdf.area / 10000, gdf['PINTA_ALA'])
+        gdf["area"] = np.where(gdf["PINTA_ALA"] == 0, gdf.area / 10000, gdf["PINTA_ALA"])
         return gdf
 
     missing_schemas = {
         "properties": {
-            "block_id": {
-                "type": "int64"
-            },
+            "block_id": {"type": "int64"},
         }
     }

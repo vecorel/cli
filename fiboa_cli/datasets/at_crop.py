@@ -1,6 +1,6 @@
-from .commons.ec import ec_url
 from ..convert_utils import BaseConverter
 from .commons.admin import AdminConverterMixin
+from .commons.ec import ec_url
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -32,18 +32,18 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Agrarmarkt Austria",
             "url": "https://geometadatensuche.inspire.gv.at/metadatensuche/inspire/api/records/9db8a0c3-e92a-4df4-9d55-8210e326a7ed",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     license = "CC-BY-4.0"
     columns = {
         "GEO_ID": "id",
-        'INSPIRE_ID': 'inspire:id',
-        'geometry': 'geometry',
+        "INSPIRE_ID": "inspire:id",
+        "geometry": "geometry",
         "SNAR_CODE": "crop:code",
         "SNAR_BEZEICHNUNG": "crop:name",
         "SL_FLAECHE_BRUTTO_HA": "area",
-        "GEOM_DATE_CREATED": 'determination_datetime',
+        "GEOM_DATE_CREATED": "determination_datetime",
     }
     column_additions = {"crop:code_list": ec_url("at_2021.csv")}
     extensions = {

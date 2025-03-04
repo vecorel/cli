@@ -1,9 +1,9 @@
 import geopandas as gpd
 
-from .commons.admin import AdminConverterMixin
-from .commons.ec import ec_url
 from ..convert_gml import gml_assure_columns
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
+from .commons.ec import ec_url
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -32,14 +32,14 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Inspire Geoportal of the European Commission",
             "url": "https://inspire-geoportal.ec.europa.eu/srv/eng/catalog.search#/metadata/2a0d9be0-ac3d-443e-9db0-a7cfb0f128e2",
-            "roles": ["host", "processor"]
+            "roles": ["host", "processor"],
         }
     ]
     license = {
         "title": "No conditions apply to access and use. Distributed through Inspire guidelines",
         "href": "https://inspire-geoportal.ec.europa.eu/srv/eng/catalog.search#/metadata/2a0d9be0-ac3d-443e-9db0-a7cfb0f128e2",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
     columns = {
         "geometry": "geometry",
@@ -50,21 +50,27 @@ class Converter(AdminConverterMixin, BaseConverter):
     }
     column_additions = {
         "determination_datetime": "2022-01-01T00:00:00Z",
-        "crop:code_list": ec_url("be_wal_all_years.csv")
+        "crop:code_list": ec_url("be_wal_all_years.csv"),
     }
     column_migrations = {
-        "crop_code": lambda col: col.str.extract(r'\.(\d+)$', expand=False),
-        "crop_name": lambda col: col.str.strip()
+        "crop_code": lambda col: col.str.extract(r"\.(\d+)$", expand=False),
+        "crop_name": lambda col: col.str.strip(),
     }
     extensions = {"https://fiboa.github.io/crop-extension/v0.1.0/schema.yaml"}
 
     index_as_id = True
+
     def layer_filter(self, layer: str, uri: str) -> bool:
         return layer == "ExistingLandUseObject"
 
-    def file_migration(self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None) -> gpd.GeoDataFrame:
+    def file_migration(
+        self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None
+    ) -> gpd.GeoDataFrame:
         return gml_assure_columns(
-            gdf, path, uri, layer,
+            gdf,
+            path,
+            uri,
+            layer,
             crop_name={"ElementPath": "specificLandUse@title", "Type": "String", "Width": 255},
-            crop_code={"ElementPath": "specificLandUse@href", "Type": "String", "Width": 255}
+            crop_code={"ElementPath": "specificLandUse@href", "Type": "String", "Width": 255},
         )

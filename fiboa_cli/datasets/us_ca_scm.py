@@ -1,8 +1,8 @@
-from os.path import join, dirname
+from os.path import dirname, join
 
+from ..convert_utils import BaseConverter
 from .commons.admin import AdminConverterMixin
 from .commons.ec import load_ec_mapping
-from ..convert_utils import BaseConverter
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -28,7 +28,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "California Department of Water Resources",
             "url": "https://water.ca.gov/",
-            "roles": ["licensor", "producer"]
+            "roles": ["licensor", "producer"],
         }
     ]
     license = "CC-0"
@@ -45,9 +45,7 @@ class Converter(AdminConverterMixin, BaseConverter):
     }
     missing_schemas = {
         "properties": {
-            "admin_level_2": {
-                "type": "string"
-            },
+            "admin_level_2": {"type": "string"},
         }
     }
 

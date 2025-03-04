@@ -1,5 +1,5 @@
-from .commons.admin import AdminConverterMixin
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -14,27 +14,24 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Land Nordrhein-Westfalen / Open.NRW",
             "url": "https://www.opengeodata.nrw.de/produkte/umwelt_klima/bodennutzung/landwirtschaft/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     extensions = {
         "https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml",
-        "https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"
+        "https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml",
     }
     columns = {
-        'geometry': 'geometry',
-        'ID': 'id',
-        'INSPIRE_ID': 'inspire:id',
-        'FLIK': 'flik',
-        'GUELT_VON': 'determination_datetime',
+        "geometry": "geometry",
+        "ID": "id",
+        "INSPIRE_ID": "inspire:id",
+        "FLIK": "flik",
+        "GUELT_VON": "determination_datetime",
         # TODO implement crop:code extension
-        'NUTZ_CODE': 'nutz_code',
-        'NUTZ_TXT': 'nutz_txt',
-        'AREA_HA': 'area',
+        "NUTZ_CODE": "nutz_code",
+        "NUTZ_TXT": "nutz_txt",
+        "AREA_HA": "area",
     }
     missing_schemas = {
-        'properties': {
-            'nutz_code': {'type': 'string'},
-            'nutz_txt': {'type': 'string'}
-        }
+        "properties": {"nutz_code": {"type": "string"}, "nutz_txt": {"type": "string"}}
     }

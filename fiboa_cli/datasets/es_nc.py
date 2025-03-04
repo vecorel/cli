@@ -1,11 +1,11 @@
 import re
+from os import makedirs, path
 
-import requests
-from os import path, makedirs
 import pandas as pd
+import requests
 
-from .es import ESBaseConverter
 from ..util import log, name_from_uri
+from .es import ESBaseConverter
 
 
 # SOURCES = "https://filescartografia.navarra.es/2_CARTOGRAFIA_TEMATICA/2_6_SIGPAC/" # FULL Download timeout
@@ -22,7 +22,7 @@ class NCConverter(ESBaseConverter):
         {
             "name": "Comunidad Foral de Navarra",
             "url": "https://gobiernoabierto.navarra.es/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     columns = {
@@ -43,9 +43,11 @@ class NCConverter(ESBaseConverter):
         # scrape HTML page for sources
         content = requests.get("https://sigpac.navarra.es/descargas/", verify=False).text
         base = re.search('var rutaBase = "(.*?)";', content).group(1)
-        last = base.rsplit('/', 1)[-1]
-        return {f"https://sigpac.navarra.es/descargas/{base}{src}.zip": [f"{last}{src}.shp"] for src in
-                re.findall(r'value:"(\d+)"', content)}
+        last = base.rsplit("/", 1)[-1]
+        return {
+            f"https://sigpac.navarra.es/descargas/{base}{src}.zip": [f"{last}{src}.shp"]
+            for src in re.findall(r'value:"(\d+)"', content)
+        }
 
     def prefill_cache(self, uris, cache_folder=None):
         if cache_folder is None:
@@ -60,7 +62,7 @@ class NCConverter(ESBaseConverter):
             if not path.exists(target):
                 r = requests.get(uri, verify=False)
                 if r.status_code == 200:
-                    with open(target, 'wb') as f:
+                    with open(target, "wb") as f:
                         f.write(r.content)
                 else:
                     log(f"Skipping url {uri}, status_code={r.status_code}", "error")

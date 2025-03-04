@@ -1,5 +1,6 @@
-from .es import ESBaseConverter
 import pandas as pd
+
+from .es import ESBaseConverter
 
 
 class ARConverter(ESBaseConverter):
@@ -24,7 +25,7 @@ class ARConverter(ESBaseConverter):
         {
             "name": "Gobierno de Aragon",
             "url": "https://www.aragon.es/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
 
@@ -39,20 +40,16 @@ class ARConverter(ESBaseConverter):
         "uso_sigpac": "crop:code",
         "crop:name": "crop:name",
         "crop:name_en": "crop:name_en",
-        "ejercicio": "determination_datetime"
+        "ejercicio": "determination_datetime",
     }
 
     column_migrations = {
-        "ejercicio": lambda col: pd.to_datetime(col, format='%Y'),
+        "ejercicio": lambda col: pd.to_datetime(col, format="%Y"),
     }
 
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
