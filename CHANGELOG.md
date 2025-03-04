@@ -7,16 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- Add Austrian crop fields converter
+- Converters for Spain: Aragon, Andalusia, Balearic Islands, Basque Country, Catalonia, Cantabria, Castilla y León, Castilla-La Mancha, Canary Islands, Extremadura, Galicia, Madrid, Navarra, Valencia
+- Use ruff format + linting for a uniform code style
+
 ### Changed
 
-- Rewrite to class-based converters
-- Converters for Spain: Aragon, Andalusia, Balearic Islands, Basque Country, Catalonia, Cantabria, Castilla y León, Castilla-La Mancha, Canary Islands, Extremadura, Galicia, Madrid, Navarra, Valencia
+- Refactored converters to use a class-based approach
 - Start to use `https://fiboa.org/code/` prefixed codes for our own code lists
 - Use only unix line-endings in source files
 - Use set instead of list for Converter.extensions
 - Converted datasets are hilbert-curve sorted
-- Reimplement converters to class-based converters
-- Add Austrian crop fields converter 
 
 ## [v0.9.0] - 2025-01-07
 
