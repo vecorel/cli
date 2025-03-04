@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Use only unix line-endings in source files
 - Use set instead of list for Converter.extensions
 - Converted datasets are hilbert-curve sorted
+- Reimplement converters to class-based converters
+- Add Austrian crop fields converter 
 
 ## [v0.9.0] - 2025-01-07
 
