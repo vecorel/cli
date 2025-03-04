@@ -180,9 +180,9 @@ To install in development mode run `pip install -e .` in this folder.
 For the tests first run `pip install -r requirements-dev.txt` to install pytest.
 Then you can run `pytest` to execute the tests.
 
-All code is formatted with a specific ruff style, so all code looks the same. Code 
-will be formatted automatically. Your pull-requests will be tested for compliance. 
-Run `ruff check --fix && ruff format` to format your local code (or configure it in your IDE). 
+All code is formatted with a specific ruff style, so all code looks the same. Code
+will be formatted automatically. Your pull-requests will be tested for compliance.
+Run `pre-commit run --all-files` to format your local code manually (or configure it in your IDE).
 Install the pre-commit hook with `pre-commit install`, so you never commit incorrectly formatted code.
 
 ### Implement a converter
