@@ -73,7 +73,6 @@ def convert(output_file, cache=None, **kwargs):
         TITLE,
         DESCRIPTION,
         providers=PROVIDERS,
-        extensions=EXTENSIONS,
         migration=MIGRATION,
         attribution=ATTRIBUTION,
         license=LICENSE,

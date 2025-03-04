@@ -46,7 +46,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         "bezugsjahr": "determination_datetime",
     }
     column_filters = {
-        "ist_ueberlagernd": lambda col: col == False,
+        "ist_ueberlagernd": lambda col: col == False,  # noqa: E712
     }
     column_migrations = {
         "flaeche_m2": lambda column: np.where(column > 0, column / 10000, 0.001),

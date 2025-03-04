@@ -73,6 +73,5 @@ def convert(output_file, cache=None, **kwargs):
         column_migrations=COLUMN_MIGRATIONS,
         column_filters=COLUMN_FILTERS,
         license=LICENSE,
-        migration=MIGRATION,
         **kwargs,
     )

@@ -149,7 +149,7 @@ def is_valid_url(url):
     try:
         result = urlparse(url)
         return all([result.scheme in SUPPORTED_PROTOCOLS, result.netloc])
-    except:
+    except ValueError:
         return False
 
 
@@ -250,7 +250,7 @@ def name_from_uri(url):
     if "://" in url:
         try:
             url = urlparse(url).path
-        except:
+        except ValueError:
             pass
     return os.path.basename(url)
 

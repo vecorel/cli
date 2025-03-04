@@ -165,8 +165,9 @@ def validate_object(value, rules):
         issues.append(f"Object has more properties than the maximum of {rules['maxProperties']}.")
 
     props = rules.get("properties", {})
-    other_props = rules.get("additionalProperties", False)
-    pattern_props = rules.get("patternProperties", {})
+    # todo:
+    # other_props = rules.get("additionalProperties", False)
+    # pattern_props = rules.get("patternProperties", {})
     for key, val in props.items():
         if key not in value:
             issues.append(f"Key '{key}' is missing from the object.")

@@ -247,7 +247,7 @@ class BaseConverter:
                     # if there's no file extension, it's likely a folder, which may not be unique
                     if "." not in name:
                         name = hashlib.sha256(uri.encode()).hexdigest()
-                except:
+                except Exception:  # todo: in which case does this actually happen?
                     name = hashlib.sha256(uri.encode()).hexdigest()
             else:
                 name = target
