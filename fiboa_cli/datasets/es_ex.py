@@ -1,8 +1,9 @@
-import requests
 import re
+from datetime import datetime
+
+import requests
 
 from fiboa_cli.datasets.es import ESBaseConverter
-from datetime import datetime
 
 
 class EXConverter(ESBaseConverter):
@@ -16,7 +17,7 @@ class EXConverter(ESBaseConverter):
         {
             "name": "Junta de Extremadura",
             "url": "https://www.juntaex.es/lajunta/consejeria-de-infraestructuras-transporte-y-vivienda",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     columns = {
@@ -28,11 +29,11 @@ class EXConverter(ESBaseConverter):
         "crop:name": "crop:name",
         "crop:name_en": "crop:name_en",
         "dn_surface": "area",
-        "determination_datetime": "determination_datetime"
+        "determination_datetime": "determination_datetime",
     }
 
     column_migrations = {
-        "dn_surface": lambda x: x/10000,
+        "dn_surface": lambda x: x / 10000,
     }
 
     def migrate(self, gdf):
@@ -42,12 +43,8 @@ class EXConverter(ESBaseConverter):
 
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
     source_variants = {"2024": "TODO", "2023": "TODO"}
@@ -57,14 +54,23 @@ class EXConverter(ESBaseConverter):
             self.variant = next(iter(self.source_variants))
 
         from bs4 import BeautifulSoup
+
         base = "http://sitex.gobex.es/SITEX/centrodescargas/"
         soup = BeautifulSoup(requests.get(f"{base}viewsubcategoria/45").content, "html.parser")
         result = {}
 
         headers = {"X-Requested-With": "XMLHttpRequest", "X-Update": "resultadosdebusqueda"}
-        values = [e.get("value") for e in soup.find("select", id='municipio').find_all('option') if e.get('value')]
+        values = [
+            e.get("value")
+            for e in soup.find("select", id="municipio").find_all("option")
+            if e.get("value")
+        ]
         for value in values:
-            form = {"_method": "POST", "data[Datos][subcategoria_id]": 45, "data[Datos][nucleospoblacion_id]": value}
+            form = {
+                "_method": "POST",
+                "data[Datos][subcategoria_id]": 45,
+                "data[Datos][nucleospoblacion_id]": value,
+            }
             response = requests.post(f"{base}listadoresultados", data=form, headers=headers)
             soup = BeautifulSoup(response.content, "html.parser")
             matches = soup.find_all("a", href=re.compile(r"/SITEX/centrodescargas/descargar/"))

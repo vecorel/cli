@@ -1,8 +1,8 @@
-from .commons.data import read_data_csv
-from .. import log
-from .es import ESBaseConverter
-
 import numpy as np
+
+from .. import log
+from .commons.data import read_data_csv
+from .es import ESBaseConverter
 
 
 class ANConverter(ESBaseConverter):
@@ -34,7 +34,7 @@ class ANConverter(ESBaseConverter):
         {
             "name": "Junta de Andalucía",
             "url": "https://www.juntadeandalucia.es/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     attribution = "©Junta de Andalucía"
@@ -44,7 +44,7 @@ class ANConverter(ESBaseConverter):
         "title": "Pursuant to Law 37/2007 of 16 November on the reuse of public sector information and Law 3/2013 of 24 July approving the Statistical and Cartographic Plan of Andalusia 2013-2017, the geographic information of SIGPAC is made available to the public.",
         "href": "https://www.juntadeandalucia.es/organismos/agriculturapescaaguaydesarrollorural/servicios/sigpac/visor/paginas/sigpac-descarga-informacion-geografica-shapes-provincias.html#toc-condiciones-de-uso-para-la-licencia-de-uso-comercial",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
     columns = {
         "geometry": "geometry",
@@ -59,7 +59,9 @@ class ANConverter(ESBaseConverter):
 
     def migrate(self, gdf):
         gdf = super().migrate(gdf)
-        gdf['NU_AREA'] = np.where(gdf['NU_AREA'] == 0, gdf['geometry'].area / 10000, gdf['NU_AREA'] / 10000)
+        gdf["NU_AREA"] = np.where(
+            gdf["NU_AREA"] == 0, gdf["geometry"].area / 10000, gdf["NU_AREA"] / 10000
+        )
         return gdf
 
     column_additions = ESBaseConverter.column_additions | {
@@ -68,12 +70,8 @@ class ANConverter(ESBaseConverter):
 
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
 

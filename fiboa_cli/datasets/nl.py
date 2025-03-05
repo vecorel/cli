@@ -1,9 +1,11 @@
-from ..convert_utils import convert as convert_, BaseConverter
-from .commons.admin import add_admin, AdminConverterMixin
+from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
-    sources = "https://service.pdok.nl/rvo/referentiepercelen/atom/downloads/referentiepercelen.gpkg"
+    sources = (
+        "https://service.pdok.nl/rvo/referentiepercelen/atom/downloads/referentiepercelen.gpkg"
+    )
 
     id = "nl"
     short_name = "Netherlands"
@@ -29,20 +31,13 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "RVO / PDOK",
             "url": "https://www.pdok.nl/introductie/-/article/referentiepercelen",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     # Both http://creativecommons.org/publicdomain/zero/1.0/deed.nl and http://creativecommons.org/publicdomain/mark/1.0/
     license = "CC0-1.0"
-    column_additions = {
-        "determination_datetime": "2023-06-15T00:00:00Z"
-    }
-    columns = {
-        'geometry': 'geometry',
-        'id': 'id',
-        'area': "area",
-        'versiebron': 'source'
-    }
+    column_additions = {"determination_datetime": "2023-06-15T00:00:00Z"}
+    columns = {"geometry": "geometry", "id": "id", "area": "area", "versiebron": "source"}
     column_filters = {
         # type = "Hout" | "Landbouwgrond" | "Overig" | "Water"
         "type": lambda col: col == "Landbouwgrond"
@@ -53,13 +48,11 @@ class Converter(AdminConverterMixin, BaseConverter):
         # Projection is in CRS 28992 (RD New), this is the area calculation method of the source organization
         # todo: remove in favor of generic solution for area calculation
         gdf = super().migrate(gdf)
-        gdf['area'] = gdf.area / 10000
+        gdf["area"] = gdf.area / 10000
         return gdf
 
     missing_schemas = {
         "properties": {
-            "source": {
-                "type": "string"
-            },
+            "source": {"type": "string"},
         }
     }

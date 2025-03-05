@@ -1,16 +1,19 @@
 import numpy as np
 
+from ..convert_utils import BaseConverter
 from .commons.admin import AdminConverterMixin
 from .commons.ec import EuroCropsConverterMixin, ec_url
-from ..convert_utils import BaseConverter
 
 count = 3000
+
 
 class Converter(AdminConverterMixin, EuroCropsConverterMixin, BaseConverter):
     sources = {
         "https://karte.lad.gov.lv/arcgis/services/lauki/MapServer/WFSServer"
         f"?request=GetFeature&service=wfs&version=2.0.0&typeNames=Lauki&count={count}&startindex={count * i}": f"lv_{i}_{count}.xml"
-        for i in range(500000 // count)  # TODO number should be dynamic, stop reading with 0 results
+        for i in range(
+            500000 // count
+        )  # TODO number should be dynamic, stop reading with 0 results
     }
 
     id = "lv"
@@ -30,14 +33,14 @@ class Converter(AdminConverterMixin, EuroCropsConverterMixin, BaseConverter):
         {
             "name": "Rural Support Service Republic of Latvia (Lauku atbalsta dienests)",
             "url": "https://www.lad.gov.lv/lv/lauku-registra-dati",
-            "roles": ["licensor", "producer"]
+            "roles": ["licensor", "producer"],
         }
     ]
     attribution = "Lauku atbalsta dienests"
     license = "CC-BY-SA-4.0"  # Not sure, taken from Eurocrops. It is "public" and free and "available to any user"
     columns = {
         "OBJECTID": "id",
-        'PARCEL_ID': 'parcel_id',
+        "PARCEL_ID": "parcel_id",
         "geometry": "geometry",
         "DATA_CHANGED_DATE": "determination_datetime",
         "area": "area",
@@ -47,9 +50,9 @@ class Converter(AdminConverterMixin, EuroCropsConverterMixin, BaseConverter):
         "crop:name_en": "crop:name_en",
     }
     missing_schemas = {
-        'properties': {
-            'parcel_id': {
-                'type': 'uint64',
+        "properties": {
+            "parcel_id": {
+                "type": "uint64",
             }
         }
     }
@@ -57,11 +60,13 @@ class Converter(AdminConverterMixin, EuroCropsConverterMixin, BaseConverter):
 
     def migrate(self, gdf):
         gdf = super().migrate(gdf)
-        gdf['area'] = np.where(gdf['AREA_DECLARED'] == 0, gdf.area / 10000, gdf['AREA_DECLARED'])
+        gdf["area"] = np.where(gdf["AREA_DECLARED"] == 0, gdf.area / 10000, gdf["AREA_DECLARED"])
 
-        original_name_mapping = {int(e["original_code"]): e["original_name"] for e in self.ec_mapping}
+        original_name_mapping = {
+            int(e["original_code"]): e["original_name"] for e in self.ec_mapping
+        }
         name_mapping = {int(e["original_code"]): e["translated_name"] for e in self.ec_mapping}
         gdf["crop:code_list"] = ec_url("lv_2021.csv")
-        gdf['crop:name'] = gdf['PRODUCT_CODE'].map(original_name_mapping)
-        gdf['crop:name_en'] = gdf['PRODUCT_CODE'].map(name_mapping)
+        gdf["crop:name"] = gdf["PRODUCT_CODE"].map(original_name_mapping)
+        gdf["crop:name_en"] = gdf["PRODUCT_CODE"].map(name_mapping)
         return gdf

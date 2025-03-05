@@ -1,5 +1,5 @@
-from .commons.admin import AdminConverterMixin
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -18,13 +18,13 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Luxembourg ministry of Agriculture",
             "url": "https://agriculture.public.lu/",
-            "roles": ["licensor", "producer"]
+            "roles": ["licensor", "producer"],
         }
     ]
     attribution = "Luxembourg ministry of Agriculture"
     license = "CC-BY-4.0"
     columns = {
         "geometry": "geometry",
-        'FLIK': 'id',
+        "FLIK": "id",
         "determination_datetime": "determination_datetime",
     }

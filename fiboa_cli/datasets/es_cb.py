@@ -15,14 +15,10 @@ class ESCBConverter(EsriRESTConverterMixin, ESBaseConverter):
     # see https://intranet.caib.es/opendatacataleg/dataset/sigpac-2024/resource/3a0bc2e0-3f37-45b7-a7d4-1e8c7cf09bc8
     # "Our licenses allow the reproduction or redistribution of the licensed digital information to third parties. In such cases, it is essential that when redistributing or transferring the data to said third parties, they clearly and explicitly accept the conditions of our non-commercial use license."
     license = "CC-BY-NC-4.0"  # http://www.opendefinition.org/licenses/cc-by
-    attribution = "©Government of Cantabria. Free information available at https://mapas.cantabria.es"
-    providers = [
-        {
-            "name": "",
-            "url": "",
-            "roles": ["producer", "licensor"]
-        }
-    ]
+    attribution = (
+        "©Government of Cantabria. Free information available at https://mapas.cantabria.es"
+    )
+    providers = [{"name": "", "url": "", "roles": ["producer", "licensor"]}]
     columns = {
         "DN_OID": "id",
         "geometry": "geometry",
@@ -34,20 +30,16 @@ class ESCBConverter(EsriRESTConverterMixin, ESBaseConverter):
         "crop:name_en": "crop:name_en",
     }
     column_migrations = {
-        "DN_SURFACE": lambda x: x/10000,
+        "DN_SURFACE": lambda x: x / 10000,
     }
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
 
-    source_variants = {str(year): str(year) for year in range(2024, 2010-1, -1)}
+    source_variants = {str(year): str(year) for year in range(2024, 2010 - 1, -1)}
     use_code_attribute = "USO_SIGPAC"
 
     # "https://geoservicios.cantabria.es/inspire/rest/services/SIGPAC/MapServer?f=json"

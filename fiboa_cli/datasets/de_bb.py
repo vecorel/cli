@@ -3,9 +3,7 @@ from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
-    sources = {
-        "https://data.geobasis-bb.de/geofachdaten/Landwirtschaft/dfbk.zip": ["DFBK_FB.shp"]
-    }
+    sources = {"https://data.geobasis-bb.de/geofachdaten/Landwirtschaft/dfbk.zip": ["DFBK_FB.shp"]}
     id = "de_bb"
     admin_subdivision_code = "BB"  # TODO Berlin is also in here, check each row
     short_name = "Germany, Berlin/Brandenburg"
@@ -16,35 +14,34 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "Land Brandenburg",
             "url": "https://geobroker.geobasis-bb.de/gbss.php?MODE=GetProductInformation&PRODUCTID=9e95f21f-4ecf-4682-9a44-e5f7609f6fa0",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
-    extensions = {
-        "https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"
-    }
+    extensions = {"https://fiboa.github.io/flik-extension/v0.1.0/schema.yaml"}
 
     columns = {
-        'geometry': 'geometry',
-        'FB_ID': ['flik', 'id'],
-        'FGUE_JAHR': 'fgue_jahr',
-        'FL_BRUTTO_': 'area',
-        'FL_NETTO_H': 'net_area',
-        'GUELTVON_F': 'determination_datetime',
-        'GUELTBIS_F': 'expiry_datetime',
-        'KREIS_NR': 'kreis_nr',
-        'TK10_BLATT': "tk10",
-        'HBN_KAT': 'hbn',
-        'SHAPE_LEN': 'perimeter',
+        "geometry": "geometry",
+        "FB_ID": ["flik", "id"],
+        "FGUE_JAHR": "fgue_jahr",
+        "FL_BRUTTO_": "area",
+        "FL_NETTO_H": "net_area",
+        "GUELTVON_F": "determination_datetime",
+        "GUELTBIS_F": "expiry_datetime",
+        "KREIS_NR": "kreis_nr",
+        "TK10_BLATT": "tk10",
+        "HBN_KAT": "hbn",
+        "SHAPE_LEN": "perimeter",
     }
     missing_schemas = {
-        'properties': {
-            'hbn': {'type': 'string'},
-            'fgue_jahr': {'type': 'string'},
-            'net_area': {'type': 'float', 'exclusiveMinimum': 0},
-            'expiry_datetime': {'type': 'date-time'},
-            'kreis_nr': {'type': 'uint16'},
-            'tk10': {'type': 'string'}
+        "properties": {
+            "hbn": {"type": "string"},
+            "fgue_jahr": {"type": "string"},
+            "net_area": {"type": "float", "exclusiveMinimum": 0},
+            "expiry_datetime": {"type": "date-time"},
+            "kreis_nr": {"type": "uint16"},
+            "tk10": {"type": "string"},
         }
     }
+
     def layer_filter(self, layer: str, uri: str) -> bool:
         return layer == "DFBK_FB"

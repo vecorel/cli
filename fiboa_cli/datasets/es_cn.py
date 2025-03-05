@@ -1,5 +1,6 @@
-from fiboa_cli.convert_utils import BaseConverter
 import pandas as pd
+
+from fiboa_cli.convert_utils import BaseConverter
 
 
 class ESCNConverter(BaseConverter):
@@ -26,14 +27,14 @@ class ESCNConverter(BaseConverter):
         {
             "name": "Gobierno de Canarias - Consejería de Agricultura, Ganadería, Pesca y Soberanía Alimentaria",
             "url": "https://www.gobiernodecanarias.org/agpsa/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     license = "CC-BY-4.0"  # as stated in https://datos.canarias.es/portal/aviso-legal-y-condiciones-de-uso
     attribution = "Gobierno de Canarias"
     extensions = {
         "https://fiboa.github.io/crop-extension/v0.1.0/schema.yaml",
-        "https://fiboa.github.io/administrative-division-extension/v0.1.0/schema.yaml"
+        "https://fiboa.github.io/administrative-division-extension/v0.1.0/schema.yaml",
     }
     columns = {
         "id": "id",
@@ -45,8 +46,8 @@ class ESCNConverter(BaseConverter):
         "AREA_M2": "area",
     }
     column_migrations = {
-        'AREA_M2': lambda column: column / 10000,
-        'FECHA': lambda column: pd.to_datetime(column, format="%d/%m/%Y"),
+        "AREA_M2": lambda column: column / 10000,
+        "FECHA": lambda column: pd.to_datetime(column, format="%d/%m/%Y"),
     }
     column_additions = {
         "admin:country_code": "ES",
@@ -55,15 +56,12 @@ class ESCNConverter(BaseConverter):
     }
     missing_schemas = {
         "properties": {
-            "admin_island": {
-                "type": "string"
-            },
+            "admin_island": {"type": "string"},
         }
     }
     index_as_id = True
     sources = {
-        f"https://opendata.sitcan.es/upload/medio-rural/gobcan_mapa-cultivos_{island}_shp.zip":
-            f"gobcan_mapa-cultivos_{island}_shp.zip"
+        f"https://opendata.sitcan.es/upload/medio-rural/gobcan_mapa-cultivos_{island}_shp.zip": f"gobcan_mapa-cultivos_{island}_shp.zip"
         for island in "lz eh lp lg tf gc fv".split()
     }
     # Create code list with:

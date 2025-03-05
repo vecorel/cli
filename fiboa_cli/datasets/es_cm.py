@@ -20,7 +20,7 @@ class ESCMConverter(EsriRESTConverterMixin, ESBaseConverter):
         {
             "name": "Unidad de Cartografía. Secretaría General. Consejería de Agricultura , Ganadería y Desarrollo Rural.",
             "url": "https://datosabiertos.castillalamancha.es/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     columns = {
@@ -34,19 +34,15 @@ class ESCMConverter(EsriRESTConverterMixin, ESBaseConverter):
         "crop:name_en": "crop:name_en",
     }
     column_migrations = {
-        "dn_surface": lambda x: x/10000,
+        "dn_surface": lambda x: x / 10000,
     }
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
-    source_variants = {str(year): str(year) for year in range(2024, 2018-1, -1)}
+    source_variants = {str(year): str(year) for year in range(2024, 2018 - 1, -1)}
 
     rest_base_url = "https://geoservicios.castillalamancha.es/arcgis/rest/services/Vector"
     rest_attribute = "objectid_1"
@@ -59,6 +55,9 @@ class ESCMConverter(EsriRESTConverterMixin, ESBaseConverter):
             layer = "Vector/Recintos_sigpac"
         else:
             services = requests.get(self.rest_base_url, {"f": "pjson"}).json()["services"]
-            layer = next(s["name"] for s in services if
-                         re.search(f"Recintos_sigpac_{self.variant}", s["name"], re.IGNORECASE))
+            layer = next(
+                s["name"]
+                for s in services
+                if re.search(f"Recintos_sigpac_{self.variant}", s["name"], re.IGNORECASE)
+            )
         return {"REST": self.rest_base_url.replace("Vector", layer + "/MapServer")}

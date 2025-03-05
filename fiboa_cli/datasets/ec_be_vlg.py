@@ -8,8 +8,8 @@ class ECConverter(EuroCropsConverterMixin, base):
             "BE_VLG_2021/BE_VLG_2021_EC21.shp"
         ]
     }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         del self.columns["BT_OMSCH"]
         del self.columns["BT_BRON"]
-

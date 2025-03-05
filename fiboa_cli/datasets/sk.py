@@ -1,5 +1,5 @@
-from .commons.admin import AdminConverterMixin
 from ..convert_utils import BaseConverter
+from .commons.admin import AdminConverterMixin
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -25,7 +25,7 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "National catalog of open data",
             "url": "https://data.slovensko.sk/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     license = "CC-0"  # "Open Data"
@@ -40,14 +40,8 @@ class Converter(AdminConverterMixin, BaseConverter):
     }
     missing_schemas = {
         "properties": {
-            "crop_name": {
-                "type": "string"
-            },
-            "crop_group": {
-                "type": "string"
-            },
-            "municipality": {
-                "type": "string"
-            },
+            "crop_name": {"type": "string"},
+            "crop_group": {"type": "string"},
+            "municipality": {"type": "string"},
         }
     }

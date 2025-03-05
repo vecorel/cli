@@ -24,27 +24,15 @@ class Converter(BaseConverter):
     The data is provided through the DigiFarm API at https://api-docs.digifarm.io/, as GeoJSON. For more information see https://digifarm.io/products/field-boundaries
     """
     providers = [
-        {
-            "name": "DigiFarm",
-            "url": "https://digifarm.io",
-            "roles": ["producer", "licensor"]
-        }
+        {"name": "DigiFarm", "url": "https://digifarm.io", "roles": ["producer", "licensor"]}
     ]
     attribution = "© 2024 digifarm.io"
     license = {
         "title": "DigiFarm Terms and Conditions",
         "href": "https://digifarm.io/legal/tc",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
-    columns = {
-        "id": "id",
-        "geometry": "geometry",
-        "area": "area"
-    }
-    column_migrations = {
-        'area': lambda column: column / 10000
-    }
-    column_additions = {
-        "determination_method": "auto-imagery"
-    }
+    columns = {"id": "id", "geometry": "geometry", "area": "area"}
+    column_migrations = {"area": lambda column: column / 10000}
+    column_additions = {"determination_method": "auto-imagery"}

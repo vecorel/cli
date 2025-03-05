@@ -1,11 +1,11 @@
-from os.path import join, dirname
+from os.path import dirname, join
 
 import pandas as pd
 
-from .commons.admin import AdminConverterMixin
-from .commons.ec import load_ec_mapping
 from ..convert_utils import BaseConverter
 from ..util import log
+from .commons.admin import AdminConverterMixin
+from .commons.ec import load_ec_mapping
 
 
 class Converter(AdminConverterMixin, BaseConverter):
@@ -29,14 +29,14 @@ class Converter(AdminConverterMixin, BaseConverter):
         {
             "name": "United States Department of Agriculture",
             "url": "https://www.nass.usda.gov/",
-            "roles": ["licensor", "producer"]
+            "roles": ["licensor", "producer"],
         }
     ]
     license = {
         "title": "License and Liability",
         "href": "https://gee-community-catalog.org/projects/csb/#license-and-liability",
         "type": "text/html",
-        "rel": "license"
+        "rel": "license",
     }
     columns = {
         "geometry": "geometry",
@@ -51,9 +51,7 @@ class Converter(AdminConverterMixin, BaseConverter):
     }
     missing_schemas = {
         "properties": {
-            "administrative_area_level_2": {
-                "type": "string"
-            },
+            "administrative_area_level_2": {"type": "string"},
         }
     }
 

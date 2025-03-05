@@ -17,7 +17,7 @@ class ESGAConverter(EsriRESTConverterMixin, ESBaseConverter):
         {
             "name": "Virtual Office for Rural Environment",
             "url": "https://ovmediorural.xunta.gal/es/consultas-publicas/sixpac",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     columns = {
@@ -31,20 +31,16 @@ class ESGAConverter(EsriRESTConverterMixin, ESBaseConverter):
         "crop:name_en": "crop:name_en",
     }
     column_migrations = {
-        "DN_SURFACE": lambda x: x/10000,
+        "DN_SURFACE": lambda x: x / 10000,
     }
     missing_schemas = {
         "properties": {
-            "admin_province_code": {
-                "type": "string"
-            },
-            "admin_municipality_code": {
-                "type": "string"
-            },
+            "admin_province_code": {"type": "string"},
+            "admin_municipality_code": {"type": "string"},
         }
     }
 
-    source_variants = {str(year): str(year) for year in range(2024, 2010-1, -1)}
+    source_variants = {str(year): str(year) for year in range(2024, 2010 - 1, -1)}
     use_code_attribute = "USO_SIGPAC"
 
     rest_base_url = "https://ideg.xunta.gal/servizos/rest/services/ParcelasCatastrais/SIXPAC_{variant}/MapServer"

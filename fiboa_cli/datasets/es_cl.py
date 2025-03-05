@@ -1,9 +1,10 @@
-import re
 import os
+import re
+
 import requests
 
-from .es import ESBaseConverter
 from .. import log
+from .es import ESBaseConverter
 
 regex = re.compile(r"\d+_(RECFE|BURGOS).*\.shp$")
 
@@ -25,14 +26,14 @@ class ESCLConverter(ESBaseConverter):
         {
             "name": "Department of Agriculture, Livestock and Rural Development. Regional Government of Castile and Leon",
             "url": "https://www.itacyl.es/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     license = {
         "title": "CC-NC: Free use of the data is permitted, but commercial exploitation is prohibited",
-        "href": "http://ftp.itacyl.es/cartografia/LICENCIA-IGCYL-NC-2012.pdf" ,
+        "href": "http://ftp.itacyl.es/cartografia/LICENCIA-IGCYL-NC-2012.pdf",
         "type": "application/pdf",
-        "rel": "license"
+        "rel": "license",
     }
 
     columns = {
@@ -64,9 +65,13 @@ class ESCLConverter(ESBaseConverter):
             self.variant = "2024"
             log(f"Choosing first variant {self.variant}", "warning")
         else:
-            assert self.variant in "2024 2023 2022 2021 2020 2019".split(), f"Wrong variant {self.variant}"
+            assert self.variant in "2024 2023 2022 2021 2020 2019".split(), (
+                f"Wrong variant {self.variant}"
+            )
         base = f"http://ftp.itacyl.es/cartografia/05_SIGPAC/{self.variant}_ETRS89/Parcelario_SIGPAC_CyL_Provincias/"
         response = requests.get(base)
         assert response.status_code == 200, f"Error getting urls {response}\n{response.content}"
-        uris = {f"{base}{g}": ["replaceme.zip"] for g in re.findall(r'href="(\w+.zip)"', response.text)}
+        uris = {
+            f"{base}{g}": ["replaceme.zip"] for g in re.findall(r'href="(\w+.zip)"', response.text)
+        }
         return uris

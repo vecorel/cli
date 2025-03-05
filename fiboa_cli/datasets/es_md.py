@@ -3,7 +3,9 @@ from .es import ESBaseConverter
 
 class ESCLConverter(ESBaseConverter):
     sources = {
-        "https://idem.comunidad.madrid/recursos_cat_geo/Catalogo/recursos/UsoDelSuelo/spacm_sigpac.cm.zip": ["2024_SIGPAC_shape_toda_la_com/RECINTO.shp"]
+        "https://idem.comunidad.madrid/recursos_cat_geo/Catalogo/recursos/UsoDelSuelo/spacm_sigpac.cm.zip": [
+            "2024_SIGPAC_shape_toda_la_com/RECINTO.shp"
+        ]
     }
     id = "es_md"
     short_name = "Spain Comunidad de Madrid"
@@ -15,7 +17,7 @@ class ESCLConverter(ESBaseConverter):
         {
             "name": "Comunidad de Madrid",
             "url": "https://www.comunidad.madrid/",
-            "roles": ["producer", "licensor"]
+            "roles": ["producer", "licensor"],
         }
     ]
     license = "CC-0"  # No-limits
@@ -33,6 +35,4 @@ class ESCLConverter(ESBaseConverter):
     column_additions = ESBaseConverter.column_additions | {
         "determination_datetime": "2024-01-01T00:00:00Z"
     }
-    column_migrations = {
-        'DN_SURFACE': lambda column: column / 10000
-    }
+    column_migrations = {"DN_SURFACE": lambda column: column / 10000}
