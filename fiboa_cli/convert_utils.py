@@ -242,12 +242,9 @@ class BaseConverter:
         for uri, target in uris.items():
             is_archive = isinstance(target, list)
             if is_archive:
-                try:
-                    name = name_from_uri(uri)
-                    # if there's no file extension, it's likely a folder, which may not be unique
-                    if "." not in name:
-                        name = hashlib.sha256(uri.encode()).hexdigest()
-                except Exception:  # todo: in which case does this actually happen?
+                name = name_from_uri(uri)
+                # if there's no file extension, it's likely a folder, which may not be unique
+                if "." not in name:
                     name = hashlib.sha256(uri.encode()).hexdigest()
             else:
                 name = target
