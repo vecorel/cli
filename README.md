@@ -22,7 +22,7 @@ you can for example run: `pip install fiboa-cli[xyz]` with xyz being the convert
 
 **Note on versions:**
 
-- fiboa CLI >= 0.3.0 works with fiboa version > 0.2.0
+- fiboa CLI >= 0.3.0 and < 0.11.0 works with fiboa version = 0.2.0
 - fiboa CLI < 0.3.0 works with fiboa version = 0.1.0
 
 ### Execute a command

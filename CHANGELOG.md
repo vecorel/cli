@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.10.0] - 2025-03-11
+
 ### Added
-- Add Austrian crop fields converter
+
+- Converter for Austrian crop fields
 - Converters for Spain: Aragon, Andalusia, Balearic Islands, Basque Country, Catalonia, Cantabria, Castilla y León, Castilla-La Mancha, Canary Islands, Extremadura, Galicia, Madrid, Navarra, Valencia
 - Use ruff format + linting for a uniform code style
 
@@ -387,7 +390,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release
 
-[Unreleased]: <https://github.com/fiboa/cli/compare/v0.9.0...main>
+[Unreleased]: <https://github.com/fiboa/cli/compare/v0.10.0...main>
+[v0.10.0]: <https://github.com/fiboa/cli/compare/v0.9.0...v0.10.0>
 [v0.9.0]: <https://github.com/fiboa/cli/compare/v0.8.0...v0.9.0>
 [v0.8.0]: <https://github.com/fiboa/cli/compare/v0.7.0...v0.8.0>
 [v0.7.0]: <https://github.com/fiboa/cli/compare/v0.6.0...v0.7.0>
