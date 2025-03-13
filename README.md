@@ -81,7 +81,9 @@ you can for example run:
 - GeoJSON Features (with indentation and max. 100 features):
   `vec create-geojson example.parquet -o dest-folder -n 100 -i 2 -f`
 
-Check `vec create-geoparquet --help` for more details.
+  `vec create-geojson example.parquet -o dest-folder -n 100 -i 2 -f`
+
+Check `vec create-geojson --help` for more details.
 
 ### Inspect Vecorel GeoParquet file
 

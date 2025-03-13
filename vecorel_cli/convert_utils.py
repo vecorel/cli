@@ -23,7 +23,7 @@ from fsspec.implementations.local import LocalFileSystem
 from shapely.geometry import box
 
 from .const import STAC_TABLE_EXTENSION
-from .parquet import create_parquet
+from .parquet.parquet import create_parquet
 from .util import get_fs, log, name_from_uri, to_iso8601
 from .version import vecorel_version
 

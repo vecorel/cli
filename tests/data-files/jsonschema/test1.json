@@ -1,73 +1,286 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schema.json",
-  "type": "object",
-  "required": ["properties", "id", "geometry"],
-  "properties": {
-    "id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "geometry": {
-      "allOf": [
-        {
-          "anyOf": [
-            {"$ref": "https://geojson.org/schema/Polygon.json"},
-            {"$ref": "https://geojson.org/schema/MultiPolygon.json"}
-          ]
-        },
-        { "not": { "type": "null" } }
-      ]
-    },
-    "bbox": {
-      "type": ["array", "null"],
-      "minItems": 4,
-      "maxItems": 4,
-      "items": {
-        "type": "number"
-      }
-    },
+  "if": {
+    "type": "object",
+    "required": [
+      "type"
+    ],
     "properties": {
-      "type": "object",
-      "required": [],
-      "properties": {
-        "collection": {
-          "type": ["string", "null"],
-          "minLength": 1
-        },
-        "area": {
-          "type": ["number", "null"],
-          "exclusiveMinimum": 0,
-          "maximum": 100000
-        },
-        "perimeter": {
-          "type": ["number", "null"],
-          "exclusiveMinimum": 0,
-          "maximum": 125000
-        },
-        "determination_datetime": {
-          "type": ["string", "null"],
-          "format": "date-time",
-          "pattern": "Z$"
-        },
-        "determination_method": {
-          "type": ["string", "null"],
-          "enum": [
-            "manual",
-            "driven",
-            "surveyed",
-            "administrative",
-            "auto-operation",
-            "auto-imagery",
-            "unknown"
-          ]
-        }
+      "type": {
+        "const": "FeatureCollection"
       }
     }
   },
-  "allOf": [
-    {
-      "$ref": "https://geojson.org/schema/Feature.json"
+  "then": {
+    "type": "object",
+    "allOf": [
+      {
+        "$ref": "https://geojson.org/schema/FeatureCollection.json"
+      },
+      {
+        "$ref": "#/$defs/featurecollection_requirements"
+      },
+      {
+        "$ref": "#/$defs/featurecollection_uniquenesss"
+      },
+      {
+        "$ref": "#/$defs/featurecollection_schemas"
+      }
+    ]
+  },
+  "else": {
+    "allOf": [
+      {
+        "$ref": "https://geojson.org/schema/Feature.json"
+      },
+      {
+        "$ref": "#/$defs/feature_requirements"
+      },
+      {
+        "$ref": "#/$defs/feature_schemas"
+      }
+    ]
+  },
+  "$defs": {
+    "feature_requirements": {
+      "type": "object",
+      "properties": {
+        "properties": {
+          "type": "object",
+          "required": []
+        }
+      }
+    },
+    "feature_schemas": {
+      "type": "object",
+      "required": [
+        "id",
+        "geometry"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "https://geojson.org/schema/Polygon.json"
+            },
+            {
+              "$ref": "https://geojson.org/schema/MultiPolygon.json"
+            }
+          ]
+        },
+        "bbox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          }
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "collection": {
+              "type": "string",
+              "minLength": 1
+            },
+            "area": {
+              "type": "number",
+              "maximum": 100000,
+              "exclusiveMinimum": 0
+            },
+            "perimeter": {
+              "type": "number",
+              "maximum": 125000,
+              "exclusiveMinimum": 0
+            },
+            "determination_datetime": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            "determination_method": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "driven",
+                "surveyed",
+                "administrative",
+                "auto-operation",
+                "auto-imagery",
+                "unknown"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "featurecollection_uniquenesss": {
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "collection"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "type": "object",
+                      "not": {
+                        "required": [
+                          "collection"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "area"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "type": "object",
+                      "not": {
+                        "required": [
+                          "area"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "perimeter"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "type": "object",
+                      "not": {
+                        "required": [
+                          "perimeter"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "determination_datetime"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "type": "object",
+                      "not": {
+                        "required": [
+                          "determination_datetime"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "determination_method"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "type": "object",
+                      "not": {
+                        "required": [
+                          "determination_method"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "featurecollection_requirements": {
+      "allOf": []
+    },
+    "featurecollection_schemas": {
+      "type": "object",
+      "properties": {
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/feature_schemas"
+          }
+        }
+      }
     }
-  ]
+  }
 }

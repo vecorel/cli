@@ -1,37 +1,40 @@
 import json
 import os
 import re
+from pathlib import Path
 from typing import Union
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 import click
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import referencing
 import yaml
 from fsspec import AbstractFileSystem
 from fsspec.implementations.http import HTTPFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from geopandas.io.arrow import _arrow_to_geopandas
-from jsonschema.validators import Draft7Validator, Draft202012Validator
 from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 
-from .const import GEOPARQUET_SCHEMA, LOG_STATUS_COLOR, STAC_COLLECTION_SCHEMA, SUPPORTED_PROTOCOLS
-from .version import vecorel_version_
+from .const import (
+    GEOPARQUET_SCHEMA,
+    SUPPORTED_PROTOCOLS,
+    VECOREL_SPECIFICAION_PATTERN,
+)
 
 file_cache = {}
 
 
+# todo: remove
 def log(text: str, status="info", nl=True):
-    """Log a message with a severity level (which leads to different colors)"""
-    click.echo(click.style(text, fg=LOG_STATUS_COLOR[status]), nl=nl)
+    print(text)
 
 
-def load_file(uri):
+def load_file(uri: Union[Path, str]) -> dict:
     """Load files from various sources"""
+    if isinstance(uri, Path):
+        uri = str(uri.absolute())
     if uri in file_cache:
         return file_cache[uri]
 
@@ -87,24 +90,15 @@ def load_parquet_data(uri: str, nrows=None, columns=None) -> pd.DataFrame:
         return table.to_pandas()
 
 
-def load_fiboa_schema(config):
-    """Load fiboa schema"""
-    schema_url = config.get("schema")
-    schema_version = config.get("fiboa_version", vecorel_version)
-    if not schema_url:
-        schema_url = f"https://fiboa.github.io/specification/v{schema_version}/schema.yaml"
-    return load_file(schema_url)
-
-
-def load_datatypes(version):
-    # todo: allow to define a seperate schema from a file (as in load_fiboa_schema)
-    dt_url = f"https://fiboa.github.io/specification/v{version}/geojson/datatypes.json"
-    response = load_file(dt_url)
+def load_geojson_datatypes(url):
+    response = load_file(url)
     return response["$defs"]
 
 
 def get_fs(url_or_path: str) -> AbstractFileSystem:
     """Choose fsspec filesystem by sniffing input url"""
+    if isinstance(url_or_path, Path):
+        url_or_path = str(url_or_path.absolute())
     parsed = urlparse(url_or_path)
 
     if parsed.scheme in ("http", "https"):
@@ -246,6 +240,27 @@ def parse_map(value, separator="="):
     return mapping
 
 
+def filter_dict(obj: dict, keys) -> dict:
+    """
+    Filters the given dictionary to only include keys that are in the given keys.
+
+    :param data: The dictionary to filter.
+    :param keys: The set of keys to keep.
+    :return: A new dictionary with only the keys that match the given keys.
+    """
+    return {k: v for k, v in obj.items() if k in keys}
+
+
+def collection_from_featurecollection(geojson: dict) -> dict:
+    """
+    Extract collection data from a FeatureCollection
+
+    :param geojson: The GeoJSON data to extract the collection from.
+    :return: The collection data.
+    """
+    return filter_dict(geojson, ["type", "features"])
+
+
 def name_from_uri(url):
     if "://" in url:
         try:
@@ -324,13 +339,6 @@ def to_iso8601(dt):
         return iso + "Z"
 
 
-def load_collection_schema(obj):
-    if "stac_version" in obj:
-        return load_file(STAC_COLLECTION_SCHEMA.format(version=obj["stac_version"]))
-    else:
-        return None
-
-
 def load_geoparquet_schema(obj):
     if "version" in obj:
         return load_file(GEOPARQUET_SCHEMA.format(version=obj["version"]))
@@ -338,33 +346,28 @@ def load_geoparquet_schema(obj):
         return None
 
 
-def log_extensions(collection, logger):
-    extensions = collection.get("fiboa_extensions", [])
-    if len(extensions) == 0:
+def get_core_version(uri):
+    match = re.match(VECOREL_SPECIFICAION_PATTERN, uri)
+    return match.group(1) if match else None
+
+
+def get_core_schema(schema_uris):
+    for schema_uri in schema_uris:
+        version = get_core_version(schema_uri)
+        if version is not None:
+            return schema_uri, version
+
+    return None, None
+
+
+def log_extensions(schemas, logger):
+    schemas = schemas.copy()
+    schemas.sort()
+    if len(schemas) <= 1:
         logger("Vecorel extensions: none")
     else:
         logger("Vecorel extensions:")
-        for extension in extensions:
+        for extension in schemas:
+            if get_core_version(extension) is not None:
+                continue
             logger(f"  - {extension}")
-
-
-def create_validator(schema):
-    if schema["$schema"] == "http://json-schema.org/draft-07/schema#":
-        instance = Draft7Validator
-    else:
-        instance = Draft202012Validator
-
-    return instance(
-        schema,
-        format_checker=instance.FORMAT_CHECKER,
-        registry=referencing.Registry(retrieve=retrieve_remote_schema),
-    )
-
-
-def retrieve_remote_schema(uri: str):
-    request = Request(uri)
-    with urlopen(request) as response:
-        return referencing.Resource.from_contents(
-            json.load(response),
-            default_specification=referencing.jsonschema.DRAFT202012,
-        )

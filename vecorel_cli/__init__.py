@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 import time
@@ -6,17 +5,22 @@ import time
 import click
 import pandas as pd
 
-from .const import COMPRESSION_METHODS, CORE_COLUMNS
+from .const import (
+    COMPRESSION_METHODS,
+    CORE_COLUMNS,
+    VECOREL_GEOJSON_DATATYPES_SCHEMA,
+    VECOREL_SPECIFICAION_SCHEMA,
+)
 from .convert import convert as convert_
 from .convert import list_all_converter_ids, list_all_converters
 from .create_geojson import create_geojson as create_geojson_
 from .create_geoparquet import create_geoparquet as create_geoparquet_
+from .create_jsonschema import CreateJsonSchema
 from .describe import describe as describe_
-from .improve import improve as improve_
-from .jsonschema import jsonschema as jsonschema_
+from .improve import ImproveData
 from .merge import DEFAULT_CRS
 from .merge import merge as merge_
-from .rename_extension import rename_extension as rename_extension_
+from .rename_extension import RenameExtension
 from .util import (
     check_ext_schema_for_cli,
     log,
@@ -28,9 +32,11 @@ from .util import (
     valid_folder_for_cli,
 )
 from .validate import validate as validate_
-from .validate_schema import validate_schema as validate_schema_
+from .validate_schema import ValidateSchema
 from .version import __version__
 from .version import vecorel_version as vecorel_version_
+
+# todo: https://stackoverflow.com/questions/50061342/is-it-possible-to-reuse-python-click-option-decorators-for-multiple-commands
 
 
 @click.group()
@@ -96,40 +102,19 @@ def describe(file, json, num=10, column=[]):
     ),
 )
 @click.option(
-    "--schema",
-    "-s",
-    type=click.STRING,
-    callback=valid_file_for_cli,
-    help="Vecorel Schema to validate against. Can be a local file or a URL. If not provided, uses the fiboa version to load the schema for the released version.",
-)
-@click.option(
-    "--ext-schema",
-    "-e",
-    multiple=True,
-    callback=lambda ctx, param, value: check_ext_schema_for_cli(value, allow_none=False),
-    help="Maps a remote Vecorel extension schema url to a local file. First the URL, then the local file path. Separated with a comma character. Example: https://example.com/schema.yaml,/path/to/schema.yaml",
-)
-@click.option(
-    "--fiboa-version",
-    "-f",
-    type=click.STRING,
-    help="The fiboa version to validate against. Default is the version given in the collection.",
-    default=None,
-)
-@click.option(
-    "--collection",
-    "-c",
-    type=click.Path(exists=True),
-    help="Points to the Collection that defines the fiboa version and extensions.",
-    default=None,
-)
-@click.option(
     "--data",
     "-d",
     is_flag=True,
     type=click.BOOL,
     help="EXPERIMENTAL: Validate the data in the GeoParquet file. Enabling this might be slow or exceed memory. Default is False.",
     default=False,
+)
+@click.option(
+    "--schemas",
+    "-s",
+    multiple=True,
+    callback=lambda ctx, param, value: check_ext_schema_for_cli(value, allow_none=False),
+    help="Maps a remote Vecorel schema URL to a local file. First the URL, then the local file path. Separated with a comma character. Example: https://example.com/schema.yaml,/path/to/schema.yaml",
 )
 @click.option(
     "--timer",
@@ -139,17 +124,14 @@ def describe(file, json, num=10, column=[]):
     default=False,
     hidden=True,
 )
-def validate(files, schema, ext_schema, fiboa_version, collection, data, timer):
+def validate(files, data, schemas, timer):
     """
     Validates a Vecorel GeoParquet or GeoJSON file.
     """
     start = time.perf_counter()
     log(f"Vecorel CLI {__version__} - Validator\n", "success")
     config = {
-        "schema": schema,
-        "extension_schemas": ext_schema,
-        "fiboa_version": fiboa_version,
-        "collection": collection,
+        "schemas": schemas,
         "data": data,
     }
 
@@ -194,27 +176,14 @@ def validate(files, schema, ext_schema, fiboa_version, collection, data, timer):
     "--metaschema",
     "-m",
     callback=valid_file_for_cli,
-    help="A Vecorel SDL metaschema to validate against.",
+    help="Vecorel SDL metaschema to validate against.",
     default=None,
 )
 def validate_schema(files, metaschema):
     """
     Validates a Vecorel schema file.
     """
-    log(f"Vecorel CLI {__version__} - Schema Validator\n", "success")
-    config = {"metaschema": metaschema}
-    exit = 0
-    if len(files) == 0:
-        log("No files to validate", "error")
-        exit = 2
-
-    for file in files:
-        log(f"Validating {file}", "info")
-        result = validate_schema_(file, config)
-        if not result:
-            exit = 1
-
-    sys.exit(exit)
+    ValidateSchema(metaschema).run(files)
 
 
 ## CREATE PARQUET
@@ -228,51 +197,21 @@ def validate_schema(files, metaschema):
     "--out", "-o", type=click.Path(exists=False), help="Path to write the file to.", required=True
 )
 @click.option(
-    "--collection",
-    "-c",
-    callback=valid_file_for_cli,
-    help="Points to the Collection that defines the fiboa version and extensions. Only applies if not provided in the GeoJSON file (embedded or as link).",
-    default=None,
-)
-@click.option(
-    "--schema",
+    "--schemas",
     "-s",
-    type=click.Path(exists=True),
-    help="Vecorel Schema to work against. If not provided, uses the fiboa version from the collection to load the schema for the released version.",
-)
-@click.option(
-    "--ext-schema",
-    "-e",
     multiple=True,
-    callback=lambda ctx, param, value: check_ext_schema_for_cli(value, allow_none=True),
-    help="Applicable Vecorel extensions as URLs. Can map a remote Vecorel extension schema url to a local file by adding a local file path, separated by a comma. Example: https://example.com/schema.json,/path/to/schema.json",
+    callback=lambda ctx, param, value: check_ext_schema_for_cli(value, allow_none=False),
+    help="Maps a remote Vecorel schema URL to a local file. First the URL, then the local file path. Separated with a comma character. Example: https://example.com/schema.yaml,/path/to/schema.yaml",
 )
-@click.option(
-    "--fiboa-version",
-    "-f",
-    type=click.STRING,
-    help="The applicable fiboa version if no collection is provided.",
-    show_default=True,
-    default=vecorel_version_,
-)
-def create_geoparquet(files, out, collection, schema, ext_schema, fiboa_version):
+def create_geoparquet(files, out, schemas):
     """
-    Create a Vecorel GeoParquet file from GeoJSON file(s).
-
-    The collection metadata has the following priority order:
-    1. Read from the last GeoJSON file/feature (embedded 'fiboa' property)
-    1. Read from the last GeoJSON file/feature (link with relation type 'collection')
-    2. Read from the collection parameter
-    3. Use fiboa_version and extension_schemas parameters
+    Create a Vecorel GeoParquet file from Vecorel GeoJSON file(s).
     """
     log(f"Vecorel CLI {__version__} - Create GeoParquet\n", "success")
     config = {
         "files": files,
         "out": out,
-        "schema": schema,
-        "collection": collection,
-        "extension_schemas": ext_schema,
-        "fiboa_version": fiboa_version,
+        "schemas": schemas,
     }
     try:
         create_geoparquet_(config)
@@ -340,7 +279,18 @@ def create_geojson(file, out, features=False, num=None, indent=None):
     "-s",
     type=click.STRING,
     callback=valid_file_for_cli,
-    help="fiboa Schema to create the JSON Schema for. Can be a local file or a URL. If not provided, uses the fiboa version to load the schema for the released version.",
+    help=f"Vecorel schema to create the JSON Schema for. Can be a local file or a URL. If not provided, loads the schema for Vecorel version {vecorel_version_}.",
+    show_default=True,
+    default=VECOREL_SPECIFICAION_SCHEMA.format(version=vecorel_version_),
+)
+@click.option(
+    "--datatypes",
+    "-d",
+    type=click.STRING,
+    callback=valid_file_for_cli,
+    help=f"Schema for the Vecorel GeoJSON datatypes. Can be a local file or a URL. If not provided, loads the GeoJSON datatypes for Vecorel version {vecorel_version_}.",
+    show_default=True,
+    default=VECOREL_GEOJSON_DATATYPES_SCHEMA.format(version=vecorel_version_),
 )
 @click.option(
     "--out",
@@ -350,40 +300,23 @@ def create_geojson(file, out, features=False, num=None, indent=None):
     default=None,
 )
 @click.option(
-    "--fiboa-version",
-    "-f",
-    type=click.STRING,
-    help="The fiboa version to validate against.",
-    show_default=True,
-    default=vecorel_version_,
-)
-@click.option(
     "--id",
     "-i",
     "id_",
     type=click.STRING,
     help="The JSON Schema $id to use for the schema. If not provided, the $id will be omitted.",
+    default=None,
 )
-def jsonschema(schema, out, fiboa_version, id_):
+def jsonschema(schema, datatypes, out, id_):
     """
     Create a JSON Schema for a Vecorel Schema
     """
-    log(f"Vecorel CLI {__version__} - Create JSON Schema\n", "success")
-    config = {
-        "schema": schema,
-        "fiboa_version": fiboa_version,
-        "id": id_,
-    }
-    try:
-        schema = jsonschema_(config)
-        if out:
-            with open(out, "w", encoding="utf-8") as f:
-                json.dump(schema, f, indent=2)
-        else:
-            print(schema)
-    except Exception as e:
-        log(e, "error")
-        sys.exit(1)
+    creator = CreateJsonSchema()
+    jsonschema = creator.run(schema, datatypes, out=out, schema_id=id_)
+    if out:
+        creator.log(f"JSON Schema written to {out}", "success")
+    else:
+        print(jsonschema)
 
 
 ## CONVERT
@@ -557,14 +490,14 @@ def converters(providers, sources, verbose):
     "--slug",
     "-s",
     type=click.STRING,
-    help="Slug of the repository, e.g. for `https://github.com/fiboa/timestamps-extension` it would be `timestamps-extension`",
+    help="Slug of the repository, e.g. for `https://github.com/vecorel/xyz-extension` it would be `xyz-extension`",
     required=True,
 )
 @click.option(
     "--org",
     "-o",
     type=click.STRING,
-    help="Slug of the GitHub Organization.",
+    help="Slug of the organization, e.g. for `https://github.com/vecorel/xyz-extension` it would be `vecorel`",
     show_default=True,
     default="vecorel",
 )
@@ -572,19 +505,14 @@ def converters(providers, sources, verbose):
     "--prefix",
     "-p",
     type=click.STRING,
-    help="Prefix for the field, e.g. `time` if the fields should be `time:created` or `time:updated`. An empty string removed the prefix, not providing a prefix leaves it as is.",
+    help="Prefix for the field, e.g. `time` if the fields should be `time:created` or `time:updated`. An empty string removes the prefix, not providing a prefix leaves it as is.",
     default=None,
 )
 def rename_extension(folder, title, slug, org="vecorel", prefix=None):
     """
     Updates placeholders in an extension folder to the new name.
     """
-    log(f"Vecorel CLI {__version__} - Rename placeholders in extensions\n", "success")
-    try:
-        rename_extension_(folder, title, slug, gh_org=org, prefix=prefix)
-    except Exception as e:
-        log(e, "error")
-        sys.exit(1)
+    RenameExtension(title, slug, org, prefix).run(folder=folder)
 
 
 ## MERGE
@@ -656,7 +584,7 @@ def merge(datasets, out, crs, include, exclude, extension, compression, geoparqu
         sys.exit(1)
 
 
-## IMPROVE (add area, perimeter, and fix geometries)
+## IMPROVE (add area, perimeter, fix geometries, etc.)
 @click.command()
 @click.argument("input", nargs=1, type=click.Path(exists=True))
 @click.option(
@@ -735,22 +663,17 @@ def improve(
     """
     "Improves" a Vecorel GeoParquet file according to the given parameters.
     """
-    log(f"Vecorel CLI {__version__} - Improve datasets\n", "success")
-    try:
-        improve_(
-            input,
-            out,
-            rename_column,
-            add_sizes,
-            fix_geometries,
-            explode_geometries,
-            crs,
-            compression,
-            geoparquet1,
-        )
-    except Exception as e:
-        log(e, "error")
-        sys.exit(1)
+    ImproveData().run(
+        input,
+        out,
+        compression=compression,
+        geoparquet1=geoparquet1,
+        rename_columns=rename_column,
+        add_sizes=add_sizes,
+        fix_geometries=fix_geometries,
+        explode_geometries=explode_geometries,
+        crs=crs,
+    )
 
 
 cli.add_command(describe)

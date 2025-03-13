@@ -4,9 +4,11 @@ import pyarrow as pa
 from geopandas import GeoDataFrame
 from shapely.geometry import shape
 
+from ..const import VECOREL_SPECIFICAION_SCHEMA
+from ..util import is_schema_empty, load_file, log, merge_schemas
+from ..version import vecorel_version
 from .geopandas import to_parquet
 from .types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
-from .util import is_schema_empty, load_fiboa_schema, load_file, log, merge_schemas
 
 ROW_GROUP_SIZE = 25000
 
@@ -22,13 +24,13 @@ def create_parquet(
     geoparquet1=False,
 ):
     # Load the data schema
-    fiboa_schema = load_fiboa_schema(config)
-    schemas = merge_schemas(missing_schemas, fiboa_schema)
+    vecorel_schema = load_file(VECOREL_SPECIFICAION_SCHEMA.format(version=vecorel_version))
+    schemas = merge_schemas(missing_schemas, vecorel_schema)
 
     # Add the custom schemas to the collection for future use
     if not is_schema_empty(missing_schemas):
         collection = collection.copy()
-        collection["fiboa_custom_schemas"] = missing_schemas
+        collection["custom_schemas"] = missing_schemas
 
     # Load all extension schemas
     extensions = {}

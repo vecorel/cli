@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 from .const import CORE_COLUMNS
-from .parquet import create_parquet
+from .parquet.parquet import create_parquet
 from .util import (
     is_schema_empty,
     load_parquet_data,
@@ -13,7 +13,7 @@ from .util import (
     parse_metadata,
     pick_schemas,
 )
-from .version import fiboa_version
+from .version import vecorel_version
 
 DEFAULT_CRS = "EPSG:4326"
 
@@ -56,7 +56,7 @@ def merge(
             gdf["collection"] = os.path.splitext(os.path.basename(dataset))[0]
 
         # Merge custom schemas
-        custom_schema = collection.get("fiboa_custom_schemas", {})
+        custom_schema = collection.get("custom_schemas", {})
         custom_schemas = merge_schemas(custom_schemas, custom_schema)
 
         all_gdf.append(gdf)
@@ -70,14 +70,14 @@ def merge(
 
     # Create collection metadata
     collection = {
-        "fiboa_version": fiboa_version,
+        "fiboa_version": vecorel_version,
         "fiboa_extensions": list(extensions),
     }
 
     # Add custom schemas
     custom_schemas = pick_schemas(custom_schemas, columns)
     if not is_schema_empty(custom_schemas):
-        collection["fiboa_custom_schemas"] = custom_schemas
+        collection["custom_schemas"] = custom_schemas
 
     # Write the merged dataset to the output file
     create_parquet(
