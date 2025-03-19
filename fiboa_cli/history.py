@@ -47,21 +47,15 @@ def history(
             log("No columns added for file {path} year {year}", "warning")
             continue
         new_columns = [f"{year}:{c}" for c in add_columns]
+
         gdf2 = load_parquet_data(path, columns=add_columns + [gdf.active_geometry_name])
+        overlap = gdf[["id", "geometry"]].overlay(gdf2, how='intersection')
 
-        # https://geopandas.org/en/stable/docs/user_guide/set_operations.html
-        # https://geopandas.org/en/stable/docs/reference/api/geopandas.overlay.html#geopandas.overlay
-        overlap = gdf.overlay(gdf2, how='intersection')
-        # Add area column
-
-        # Determine whether the given CRS is in meters
         if gdf.crs.axis_info[0].unit_name not in ["m", "metre", "meter"]:
-            # Reproject the geometries to an equal-area projection if needed
             overlap = overlap.to_crs("EPSG:6933")
-
-        # Compute the missing area and perimeter values
         overlap["area"] = overlap.geometry.area * 0.0001
 
+        overlap.groupby(["id_1"])
         # TODO,
         # group by id_1, look for max(crop:name, key=area), and add this as a column to gdf
         # Start debugging here!
