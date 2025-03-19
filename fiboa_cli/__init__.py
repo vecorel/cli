@@ -12,6 +12,7 @@ from .convert import list_all_converter_ids, list_all_converters
 from .create_geojson import create_geojson as create_geojson_
 from .create_geoparquet import create_geoparquet as create_geoparquet_
 from .describe import describe as describe_
+from .history import history as history_
 from .improve import improve as improve_
 from .jsonschema import jsonschema as jsonschema_
 from .merge import DEFAULT_CRS
@@ -753,6 +754,53 @@ def improve(
         sys.exit(1)
 
 
+## History; given several years of data, generate a historic set
+## Currently works for crops-years
+@click.command()
+@click.argument("input", nargs=-1, type=click.Path(exists=True))
+@click.option(
+    "--out",
+    "-o",
+    type=click.Path(exists=False),
+    help="Path to write the GeoParquet file to. If not given, generate name",
+    default=None,
+)
+@click.option(
+    "--column-filter",
+    "-c",
+    type=str,
+    help="Comma seperated list of column_names to analyze historically",
+    default=None,
+)
+@click.option(
+    "--compression",
+    "-pc",
+    type=click.Choice(COMPRESSION_METHODS),
+    help="Compression method for the Parquet file.",
+    show_default=True,
+    default="brotli",
+)
+def history(
+    input,
+    out,
+    column_filter,
+    compression,
+):
+    """
+    Given several years of data, generate a dataset with historic data per column
+    """
+    log(f"fiboa CLI {__version__} - Generate history\n", "success")
+    try:
+        history_(
+            input,
+            out,
+            column_filter,
+            compression,
+        )
+    except Exception as e:
+        log(e, "error")
+        sys.exit(1)
+
 cli.add_command(describe)
 cli.add_command(validate)
 cli.add_command(validate_schema)
@@ -764,6 +812,7 @@ cli.add_command(converters)
 cli.add_command(rename_extension)
 cli.add_command(merge)
 cli.add_command(improve)
+cli.add_command(history)
 
 if __name__ == "__main__":
     cli()
