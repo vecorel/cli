@@ -46,7 +46,7 @@ class LacunaLabelsConverter(BaseConverter):
 
     columns = {
         "geometry": "geometry",
-        "name": "id",
+        "id": "id",
         "category": "category",
     }
 
