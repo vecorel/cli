@@ -1,16 +1,14 @@
 import os
-
-from .const import CORE_COLUMNS
 from .parquet import create_parquet
 from .util import (
-    is_schema_empty,
     load_parquet_data,
     load_parquet_schema,
     log,
     parse_metadata,
-    pick_schemas,
 )
 import re
+import pandas as pd
+import numpy as np
 
 COLUMNS =  ("crop:code", "crop:name", "crop:name_en", "ec:hcat_name", "ec:hcat_code", "ec:translated_name")
 
@@ -37,6 +35,12 @@ def history(
     collections = [parse_metadata(schema, b"fiboa") for schema in schemas]
 
     gdf = load_parquet_data(newest_file)
+    # TODO how to handle non-unique ids, maybe generate an additional "_a"
+    # https://stackoverflow.com/a/26601343/193886
+    gdf.drop_duplicates('id', inplace=True)
+
+    # gdf[gdf.index.duplicated()].sort_values(by='id)
+    gdf.set_index("id", drop=False, inplace=True)
     columns = list(schemas[newest_index].names)
     for year, index in year_index.items():
         if index == newest_index:
@@ -46,19 +50,37 @@ def history(
         if len(add_columns) == 0:
             log("No columns added for file {path} year {year}", "warning")
             continue
-        new_columns = [f"{year}:{c}" for c in add_columns]
 
-        gdf2 = load_parquet_data(path, columns=add_columns + [gdf.active_geometry_name])
-        overlap = gdf[["id", "geometry"]].overlay(gdf2, how='intersection')
+        gdf2 = load_parquet_data(path, columns=add_columns + [gdf.active_geometry_name], nrows=1000)
+        overlap = gdf[["id", "geometry"]].overlay(gdf2, how='intersection', keep_geom_type=False)
 
         if gdf.crs.axis_info[0].unit_name not in ["m", "metre", "meter"]:
             overlap = overlap.to_crs("EPSG:6933")
         overlap["area"] = overlap.geometry.area * 0.0001
 
-        overlap.groupby(["id_1"])
-        # TODO,
-        # group by id_1, look for max(crop:name, key=area), and add this as a column to gdf
-        # Start debugging here!
+        # largest_overlap = overlap.groupby(["id_1"])['area'].nlargest(1)
+
+        groupby = ["id", *add_columns]
+        subset = overlap[groupby + ["area"]]
+        area_per_group = subset.groupby(groupby, as_index=False).sum("area")
+        # largest_overlap = area_per_group.groupby(groupby, as_index=False)['area'].nlargest(1)
+
+        largest_overlap = area_per_group.loc[area_per_group.groupby("id")["area"].idxmax()]
+        largest_overlap.set_index("id", inplace=True)
+
+        # largest_overlap = area_per_group.groupby("id", as_index=False)[['area', 'crop:code', 'crop:name']][0]
+        # Use same index https://stackoverflow.com/a/72932903/193886
+        largest_overlap[str(year)] = largest_overlap[add_columns].to_dict("records")
+        gdf = gdf.assign(**{str(year): largest_overlap[str(year)]})
+        breakpoint()
+
+        # largest_overlap.loc["105449105.0"]
+        # gdf.loc[gdf["id"]==largest_overlap["id"]]["history"] = 10
+        # https://stackoverflow.com/a/70991362/193886
+        # gdf['history'] = np.where(gdf['id'].reset_index(drop=True) == largest_overlap['id'].reset_index(drop=True), largest_overlap['crop:name'], None)
+
+        # pd.merge(gdf, largest_overlap, on="id")
+
 
     # Write the merged dataset to the output file
     # TODO, create proper collection
