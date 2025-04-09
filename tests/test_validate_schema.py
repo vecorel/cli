@@ -1,6 +1,6 @@
 from click.testing import CliRunner
 
-from fiboa_cli import validate_schema
+from vecorel_cli import validate_schema
 
 
 def test_validate_schema():

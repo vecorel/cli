@@ -1,6 +1,6 @@
 from click.testing import CliRunner
 
-from fiboa_cli import describe
+from vecorel_cli import describe
 
 
 def test_describe():

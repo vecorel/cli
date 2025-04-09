@@ -3,12 +3,12 @@ from glob import glob
 import pyarrow.parquet as pq
 from click.testing import CliRunner
 
-from fiboa_cli import merge, validate
+from vecorel_cli import merge, validate
 
 """
 Create input files with:
 
-$ for i in at be_wal nl; do fiboa convert $i -o tests/data-files/merge/$i.parquet -c tests/data-files/convert/$i; done
+$ for i in at be_wal nl; do vec convert $i -o tests/data-files/merge/$i.parquet -c tests/data-files/convert/$i; done
 """
 
 

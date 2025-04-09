@@ -2,7 +2,7 @@ from glob import glob
 
 from click.testing import CliRunner
 
-from fiboa_cli import improve, validate
+from vecorel_cli import improve, validate
 
 
 def test_improve(tmp_file):

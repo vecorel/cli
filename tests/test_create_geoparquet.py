@@ -4,8 +4,8 @@ import tempfile
 from click.testing import CliRunner
 from pytest import fixture
 
-from fiboa_cli import create_geoparquet, validate
-from fiboa_cli.util import load_parquet_data
+from vecorel_cli import create_geoparquet, validate
+from vecorel_cli.util import load_parquet_data
 
 
 @fixture

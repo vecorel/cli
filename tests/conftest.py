@@ -2,7 +2,7 @@ import tempfile
 
 from pytest import fixture
 
-from fiboa_cli import convert_utils, util
+from vecorel_cli import convert_utils, util
 
 
 @fixture

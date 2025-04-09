@@ -1,12 +1,12 @@
-from fiboa_cli.jsonschema import jsonschema
-from fiboa_cli.util import load_file
-from fiboa_cli.version import fiboa_version
+from vecorel_cli.jsonschema import jsonschema
+from vecorel_cli.util import load_file
+from vecorel_cli.version import vecorel_version
 
 
 def test_conversion():
     config = {
         "schema": "tests/data-files/jsonschema/test1.yaml",
-        "fiboa_version": fiboa_version,
+        "vecorel_version": vecorel_version,
         "id": "https://example.com/schema.json",
     }
     created_json_schema = jsonschema(config)

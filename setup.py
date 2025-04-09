@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 
 def get_version():
-    with open("fiboa_cli/version.py", "r") as file:
+    with open("vecorel_cli/version.py", "r") as file:
         content = file.read()
         return re.match(r'__version__\s*=\s*"([^"]+)"', content)[1]
 
@@ -16,14 +16,14 @@ def get_description():
 
 
 setup(
-    name="fiboa-cli",
+    name="vecorel-cli",
     version=get_version(),
     license="Apache-2.0",
-    description="CLI tools such as validation and file format conversion for fiboa.",
+    description="CLI tools such as validation and file format conversion for vecorel.",
     long_description=get_description(),
     long_description_content_type="text/markdown",
     author="Matthias Mohr",
-    url="https://github.com/fiboa/cli",
+    url="https://github.com/vecorel/cli",
     install_requires=[
         "jsonschema[format]>=4.20",
         "pyyaml>=6.0",
@@ -41,12 +41,10 @@ setup(
     ],
     extras_require={
         # Optional dependencies for datasets converters go here
-        "ie": ["zipfile-deflate64"],
-        "es_pv": ["beautifulsoup4>=4.12.0"],
     },
     packages=find_packages(),
-    package_data={"fiboa_cli": []},
-    entry_points={"console_scripts": ["fiboa=fiboa_cli:cli"]},
+    package_data={"vecorel_cli": []},
+    entry_points={"console_scripts": ["vec=vecorel_cli:cli"]},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Programming Language :: Python :: 3",

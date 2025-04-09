@@ -1,6 +1,6 @@
 from click.testing import CliRunner
 
-from fiboa_cli import validate
+from vecorel_cli import validate
 
 
 def test_validate():
