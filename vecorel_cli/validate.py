@@ -2,19 +2,11 @@ import json
 
 import pyarrow.types as pat
 
-from .const import VECOREL_GEOJSON_DATATYPES_SCHEMA
 from .create_jsonschema import CreateJsonSchema
 from .parquet.types import PA_TYPE_CHECK
 from .util import (
-    get_core_version,
     load_file,
-    load_geojson_datatypes,
-    load_geoparquet_schema,
-    load_parquet_data,
-    load_parquet_schema,
-    log_extensions,
     merge_schemas,
-    parse_metadata,
 )
 from .util import log as log_
 from .validate_data import validate_column
@@ -82,7 +74,7 @@ def validate_schemas(schema_uris, config):
             log(f"Extension {uri} can't be loaded: {e}", "error")
             valid = False
 
-    log_extensions(schema_uris, lambda x: log(x, "info", False))
+    # log_extensions(schema_uris, lambda x: log(x, "info", False))
 
     return valid, version, core_schema, schemas
 
@@ -115,7 +107,7 @@ def validate_geojson(file, config):
     valid, version, core_schema_uri, schemas = validate_schemas(schemas_uris, config)
 
     core_schema = schemas[core_schema_uri]
-    datatypes = load_geojson_datatypes(VECOREL_GEOJSON_DATATYPES_SCHEMA.format(version=version))
+    datatypes = GeoJSON.get_datatypes(version)
     jsonschema = CreateJsonSchema()
     schema = jsonschema.create_from_dict(core_schema, datatypes)
 

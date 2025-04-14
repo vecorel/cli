@@ -1,79 +1,97 @@
-from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
+import click
 from geopandas import GeoDataFrame
 
-from .basecommand import BaseCommand
-from .const import CORE_COLUMNS
-from .parquet.parquet import create_parquet
+from .basecommand import BaseCommand, runnable
+from .cli.options import CRS, GEOPARQUET1, GEOPARQUET_COMPRESSION
+from .cli.util import parse_map, valid_vecorel_file
+from .encoding.auto import create_encoding
+from .registry import Registry
 from .util import (
     is_schema_empty,
-    load_parquet_data,
-    load_parquet_schema,
-    parse_metadata,
     pick_schemas,
 )
 
 
 class ImproveData(BaseCommand):
+    cmd_name = "improve"
     cmd_title = "Improve datasets"
-    cmd_fn = "improve_file"
+    cmd_help = (
+        "'Improves' a Vecorel file (GeoParquet or GeoJSON) according to the given parameters."
+    )
+    cmd_final_report = True
 
-    def load(self, inputfile: Union[Path, str]) -> tuple[GeoDataFrame, dict]:
-        # Load the dataset
-        schema = load_parquet_schema(inputfile)
-        collection = parse_metadata(schema, b"fiboa")
-        columns = list(schema.names)
-        data = load_parquet_data(inputfile, columns=columns)
-        return data, collection
+    @staticmethod
+    def get_cli_args():
+        return {
+            "input": click.argument(
+                "input",
+                nargs=1,
+                callback=valid_vecorel_file,
+            ),
+            "out": click.option(
+                "--out",
+                "-o",
+                type=click.Path(exists=False),
+                help="Path to write to. If not given, overwrites the input file.",
+                default=None,
+            ),
+            "rename": click.option(
+                "--rename",
+                "-r",
+                type=click.STRING,
+                callback=lambda ctx, param, value: parse_map(value),
+                multiple=True,
+                help="Renaming of properties/columns. Provide the old name and the new name separated by an equal sign. Can be used multiple times.",
+            ),
+            "add-sizes": click.option(
+                "--add-sizes",
+                "-sz",
+                is_flag=True,
+                type=click.BOOL,
+                help="Computes missing sizes (area, perimeter)",
+                default=False,
+            ),
+            "fix-geometries": click.option(
+                "--fix-geometries",
+                "-g",
+                is_flag=True,
+                type=click.BOOL,
+                help="Tries to fix invalid geometries that are repored by the validator (uses GeoPanda's make_valid method internally)",
+                default=False,
+            ),
+            "explode-geometries": click.option(
+                "--explode-geometries",
+                "-e",
+                is_flag=True,
+                type=click.BOOL,
+                help="Converts MultiPolygons to Polygons",
+                default=False,
+            ),
+            "crs": CRS(None),
+            "compression": GEOPARQUET_COMPRESSION,
+            "geoparquet1": GEOPARQUET1,
+        }
 
-    def write(
-        self,
-        gdf: GeoDataFrame,
-        outputfile: Union[Path, str],
-        collection: dict = {},
-        compression=None,
-        geoparquet1=False,
-    ):
-        if isinstance(outputfile, str):
-            outputfile = Path(outputfile)
+    @runnable
+    def improve_file(self, input, out=None, compression=None, geoparquet1=False, **kwargs):
+        input_encoding = create_encoding(input)
+        output_encoding = create_encoding(out) if out else input_encoding
 
-        outputfile.parent.mkdir(parents=True, exist_ok=True)
-
-        columns = list(gdf.columns)
-        # Don't write the bbox column, will be added automatically in create_parquet
-        if "bbox" in columns:
-            del gdf["bbox"]
-            columns.remove("bbox")
-        # Write the merged dataset to the output file
-        create_parquet(
-            gdf,
-            columns,
-            collection,
-            outputfile,
-            {},
-            compression=compression,
-            geoparquet1=geoparquet1,
+        geodata = input_encoding.read()
+        collection = input_encoding.get_collection()
+        geodata, collection = self.improve(geodata, collection=collection, **kwargs)
+        output_encoding.write(
+            geodata, collection=collection, compression=compression, geoparquet1=geoparquet1
         )
-
-    def improve_file(
-        self, inputfile, outputfile=None, compression=None, geoparquet1=False, **kwargs
-    ):
-        if not outputfile:
-            outputfile = inputfile  # overwrite inputfile
-
-        gdf, collection = self.load(inputfile)
-        gdf, collection = self.improve(gdf, collection=collection, **kwargs)
-        gdf = self.write(
-            gdf, outputfile, collection=collection, compression=compression, geoparquet1=geoparquet1
-        )
-        self.log(f"Wrote data to {outputfile}", "success")
+        return out
 
     def improve(
         self,
         gdf: GeoDataFrame,
         collection: dict = {},
-        rename_columns: dict[str, str] = {},
+        rename: dict[str, str] = {},
         add_sizes: bool = False,
         fix_geometries: bool = False,
         explode_geometries: bool = False,
@@ -95,9 +113,9 @@ class ImproveData(BaseCommand):
             self.log("Exploded geometries", "info")
 
         # Rename columns
-        if len(rename_columns) > 0:
-            self.rename_warnings(gdf, rename_columns)
-            gdf, collection = self.rename_properties(gdf, rename_columns, collection)
+        if len(rename) > 0:
+            self.rename_warnings(gdf, rename)
+            gdf, collection = self.rename_properties(gdf, rename, collection)
             self.log("Renamed columns", "info")
 
         # Add sizes
@@ -125,9 +143,8 @@ class ImproveData(BaseCommand):
         """
         Print warnings for columns that will be renamed.
         """
-        # todo: load CORE_COLUMNS from schema
         for col in rename:
-            if col in CORE_COLUMNS:
+            if col in Registry.core_columns:
                 self.log(
                     f"Column {col} is a core property - do you really want to rename it?",
                     "warning",
@@ -146,6 +163,7 @@ class ImproveData(BaseCommand):
 
         This method works in-place and modifies the original GeoDataFrame.
         """
+        # todo: check whether this handles extensions correctly
         columns = list(gdf.columns)
 
         gdf.rename(columns=rename, inplace=True)
@@ -176,6 +194,7 @@ class ImproveData(BaseCommand):
             # Reproject the geometries to an equal-area projection if needed
             gdf_m = gdf.to_crs("EPSG:6933")
 
+        # todo: add extension schema for the area and perimeter property
         # Compute the missing area and perimeter values
         gdf["area"] = gdf_m["area"].astype("float").fillna(gdf_m.geometry.area * 0.0001)
         gdf["perimeter"] = gdf_m["perimeter"].astype("float").fillna(gdf_m.geometry.length)

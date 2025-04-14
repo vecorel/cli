@@ -32,20 +32,20 @@ setup(
         "click>=8.1",
         "geopandas>=1.0.0",
         "requests>=2.30",
-        "aiohttp>=3.9",
+        #   "aiohttp>=3.9",
         "shapely>=2.0",
         "numpy>=1.20.0",
         "py7zr>=0.21.0",
-        "flatdict>=4.0",
         "rarfile>=4.0",
         "semantic-version>=2.10.0",
+        "json-stream>=2.3.0",
     ],
     extras_require={
         # Optional dependencies for datasets converters go here
     },
     packages=find_packages(),
     package_data={"vecorel_cli": []},
-    entry_points={"console_scripts": ["vec=vecorel_cli:cli"]},
+    entry_points={"console_scripts": ["vec=vecorel_cli:vecorel_cli"]},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Programming Language :: Python :: 3",

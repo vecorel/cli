@@ -4,8 +4,8 @@ import pyarrow as pa
 from geopandas import GeoDataFrame
 from shapely.geometry import shape
 
-from ..const import VECOREL_SPECIFICAION_SCHEMA
 from ..util import is_schema_empty, load_file, log, merge_schemas
+from ..vecorel.schemas import Schemas
 from ..version import vecorel_version
 from .geopandas import to_parquet
 from .types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
@@ -15,16 +15,27 @@ ROW_GROUP_SIZE = 25000
 
 def create_parquet(
     data,
-    columns,
-    collection,
     output_file,
-    config,
+    columns=None,
+    collection={},
     missing_schemas={},
     compression=None,
     geoparquet1=False,
+    config={},  # todo: remove
 ):
+    if columns is None:
+        columns = list(data.columns)
+    else:
+        # Restrict to the columns that actually exist, ignore all others
+        columns = list(set(columns) & set(data.columns))
+
+    # Don't write the bbox column, will be added automatically later
+    if "bbox" in columns:
+        del data["bbox"]
+        columns.remove("bbox")
+
     # Load the data schema
-    vecorel_schema = load_file(VECOREL_SPECIFICAION_SCHEMA.format(version=vecorel_version))
+    vecorel_schema = load_file(Schemas.spec_schema.format(version=vecorel_version))
     schemas = merge_schemas(missing_schemas, vecorel_schema)
 
     # Add the custom schemas to the collection for future use

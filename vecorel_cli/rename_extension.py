@@ -2,14 +2,19 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from .basecommand import BaseCommand
+import click
+
+from .basecommand import BaseCommand, runnable
+from .cli.util import valid_folder_for_cli
 from .create_geoparquet import create_geoparquet
 from .util import log
 
 
 class RenameExtension(BaseCommand):
-    cmd_title = "Rename placeholders in extensions"
-    cmd_fn = "rename"
+    cmd_name = "rename-extension"
+    cmd_title = "Prepare extensions"
+    cmd_help = "Updates placeholders in an extension folder to the new name."
+    cmd_final_report = True
 
     readme_path: str = "README.md"
     changelog_path: Optional[str] = "CHANGELOG.md"
@@ -22,6 +27,48 @@ class RenameExtension(BaseCommand):
     template_prefix: str = "template"
     template_org: str = "vecorel"
     template_repo: str = "extension-template"
+
+    @staticmethod
+    def get_cli_args():
+        return {
+            "folder": click.argument("folder", nargs=1, callback=valid_folder_for_cli),
+            "title": click.option(
+                "--title",
+                "-t",
+                type=click.STRING,
+                help="Title of the extension, e.g. `Timestamps`",
+                required=True,
+            ),
+            "slug": click.option(
+                "--slug",
+                "-s",
+                type=click.STRING,
+                help="Slug of the repository, e.g. for `https://github.com/vecorel/xyz-extension` it would be `xyz-extension`",
+                required=True,
+            ),
+            "org": click.option(
+                "--org",
+                "-o",
+                type=click.STRING,
+                help="Slug of the organization, e.g. for `https://github.com/vecorel/xyz-extension` it would be `vecorel`",
+                show_default=True,
+                default="vecorel",
+            ),
+            "prefix": click.option(
+                "--prefix",
+                "-p",
+                type=click.STRING,
+                help="Prefix for the field, e.g. `time` if the fields should be `time:created` or `time:updated`. An empty string removes the prefix, not providing a prefix leaves it as is.",
+                default=None,
+            ),
+        }
+
+    @staticmethod
+    def get_cli_callback(cmd):
+        def callback(folder, title, slug, org, prefix):
+            return RenameExtension(title, slug, org, prefix).run(folder=folder)
+
+        return callback
 
     def __init__(
         self,
@@ -43,11 +90,12 @@ class RenameExtension(BaseCommand):
             f"github.com/{self.template_org}/{self.template_repo}": f"github.com/{self.org}/{self.repo}",
         }
 
-    def get_urls(self):
+    def _get_urls(self):
         search = list(self.url_map.keys())
         replace = list(self.url_map.values())
         return search, replace
 
+    @runnable
     def rename(self, folder):
         p = Path(folder)
         if not p.exists():
@@ -68,21 +116,21 @@ class RenameExtension(BaseCommand):
 
     def rename_schema(self, folder: Path) -> bool:
         filepath = Path(folder, self.schema_path)
-        return self.replace_in_file(filepath, f"{self.template_prefix}:", self.full_prefix)
+        return self._replace_in_file(filepath, f"{self.template_prefix}:", self.full_prefix)
 
     def rename_pipfile(self, folder: Path) -> bool:
         filepath = Path(folder, self.pipfile_path)
-        search, replace = self.get_urls()
-        return self.replace_in_file(filepath, search, replace)
+        search, replace = self._get_urls()
+        return self._replace_in_file(filepath, search, replace)
 
     def rename_changelog(self, folder: Path) -> bool:
         filepath = Path(folder, self.changelog_path)
-        search, replace = self.get_urls()
-        return self.replace_in_file(filepath, search, replace)
+        search, replace = self._get_urls()
+        return self._replace_in_file(filepath, search, replace)
 
     def rename_readme(self, folder: Path) -> bool:
         filepath = Path(folder, self.readme_path)
-        search, replace = self.get_urls()
+        search, replace = self._get_urls()
         search += [
             f"{self.template_title} Extension",
             f"- **Title:** {self.template_title}",
@@ -95,13 +143,13 @@ class RenameExtension(BaseCommand):
             f"- **Property Name Prefix:** {self.prefix}",
             f"| {self.full_prefix}",
         ]
-        return self.replace_in_file(filepath, search, replace)
+        return self._replace_in_file(filepath, search, replace)
 
     def rename_geojson_example(self, filepath: Path) -> bool:
-        search, replace = self.get_urls()
+        search, replace = self._get_urls()
         search += [f"{self.template_prefix}:"]
         replace += [self.full_prefix]
-        return self.replace_in_file(filepath, search, replace)
+        return self._replace_in_file(filepath, search, replace)
 
     def rename_geoparquet_example(self, folder: Path, geojson_paths: list[str] = []) -> bool:
         filepath = Path(folder, self.geoparquet_example_path)
@@ -113,8 +161,8 @@ class RenameExtension(BaseCommand):
             log(f"Deleted {filepath}", "warning")
             return False
 
-        search, replace = self.get_urls()
-        schema_url = self.replace_in_str(
+        search, replace = self._get_urls()
+        schema_url = self._replace_in_str(
             f"https://{self.template_org}.github.io/{self.template_repo}/v0.1.0/schema.yaml",
             search,
             replace,
@@ -123,7 +171,7 @@ class RenameExtension(BaseCommand):
         create_geoparquet(geojson_paths, filepath, schemas=schemas)
         return True
 
-    def replace_in_str(self, content, search, replace):
+    def _replace_in_str(self, content, search, replace):
         if isinstance(search, list) and isinstance(replace, list) and len(search) != len(replace):
             raise ValueError("Search and replace lists must have the same length")
 
@@ -133,20 +181,20 @@ class RenameExtension(BaseCommand):
             return content.replace(search, replace)
         elif isinstance(search, list) and isinstance(replace, list):
             for s, r in zip(search, replace):
-                content = self.replace_in_str(content, s, r)
+                content = self._replace_in_str(content, s, r)
             return content
         elif isinstance(search, list):
             for s in search:
-                content = self.replace_in_str(content, s, replace)
+                content = self._replace_in_str(content, s, replace)
             return content
         else:
             raise ValueError(f"Invalid search type: {type(search)}")
 
-    def replace_in_file(self, file: Path, search, replace) -> bool:
+    def _replace_in_file(self, file: Path, search, replace) -> bool:
         try:
             with file.open("r+") as f:
                 content = f.read()
-                content = self.replace_in_str(content, search, replace)
+                content = self._replace_in_str(content, search, replace)
                 f.seek(0)
                 f.write(content)
                 f.truncate()

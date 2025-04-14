@@ -3,18 +3,47 @@ from pathlib import Path
 from typing import Optional, Union
 from urllib.request import Request, urlopen
 
+import click
 import referencing
 from jsonschema.exceptions import ValidationError
 from jsonschema.protocols import Validator
 from jsonschema.validators import Draft7Validator, Draft202012Validator
 
-from .basecommand import BaseCommand
+from .basecommand import BaseCommand, runnable
+from .cli.util import valid_file_for_cli, valid_files_folders_for_cli
 from .util import load_file
 
 
 class ValidateSchema(BaseCommand):
+    cmd_name = "validate-schema"
     cmd_title: str = "Schema Validator"
-    cmd_fn: str = "validate_cli"
+    cmd_help: str = "Validates a Vecorel schema file."
+
+    @staticmethod
+    def get_cli_args():
+        return {
+            "files": click.argument(
+                "files",
+                nargs=-1,
+                callback=lambda ctx, param, value: valid_files_folders_for_cli(
+                    value, ["yaml", "yml"]
+                ),
+            ),
+            "metaschema": click.option(
+                "--metaschema",
+                "-m",
+                callback=valid_file_for_cli,
+                help="Vecorel SDL metaschema to validate against.",
+                default=None,
+            ),
+        }
+
+    @staticmethod
+    def get_cli_callback(cmd):
+        def callback(files, metaschema):
+            return ValidateSchema(metaschema).run(files)
+
+        return callback
 
     def __init__(self, metaschema: Optional[Union[Path, dict]] = None):
         self.validator: Optional[Validator] = None
@@ -23,9 +52,7 @@ class ValidateSchema(BaseCommand):
         if isinstance(metaschema, dict):
             self.validator = self.create_validator(metaschema)
 
-    def log2(self, text: Union[Exception, str], status="info", nl=True, **kwargs):
-        self.log(" - " + str(text), status, nl, **kwargs)
-
+    @runnable
     def validate_cli(self, files: list[Union[Path, str]]) -> bool:
         results = self.validate_files(files)
         if len(results) == 0:
@@ -37,10 +64,10 @@ class ValidateSchema(BaseCommand):
             self.log(f"Validating {filepath}", "info")
             if len(errors) > 0:
                 for error in errors:
-                    self.log2(error, "error")
+                    self._log2(error, "error")
                 invalid_count += 1
             else:
-                self.log2("VALID", "success")
+                self._log2("VALID", "success")
 
         return invalid_count == 0
 
@@ -49,7 +76,7 @@ class ValidateSchema(BaseCommand):
         for file in files:
             file = Path(file)
             errors = self.validate_file(file)
-            filepath = str(file.absolute())
+            filepath = str(file.resolve().absolute())
             mapping[filepath] = errors
 
         return mapping
@@ -87,14 +114,17 @@ class ValidateSchema(BaseCommand):
         return instance(
             schema,
             format_checker=instance.FORMAT_CHECKER,
-            registry=referencing.Registry(retrieve=retrieve_remote_schema),
+            registry=referencing.Registry(retrieve=ValidateSchema.retrieve_remote_schema),
         )
 
+    def _log2(self, text: Union[Exception, str], status="info", nl=True, **kwargs):
+        self.log(" - " + str(text), status, nl, **kwargs)
 
-def retrieve_remote_schema(uri: str):
-    request = Request(uri)
-    with urlopen(request) as response:
-        return referencing.Resource.from_contents(
-            json.load(response),
-            default_specification=referencing.jsonschema.DRAFT202012,
-        )
+    @staticmethod
+    def retrieve_remote_schema(uri: str):
+        request = Request(uri)
+        with urlopen(request) as response:
+            return referencing.Resource.from_contents(
+                json.load(response),
+                default_specification=referencing.jsonschema.DRAFT202012,
+            )

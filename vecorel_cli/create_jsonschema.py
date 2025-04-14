@@ -1,29 +1,81 @@
 import json
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
-from .basecommand import BaseCommand
+import click
+
+from .basecommand import BaseCommand, runnable
+from .cli.util import valid_file_for_cli
+from .encoding.geojson import GeoJSON
 from .jsonschema.template import jsonschema_template
-from .util import load_file, load_geojson_datatypes
+from .util import load_file
+from .vecorel.schemas import Schemas
+from .version import vecorel_version
 
 
 class CreateJsonSchema(BaseCommand):
+    cmd_name = "jsonschema"
     cmd_title: str = "Create JSON Schema"
-    cmd_fn: str = "create_from_files"
+    cmd_help: str = "Create a JSON Schema for a Vecorel Schema"
+    cmd_final_report: bool = True
 
+    @staticmethod
+    def get_cli_args():
+        return {
+            "schema": click.option(
+                "--schema",
+                "-s",
+                "schema_uri",
+                type=click.STRING,
+                callback=valid_file_for_cli,
+                help=f"Vecorel schema to create the JSON Schema for. Can be a local file or a URL. If not provided, loads the schema for Vecorel version {vecorel_version}.",
+                show_default=True,
+                default=Schemas.get_core_uri(vecorel_version),
+            ),
+            "datatypes": click.option(
+                "--datatypes",
+                "-d",
+                "datatypes_uri",
+                type=click.STRING,
+                callback=valid_file_for_cli,
+                help=f"Schema for the Vecorel GeoJSON datatypes. Can be a local file or a URL. If not provided, loads the GeoJSON datatypes for Vecorel version {vecorel_version}.",
+                show_default=True,
+                default=GeoJSON.get_datatypes_uri(vecorel_version),
+            ),
+            "out": click.option(
+                "--out",
+                "-o",
+                type=click.Path(exists=False),
+                help="Path to write the file to. If not provided, prints the schema to the console.",
+                default=None,
+            ),
+            "id": click.option(
+                "--id",
+                "-i",
+                "schema_id",
+                type=click.STRING,
+                help="The JSON Schema $id to use for the schema. If not provided, the $id will be omitted.",
+                default=None,
+            ),
+        }
+
+    @runnable
     def create_from_files(
         self,
         schema_uri: str,
         datatypes_uri: str,
         out: Optional[str] = None,
         schema_id: Optional[str] = None,
-    ) -> str:
+    ) -> Union[Path, dict]:
         schema = load_file(schema_uri)
-        datatypes = load_geojson_datatypes(datatypes_uri)
+        datatypes = GeoJSON.load_datatypes(datatypes_uri)
         jsonschema = self.create_from_dict(schema, datatypes, schema_id)
         if out:
             with open(out, "w", encoding="utf-8") as f:
                 json.dump(jsonschema, f, indent=2)
-        return jsonschema
+            return out
+        else:
+            return jsonschema
 
     def create_from_dict(self, schema: dict, datatypes: dict, schema_id=None):
         required = schema.get("required", [])
