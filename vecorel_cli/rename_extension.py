@@ -5,9 +5,8 @@ from typing import Optional
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_folder_for_cli
+from .cli.util import log, valid_folder_for_cli
 from .create_geoparquet import create_geoparquet
-from .util import log
 
 
 class RenameExtension(BaseCommand):

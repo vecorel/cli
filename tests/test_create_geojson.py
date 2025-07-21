@@ -5,7 +5,7 @@ from click.testing import CliRunner
 from pytest import fixture
 
 from vecorel_cli import create_geojson, validate
-from vecorel_cli.util import load_file
+from vecorel_cli.vecorel.util import load_file
 
 
 @fixture

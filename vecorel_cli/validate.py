@@ -1,16 +1,18 @@
+# ruff: noqa
+# todo: remove this comment once the code has been updated
+
 import json
 
 import pyarrow.types as pat
 
+from .cli.util import log as log_
 from .create_jsonschema import CreateJsonSchema
+from .encoding.geoparquet import GeoParquet
+from .jsonschema.util import merge_schemas
 from .parquet.types import PA_TYPE_CHECK
-from .util import (
-    load_file,
-    merge_schemas,
-)
-from .util import log as log_
 from .validate_data import validate_column
 from .validate_schema import ValidateSchema
+from .vecorel.util import load_file
 from .version import is_supported, supported_vecorel_versions
 
 
@@ -184,7 +186,8 @@ def validate_parquet(file, config):
     gdf = None
     if config.get("data"):
         try:
-            gdf = load_parquet_data(file)
+            gp = GeoParquet(file)
+            gdf = gp.read()
         except Exception as e:
             log(f"Data could not be read: {e}", "error")
             valid = False

@@ -4,7 +4,7 @@
 # The name of the file will be the name of the converter in the cli.
 # If you name it 'de_abc' you'll be able to run `vec convert de_abc` in the cli.
 
-from ..convert_utils import BaseConverter
+from ..conversion.baseconverter import BaseConverter
 
 # You can remove attributes that you don't need.
 # Also, please remove all comments that you didn't add yourself from the template.

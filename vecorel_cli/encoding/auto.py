@@ -11,7 +11,7 @@ def create_encoding(filepath: Union[Path, str]) -> BaseEncoding:
     """
     filepath = Path(filepath)
 
-    for encoding in Registry.encodings:
+    for encoding in Registry.get_encodings():
         if filepath.suffix in encoding.ext:
             return encoding(filepath)
 

@@ -21,3 +21,4 @@ pixi.lock
 /*.parquet
 /tests/data-files/convert/*/extracted.*/
 /tests/data-files/convert/**/*.gfs
+*.tmp

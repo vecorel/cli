@@ -7,11 +7,11 @@ from .basecommand import BaseCommand, runnable
 from .cli.options import CRS, GEOPARQUET1, GEOPARQUET_COMPRESSION
 from .cli.util import parse_map, valid_vecorel_file
 from .encoding.auto import create_encoding
-from .registry import Registry
-from .util import (
+from .jsonschema.util import (
     is_schema_empty,
     pick_schemas,
 )
+from .registry import Registry
 
 
 class ImproveData(BaseCommand):

@@ -8,8 +8,8 @@ from .basecommand import BaseCommand, runnable
 from .cli.util import valid_file_for_cli
 from .encoding.geojson import GeoJSON
 from .jsonschema.template import jsonschema_template
-from .util import load_file
 from .vecorel.schemas import Schemas
+from .vecorel.util import load_file
 from .version import vecorel_version
 
 

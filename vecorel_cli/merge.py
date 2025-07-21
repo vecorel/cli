@@ -7,12 +7,12 @@ import pandas as pd
 from .basecommand import BaseCommand, runnable
 from .cli.options import CRS, GEOPARQUET1, GEOPARQUET_COMPRESSION
 from .encoding.auto import create_encoding
-from .registry import Registry
-from .util import (
+from .jsonschema.util import (
     is_schema_empty,
     merge_schemas,
     pick_schemas,
 )
+from .registry import Registry
 
 
 class MergeDatasets(BaseCommand):

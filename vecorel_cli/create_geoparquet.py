@@ -1,5 +1,6 @@
+from .cli.util import log
 from .parquet.parquet import create_parquet
-from .util import collection_from_featurecollection, load_file, log
+from .vecorel.util import collection_from_featurecollection, load_file
 
 
 def create_geoparquet(files, output_file, schemas):

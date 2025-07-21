@@ -5,7 +5,7 @@ from click.testing import CliRunner
 from pytest import fixture
 
 from vecorel_cli import create_geoparquet, validate
-from vecorel_cli.util import load_parquet_data
+from vecorel_cli.encoding.geoparquet import GeoParquet
 
 
 @fixture
@@ -25,5 +25,6 @@ def test_create_geoparquet(out_file):
     result = runner.invoke(validate, [out_file, "--data"])
     assert result.exit_code == 0, result.output
 
-    data = load_parquet_data(out_file)
+    gp = GeoParquet(out_file)
+    data = gp.read()
     assert len(data) == 1

@@ -1,3 +1,6 @@
+# ruff: noqa
+# todo: remove this comment once the code has been updated
+
 import json
 from pathlib import Path
 from typing import Optional, Union
@@ -11,7 +14,7 @@ from jsonschema.validators import Draft7Validator, Draft202012Validator
 
 from .basecommand import BaseCommand, runnable
 from .cli.util import valid_file_for_cli, valid_files_folders_for_cli
-from .util import load_file
+from .vecorel.util import load_file
 
 
 class ValidateSchema(BaseCommand):

@@ -9,7 +9,7 @@ from geopandas import GeoDataFrame
 from pandas import DataFrame
 from shapely.geometry import shape
 
-from ..util import load_file, to_iso8601
+from ..vecorel.util import load_file, to_iso8601
 from .base import BaseEncoding
 
 

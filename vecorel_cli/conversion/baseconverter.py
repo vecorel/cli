@@ -13,6 +13,7 @@ from io import StringIO
 from tempfile import TemporaryDirectory
 from typing import Optional
 
+import flatdict
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -21,115 +22,11 @@ import rarfile
 from fsspec.implementations.local import LocalFileSystem
 from shapely.geometry import box
 
-from .const import STAC_TABLE_EXTENSION
-from .parquet.parquet import create_parquet
-from .util import get_fs, log, name_from_uri, to_iso8601
-from .version import vecorel_version
-
-
-def convert(
-    output_file,
-    cache,
-    urls,
-    column_map,
-    id,
-    title,
-    description,
-    input_files=None,
-    bbox=None,
-    providers=[],
-    source_coop_url=None,
-    extensions=set(),
-    missing_schemas={},
-    column_additions={},
-    column_filters={},
-    column_migrations={},
-    migration=None,
-    file_migration=None,
-    layer_filter=None,
-    attribution=None,
-    store_collection=False,
-    license=None,
-    compression=None,
-    geoparquet1=False,
-    original_geometries=False,
-    index_as_id=False,
-    year=None,  # noqa unused
-    **kwargs,
-):
-    # this function is a (temporary) bridge from function-based converters to class-based converters
-    # todo: this convert-function should be removed once class-based converters have been fully implemented
-
-    converter = BaseConverter(
-        sources=urls,
-        columns=column_map,
-        id=id,
-        title=title,
-        description=description,
-        bbox=bbox,
-        providers=providers,
-        short_name=id,
-        extensions=extensions,
-        missing_schemas=missing_schemas,
-        column_additions=column_additions,
-        column_filters=column_filters,
-        column_migrations=column_migrations,
-        migrate=migration,
-        file_migration=file_migration,
-        layer_filter=layer_filter,
-        attribution=attribution,
-        license=license,
-        index_as_id=index_as_id,
-    )
-    converter.convert(
-        output_file,
-        cache,
-        input_files=input_files,
-        source_coop_url=source_coop_url,
-        store_collection=store_collection,
-        compression=compression,
-        geoparquet1=geoparquet1,
-        original_geometries=original_geometries,
-        **kwargs,
-    )
-
-
-def add_asset_to_collection(collection, output_file, rows=None, columns=None):
-    c = collection.copy()
-    if "assets" not in c or not isinstance(c["assets"], dict):
-        c["assets"] = {}
-    if "stac_extensions" not in c or not isinstance(c["stac_extensions"], list):
-        c["stac_extensions"] = []
-
-    c["stac_extensions"].append(STAC_TABLE_EXTENSION)
-
-    table_columns = []
-    for column in columns:
-        table_columns.append({"name": column.name, "type": str(column.type)})
-
-    asset = {
-        "href": os.path.basename(output_file),
-        "title": "Field Boundaries",
-        "type": "application/vnd.apache.parquet",
-        "roles": ["data"],
-        "table:columns": table_columns,
-        "table:primary_geometry": "geometry",
-    }
-    if rows is not None:
-        asset["table:row_count"] = rows
-
-    c["assets"]["data"] = asset
-
-    return c
-
-
-def stream_file(fs, src_uri, dst_file, chunk_size=10 * 1024 * 1024):
-    with fs.open(src_uri, mode="rb", block_size=0) as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            dst_file.write(chunk)
+from ..cli.util import log
+from ..const import STAC_TABLE_EXTENSION
+from ..parquet.parquet import create_parquet
+from ..vecorel.util import get_fs, name_from_uri, stream_file, to_iso8601
+from ..version import vecorel_version
 
 
 class BaseConverter:
@@ -160,24 +57,11 @@ class BaseConverter:
     index_as_id = False
 
     def __init__(self, **kwargs):
-        # This init method allows you to override all properties & methods
-        # It's a bit hacky but allows a gradual conversion from function-based to class-based converters
-        # todo remove this once class-based converters have been fully implemented
-        self.__dict__.update({k: v for k, v in kwargs.items() if v is not None})
-        for key in ("id", "short_name", "title", "license", "columns"):
-            assert getattr(self, key) is not None, (
-                f"{inspect.getfile(self.__class__)}:{self.__class__.__name__} misses required attribute {key}"
-            )
-
         # In BaseConverter and mixins we use class-based members as instance based-members
         # Every instance should be allowed to modify its member attributes, so here we make a copy of dicts/lists
         for key, item in inspect.getmembers(self):
             if not key.startswith("_") and isinstance(item, (list, dict, set)):
                 setattr(self, key, copy(item))
-
-    @property
-    def ID(self):  # noqa backwards compatibility for function-based converters
-        return self.id
 
     def migrate(self, gdf) -> gpd.GeoDataFrame:
         return gdf
@@ -311,11 +195,34 @@ class BaseConverter:
                 if is_parquet:
                     data = gpd.read_parquet(path, **kwargs)
                 elif is_json:
-                    data = read_geojson(path, **kwargs)
+                    data = self.read_geojson(path, **kwargs)
                 else:
                     data = gpd.read_file(path, **kwargs)
 
                 yield data, path, uri, layer
+
+    def read_geojson(self, path, **kwargs):
+        with open(path, **kwargs) as f:
+            obj = json.load(f)
+
+        if not isinstance(obj, dict):
+            raise ValueError("JSON file must contain a GeoJSON object")
+        elif obj["type"] != "FeatureCollection":
+            raise ValueError("JSON file must contain a GeoJSON FeatureCollection")
+
+        obj["features"] = list(map(self.normalize_geojson_properties, obj["features"]))
+
+        return gpd.GeoDataFrame.from_features(obj, crs="EPSG:4326")
+
+    def _normalize_geojson_properties(self, feature):
+        # Convert properties of type dict to dot notation
+        feature["properties"] = flatdict.FlatDict(feature["properties"], delimiter=".")
+
+        # Preserve id: https://github.com/geopandas/geopandas/issues/1208
+        if "id" not in feature["properties"]:
+            feature["properties"]["id"] = feature["id"]
+
+        return feature
 
     def read_data(self, paths, **kwargs):
         gdfs = []
@@ -489,7 +396,7 @@ class BaseConverter:
         pd.set_option("display.max_columns", None)
         pd.set_option("display.max_rows", None)
 
-        hash_before = hash_df(gdf.head())
+        hash_before = self._hash_df(gdf.head())
         print(gdf.head())
 
         if self.index_as_id:
@@ -521,7 +428,7 @@ class BaseConverter:
 
         gdf = self.post_migrate(gdf)
 
-        if hash_before != hash_df(gdf.head()):
+        if hash_before != self._hash_df(gdf.head()):
             log("GeoDataFrame after migrations and filters:")
             print(gdf.head())
 
@@ -584,7 +491,7 @@ class BaseConverter:
             geoparquet1,
         )
         if store_collection:
-            external_collection = add_asset_to_collection(
+            external_collection = self._add_asset_to_collection(
                 collection, output_file, rows=len(gdf), columns=pq_fields
             )
             collection_file = os.path.join(os.path.dirname(output_file), "collection.json")
@@ -597,9 +504,36 @@ class BaseConverter:
     def __call__(self, *args, **kwargs):
         self.convert(*args, **kwargs)
 
+    def _add_asset_to_collection(self, collection, output_file, rows=None, columns=None):
+        c = collection.copy()
+        if "assets" not in c or not isinstance(c["assets"], dict):
+            c["assets"] = {}
+        if "stac_extensions" not in c or not isinstance(c["stac_extensions"], list):
+            c["stac_extensions"] = []
 
-def hash_df(df):
-    # dataframe is unhashable, this is a simple way to create a dafaframe-hash
-    buf = StringIO()
-    df.info(buf=buf)
-    return hash(buf.getvalue())
+        c["stac_extensions"].append(STAC_TABLE_EXTENSION)
+
+        table_columns = []
+        for column in columns:
+            table_columns.append({"name": column.name, "type": str(column.type)})
+
+        asset = {
+            "href": os.path.basename(output_file),
+            "title": "Field Boundaries",
+            "type": "application/vnd.apache.parquet",
+            "roles": ["data"],
+            "table:columns": table_columns,
+            "table:primary_geometry": "geometry",
+        }
+        if rows is not None:
+            asset["table:row_count"] = rows
+
+        c["assets"]["data"] = asset
+
+        return c
+
+    def _hash_df(self, df):
+        # dataframe is unhashable, this is a simple way to create a dafaframe-hash
+        buf = StringIO()
+        df.info(buf=buf)
+        return hash(buf.getvalue())

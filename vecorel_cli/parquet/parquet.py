@@ -4,8 +4,10 @@ import pyarrow as pa
 from geopandas import GeoDataFrame
 from shapely.geometry import shape
 
-from ..util import is_schema_empty, load_file, log, merge_schemas
+from ..cli.util import log
+from ..jsonschema.util import is_schema_empty, merge_schemas
 from ..vecorel.schemas import Schemas
+from ..vecorel.util import load_file
 from ..version import vecorel_version
 from .geopandas import to_parquet
 from .types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas

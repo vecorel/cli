@@ -1,5 +1,3 @@
-from .encoding.geojson import GeoJSON
-from .encoding.geoparquet import GeoParquet
 from .version import __version__
 
 
@@ -16,12 +14,10 @@ class Registry:
     cli_version: str = __version__
 
     """
-    The supported encodings for file formats.
+    The package name of the CLI.
+    This is the name of the folder in which the source files are located.
     """
-    encodings = [
-        GeoJSON,
-        GeoParquet,
-    ]
+    package: str = "vecorel_cli"
 
     # todo: in fiboa CLI add "area", "perimeter", "determination_datetime", "determination_method"
     core_columns = [
@@ -30,11 +26,32 @@ class Registry:
         "collection",
     ]
 
+    # The filenames for datasets (converters) that should be ignored by the CLI.
+    # Always ignores files with a starting "." or "__"
+    ignored_datasets = [
+        "template.py",
+    ]
+
+    @staticmethod
+    def get_encodings():
+        """
+        Returns the list of supported encodings.
+        """
+        from .encoding.geojson import GeoJSON
+        from .encoding.geoparquet import GeoParquet
+
+        return [
+            GeoJSON,
+            GeoParquet,
+        ]
+
     @staticmethod
     def get_commands():
         """
         The commands that are made available by the CLI.
         """
+        from .convert import ConvertData
+        from .converters import Converters
         from .create_geojson import CreateGeoJson
         from .create_jsonschema import CreateJsonSchema
         from .describe import DescribeFile
@@ -44,6 +61,8 @@ class Registry:
         from .validate_schema import ValidateSchema
 
         return [
+            ConvertData,
+            Converters,
             CreateGeoJson,
             CreateJsonSchema,
             DescribeFile,

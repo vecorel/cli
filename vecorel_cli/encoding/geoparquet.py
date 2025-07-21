@@ -10,7 +10,7 @@ from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 
 from ..parquet.parquet import create_parquet
-from ..util import get_fs, load_file
+from ..vecorel.util import get_fs, load_file
 from .base import BaseEncoding
 
 

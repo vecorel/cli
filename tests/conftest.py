@@ -2,7 +2,7 @@ import tempfile
 
 from pytest import fixture
 
-from vecorel_cli import convert_utils, util
+import vecorel_cli.vecorel.util as util
 
 
 @fixture
@@ -29,11 +29,9 @@ def block_stream_file():
         )
         return load_file(uri)
 
-    stream_file, load_file = convert_utils.stream_file, util.load_file
-    convert_utils.stream_file = raiser(
-        "convert_utils.stream_file() should not be called during test"
-    )
+    stream_file, load_file = util.stream_file, util.load_file
+    util.stream_file = raiser("convert_utils.stream_file() should not be called during test")
     util.load_file = check_path
 
     yield
-    convert_utils.stream_file, util.load_file = stream_file, load_file
+    util.stream_file, util.load_file = stream_file, load_file

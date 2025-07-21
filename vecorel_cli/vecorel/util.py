@@ -13,11 +13,6 @@ from fsspec.implementations.local import LocalFileSystem
 file_cache = {}
 
 
-# todo: remove
-def log(text: str, status="info", nl=True):
-    print(text)
-
-
 def load_file(uri: Union[Path, str]) -> dict:
     """Load files from various sources"""
     if isinstance(uri, Path):
@@ -38,6 +33,15 @@ def load_file(uri: Union[Path, str]) -> dict:
     file_cache[uri] = data
 
     return data
+
+
+def stream_file(fs, src_uri, dst_file, chunk_size=10 * 1024 * 1024):
+    with fs.open(src_uri, mode="rb", block_size=0) as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            dst_file.write(chunk)
 
 
 def get_fs(url_or_path: str, **kwargs) -> AbstractFileSystem:
@@ -90,41 +94,6 @@ def name_from_uri(url):
         except ValueError:
             pass
     return os.path.basename(url)
-
-
-def is_schema_empty(schema):
-    return len(schema.get("properties", {})) == 0 and len(schema.get("required", {})) == 0
-
-
-def merge_schemas(*schemas):
-    """Merge multiple schemas into one"""
-    result = {"required": [], "properties": {}}
-    for schema in schemas:
-        schema = migrate_schema(schema)
-        result["required"] += schema.get("required", [])
-        result["properties"].update(schema.get("properties", {}))
-
-    return result
-
-
-def pick_schemas(schema, property_names, rename={}):
-    """Pick and rename schemas for specific properties"""
-    result = {"required": [], "properties": {}}
-    required = schema.get("required", [])
-    properties = schema.get("properties", {})
-    for prop in property_names:
-        prop2 = rename[prop] if prop in rename else prop
-        if prop in required:
-            result["required"].append(prop2)
-        if prop in properties:
-            result["properties"][prop2] = properties[prop]
-
-    return result
-
-
-def migrate_schema(schema):
-    """Migrate schema to a new version"""
-    return schema.copy()
 
 
 def to_iso8601(dt):

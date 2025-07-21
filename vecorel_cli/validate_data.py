@@ -1,3 +1,6 @@
+# ruff: noqa
+# todo: remove this comment once the code has been updated
+
 import re
 from urllib.parse import urlparse
 

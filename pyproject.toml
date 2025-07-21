@@ -52,8 +52,9 @@ fsspec = "==2025.7.0"
 jsonschema = {version = ">=4.20,<5.0", extras = ["format"]}
 aiohttp = ">=3.9,<4.0"
 rarfile = ">=4.0,<5.0"
-semantic-version = ">=2.10.0"
-json-stream = ">=2.3.0"
+semantic-version = ">=2.10.0,<3.0"
+json-stream = ">=2.3.0,<3.0"
+flatdict = ">=4.0,<5.0"
 
 # Editable install of the project itself
 vecorel-cli = {path = ".", editable = true}

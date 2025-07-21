@@ -3,8 +3,8 @@ from typing import Optional, Union
 
 from geopandas import GeoDataFrame
 
-from ..util import format_filesize
 from ..vecorel.schemas import Schemas
+from ..vecorel.util import format_filesize
 
 
 class BaseEncoding:

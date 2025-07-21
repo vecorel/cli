@@ -5,7 +5,12 @@ import click
 
 from ..const import SUPPORTED_PROTOCOLS
 from ..registry import Registry
-from ..util import name_from_uri
+from ..vecorel.util import name_from_uri
+
+
+# todo: remove
+def log(text: str, status="info", nl=True):
+    print(text)
 
 
 def is_valid_file_uri(uri, extensions=[]):
@@ -56,7 +61,7 @@ def valid_file_for_cli(ctx, param, value):
 
 def valid_vecorel_file(ctx, param, value):
     ext = []
-    for encoding in Registry.encodings:
+    for encoding in Registry.get_encodings():
         ext += encoding.ext
     return valid_file_for_cli_with_ext(value, ext)
 
