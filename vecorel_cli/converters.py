@@ -98,7 +98,7 @@ class Converters(BaseCommand):
                 and issubclass(v, base_class)
                 and base_class.__name__ not in v.__name__
             )
-            return clazz()
+            return clazz(self)
         except StopIteration:
             raise ValueError(
                 f"No valid converter class for '{name}' found. Class must inherit from {base_class.__name__})."

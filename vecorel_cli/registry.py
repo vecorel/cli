@@ -1,4 +1,4 @@
-from .version import __version__
+import importlib.metadata
 
 
 class Registry:
@@ -11,7 +11,7 @@ class Registry:
     """
     The version number of the CLI.
     """
-    cli_version: str = __version__
+    cli_version: str = importlib.metadata.version("vecorel-cli")
 
     """
     The package name of the CLI.
@@ -46,6 +46,18 @@ class Registry:
         ]
 
     @staticmethod
+    def get_vecorel_extensions():
+        """
+        Returns the list of Vecorel extensions.
+        These are the file extensions that are supported by the CLI.
+        """
+        extensions = []
+        for encoding in Registry.get_encodings():
+            extensions += encoding.ext
+
+        return extensions
+
+    @staticmethod
     def get_commands():
         """
         The commands that are made available by the CLI.
@@ -53,21 +65,25 @@ class Registry:
         from .convert import ConvertData
         from .converters import Converters
         from .create_geojson import CreateGeoJson
+        from .create_geoparquet import CreateGeoParquet
         from .create_jsonschema import CreateJsonSchema
         from .describe import DescribeFile
         from .improve import ImproveData
         from .merge import MergeDatasets
         from .rename_extension import RenameExtension
+        from .validate import ValidateData
         from .validate_schema import ValidateSchema
 
         return [
             ConvertData,
             Converters,
             CreateGeoJson,
+            CreateGeoParquet,
             CreateJsonSchema,
             DescribeFile,
             ImproveData,
             MergeDatasets,
             RenameExtension,
+            ValidateData,
             ValidateSchema,
         ]

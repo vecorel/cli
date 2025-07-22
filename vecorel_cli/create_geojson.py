@@ -5,7 +5,7 @@ from typing import Optional, Union
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_vecorel_file
+from .cli.util import valid_vecorel_files
 from .encoding.auto import create_encoding
 from .encoding.geojson import GeoJSON
 
@@ -19,10 +19,10 @@ class CreateGeoJson(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "file": click.argument(
-                "file",
+            "source": click.argument(
+                "source",
                 nargs=1,
-                callback=valid_vecorel_file,
+                callback=valid_vecorel_files,
             ),
             "out": click.option(
                 "--out",
@@ -70,8 +70,8 @@ class CreateGeoJson(BaseCommand):
 
         # Read source data
         source_encoding = create_encoding(source)
-        geodata = source_encoding.read(num=num)
         collection = source_encoding.get_collection()
+        geodata = source_encoding.read(num=num)
 
         # Write to target
         if split:

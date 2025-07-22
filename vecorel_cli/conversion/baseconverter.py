@@ -22,14 +22,15 @@ import rarfile
 from fsspec.implementations.local import LocalFileSystem
 from shapely.geometry import box
 
-from ..cli.util import log
 from ..const import STAC_TABLE_EXTENSION
-from ..parquet.parquet import create_parquet
+from ..encoding.geoparquet import GeoParquet
 from ..vecorel.util import get_fs, name_from_uri, stream_file, to_iso8601
-from ..version import vecorel_version
+from ..vecorel.version import vecorel_version
 
 
 class BaseConverter:
+    command = None
+
     bbox: Optional[tuple[float]] = None
     id: str = None
     short_name: str = None
@@ -56,12 +57,18 @@ class BaseConverter:
 
     index_as_id = False
 
-    def __init__(self, **kwargs):
+    def __init__(self, command, **kwargs):
+        self.command = command  # type: ConvertData
+
         # In BaseConverter and mixins we use class-based members as instance based-members
         # Every instance should be allowed to modify its member attributes, so here we make a copy of dicts/lists
         for key, item in inspect.getmembers(self):
             if not key.startswith("_") and isinstance(item, (list, dict, set)):
                 setattr(self, key, copy(item))
+
+    def log(self, text: str, status="info"):
+        if self.command is not None:
+            self.command.log(text, status)
 
     def migrate(self, gdf) -> gpd.GeoDataFrame:
         return gdf
@@ -160,7 +167,7 @@ class BaseConverter:
             opts = ", ".join([str(s) for s in self.years.keys()])
             if self.year is None:
                 self.year = next(iter(self.years))
-                log(f"Choosing first available year {self.year} from {opts}", "warning")
+                self.log(f"Choosing first available year {self.year} from {opts}", "warning")
             if self.year in self.years:
                 urls = self.years[self.year]
             else:
@@ -174,7 +181,7 @@ class BaseConverter:
                 lst = glob(path)
                 assert len(lst) == 1, f"Can not match {path} to a single file"
                 path = lst[0]
-            log(f"Reading {path} into GeoDataFrame(s)")
+            self.log(f"Reading {path} into GeoDataFrame(s)")
             is_parquet = path.endswith(".parquet") or path.endswith(".geoparquet")
             is_json = path.endswith(".json") or path.endswith(".geojson")
             layers = [None]
@@ -185,12 +192,12 @@ class BaseConverter:
                     layer for layer in all_layers["name"] if self.layer_filter(str(layer), path)
                 ]
                 if len(layers) == 0:
-                    log("No layers left for layering after filtering", "warning")
+                    self.log("No layers left for layering after filtering", "warning")
 
             for layer in layers:
                 if layer is not None:
                     kwargs["layer"] = layer
-                    log(f"- Reading layer {layer} into GeoDataFrame")
+                    self.log(f"- Reading layer {layer} into GeoDataFrame")
 
                 if is_parquet:
                     data = gpd.read_parquet(path, **kwargs)
@@ -237,7 +244,7 @@ class BaseConverter:
 
     def filter_rows(self, gdf):
         if len(self.column_filters) > 0:
-            log("Applying filters")
+            self.log("Applying filters")
             for key, fn in self.column_filters.items():
                 if key in gdf.columns:
                     result = fn(gdf[key])
@@ -256,7 +263,7 @@ class BaseConverter:
                     # Filter columns based on the mask
                     gdf = gdf[mask]
                 else:
-                    log(f"Column '{key}' not found in dataset, skipping filter", "warning")
+                    self.log(f"Column '{key}' not found in dataset, skipping filter", "warning")
         return gdf
 
     def get_title(self):
@@ -341,9 +348,9 @@ class BaseConverter:
             elif re.match(r"^[\w\.-]+$", self.license):
                 collection["license"] = self.license
             else:
-                log(f"Invalid license identifier: {self.license}", "warning")
+                self.log(f"Invalid license identifier: {self.license}", "warning")
         else:
-            log("License information missing", "warning")
+            self.log("License information missing", "warning")
 
         return collection
 
@@ -360,7 +367,7 @@ class BaseConverter:
         mapping_file=None,
         original_geometries=False,
         **kwargs,
-    ):
+    ) -> str:
         columns = self.columns.copy()
         self.year = year
         """
@@ -375,14 +382,16 @@ class BaseConverter:
             os.makedirs(directory, exist_ok=True)
 
         if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
-            log("Using user provided input file(s) instead of the pre-defined file(s)", "warning")
+            self.log(
+                "Using user provided input file(s) instead of the pre-defined file(s)", "warning"
+            )
             urls = input_files
         else:
             urls = self.get_urls()
             if urls is None:
                 raise ValueError("No input files provided")
 
-        log("Getting file(s) if not cached yet")
+        self.log("Getting file(s) if not cached yet")
         request_args = {}
         if self.avoid_range_request:
             request_args["block_size"] = 0
@@ -391,19 +400,19 @@ class BaseConverter:
         kwargs.update(self.open_options)
         gdf = self.read_data(paths, **kwargs)
 
-        log("GeoDataFrame created from source(s):")
+        self.log("GeoDataFrame created from source(s):")
         # Make it so that everything is shown, don't output ... if there are too many columns or rows
         pd.set_option("display.max_columns", None)
         pd.set_option("display.max_rows", None)
 
         hash_before = self._hash_df(gdf.head())
-        print(gdf.head())
+        self.log(gdf.head())
 
         if self.index_as_id:
             gdf["id"] = gdf.index
 
         # 1. Run global migration
-        log("Applying global migrations")
+        self.log("Applying global migrations")
         gdf = self.migrate(gdf)
         assert isinstance(gdf, gpd.GeoDataFrame), "Migration function must return a GeoDataFrame"
 
@@ -412,25 +421,25 @@ class BaseConverter:
 
         # 3. Add constant columns
         if self.column_additions:
-            log("Adding columns")
+            self.log("Adding columns")
             for key, value in self.column_additions.items():
                 gdf[key] = value
                 columns[key] = key
 
         # 4. Run column migrations
         if self.column_migrations:
-            log("Applying column migrations")
+            self.log("Applying column migrations")
             for key, fn in self.column_migrations.items():
                 if key in gdf.columns:
                     gdf[key] = fn(gdf[key])
                 else:
-                    log(f"Column '{key}' not found in dataset, skipping migration", "warning")
+                    self.log(f"Column '{key}' not found in dataset, skipping migration", "warning")
 
         gdf = self.post_migrate(gdf)
 
         if hash_before != self._hash_df(gdf.head()):
-            log("GeoDataFrame after migrations and filters:")
-            print(gdf.head())
+            self.log("GeoDataFrame after migrations and filters:")
+            self.log(gdf.head())
 
         # 5. Duplicate columns if needed
         actual_columns = {}
@@ -446,7 +455,9 @@ class BaseConverter:
                     actual_columns[old_key] = new_key
             # If old key is not found, remove from the schema and warn
             else:
-                log(f"Column '{old_key}' not found in dataset, removing from schema", "warning")
+                self.log(
+                    f"Column '{old_key}' not found in dataset, removing from schema", "warning"
+                )
 
         # 6. Rename columns
         gdf.rename(columns=actual_columns, inplace=True)
@@ -463,7 +474,7 @@ class BaseConverter:
             gdf = gdf.explode()
             gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
             if gdf.geometry.array.has_z.any():
-                log("Removing Z geometry dimension", "info")
+                self.log("Removing Z geometry dimension", "info")
                 gdf.geometry = gdf.geometry.force_2d()
 
         gdf.sort_values("geometry", inplace=True, ignore_index=True)
@@ -472,34 +483,32 @@ class BaseConverter:
         drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
         gdf.drop(columns=drop_columns, inplace=True)
 
-        log("GeoDataFrame fully migrated:")
-        print(gdf.head())
+        self.log("GeoDataFrame fully migrated:")
+        self.log(gdf.head())
 
         collection = self.create_collection(gdf, source_coop_url=source_coop_url)
 
-        log("Creating GeoParquet file: " + output_file)
-        config = {"fiboa_version": vecorel_version}
+        self.log("Creating GeoParquet file: " + output_file)
         columns = list(actual_columns.values())
-        pq_fields = create_parquet(
+        pq = GeoParquet(output_file)
+        pq.write(
             gdf,
-            columns,
             collection,
-            output_file,
-            config,
-            self.missing_schemas,
-            compression,
-            geoparquet1,
+            properties=columns,
+            missing_schemas=self.missing_schemas,
+            compression=compression,
+            geoparquet1=geoparquet1,
         )
-        if store_collection:
-            external_collection = self._add_asset_to_collection(
-                collection, output_file, rows=len(gdf), columns=pq_fields
-            )
-            collection_file = os.path.join(os.path.dirname(output_file), "collection.json")
-            log("Creating Collection file: " + collection_file)
-            with open(collection_file, "w") as f:
-                json.dump(external_collection, f, indent=2)
+        # if store_collection:
+        #     external_collection = self._add_asset_to_collection(
+        #         collection, output_file, rows=len(gdf), columns=pq_fields
+        #     )
+        #     collection_file = os.path.join(os.path.dirname(output_file), "collection.json")
+        #     self.log("Creating Collection file: " + collection_file)
+        #     with open(collection_file, "w") as f:
+        #         json.dump(external_collection, f, indent=2)
 
-        log("Finished", "success")
+        return output_file
 
     def __call__(self, *args, **kwargs):
         self.convert(*args, **kwargs)

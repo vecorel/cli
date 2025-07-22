@@ -39,14 +39,24 @@ class BaseEncoding:
     def get_collection(self) -> dict:
         return {}
 
-    def get_columns(self) -> Optional[dict[str, str]]:
+    def get_properties(self) -> Optional[dict[str, str]]:
         return None
 
     def get_metadata(self) -> dict:
         return {}
 
-    def write(self, data: GeoDataFrame, collection: dict = {}, **kwargs) -> bool:
+    def write(
+        self,
+        data: GeoDataFrame,
+        collection: dict = {},
+        properties: Optional[list[str]] = None,
+        schema_map: dict = {},
+        missing_schemas: dict = {},
+        **kwargs,
+    ) -> bool:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def read(self, num: int = None, columns: list[str] = None, **kwargs) -> GeoDataFrame:
+    def read(
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+    ) -> GeoDataFrame:
         raise NotImplementedError("Not supported by encoding")

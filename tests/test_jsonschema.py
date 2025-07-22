@@ -1,7 +1,7 @@
 from vecorel_cli.create_jsonschema import CreateJsonSchema
 from vecorel_cli.encoding.geojson import GeoJSON
 from vecorel_cli.vecorel.util import load_file
-from vecorel_cli.version import vecorel_version
+from vecorel_cli.vecorel.version import vecorel_version
 
 
 def test_conversion():

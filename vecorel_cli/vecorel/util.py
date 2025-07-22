@@ -66,27 +66,6 @@ def get_fs(url_or_path: str, **kwargs) -> AbstractFileSystem:
     return LocalFileSystem(**kwargs)
 
 
-def filter_dict(obj: dict, keys) -> dict:
-    """
-    Filters the given dictionary to only include keys that are in the given keys.
-
-    :param data: The dictionary to filter.
-    :param keys: The set of keys to keep.
-    :return: A new dictionary with only the keys that match the given keys.
-    """
-    return {k: v for k, v in obj.items() if k in keys}
-
-
-def collection_from_featurecollection(geojson: dict) -> dict:
-    """
-    Extract collection data from a FeatureCollection
-
-    :param geojson: The GeoJSON data to extract the collection from.
-    :return: The collection data.
-    """
-    return filter_dict(geojson, ["type", "features"])
-
-
 def name_from_uri(url):
     if "://" in url:
         try:

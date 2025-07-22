@@ -5,8 +5,8 @@ from typing import Optional
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import log, valid_folder_for_cli
-from .create_geoparquet import create_geoparquet
+from .cli.util import valid_folder
+from .create_geoparquet import CreateGeoParquet
 
 
 class RenameExtension(BaseCommand):
@@ -30,7 +30,7 @@ class RenameExtension(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "folder": click.argument("folder", nargs=1, callback=valid_folder_for_cli),
+            "folder": click.argument("folder", nargs=1, callback=valid_folder),
             "title": click.option(
                 "--title",
                 "-t",
@@ -157,7 +157,7 @@ class RenameExtension(BaseCommand):
             filepath.unlink()
 
         if len(geojson_paths) == 0:
-            log(f"Deleted {filepath}", "warning")
+            self.log(f"Deleted {filepath}", "warning")
             return False
 
         search, replace = self._get_urls()
@@ -167,7 +167,8 @@ class RenameExtension(BaseCommand):
             replace,
         )
         schemas = {schema_url: schemapath.absolute()}
-        create_geoparquet(geojson_paths, filepath, schemas=schemas)
+        gp = CreateGeoParquet()
+        gp.create(geojson_paths, filepath, schemas=schemas)
         return True
 
     def _replace_in_str(self, content, search, replace):
@@ -197,8 +198,8 @@ class RenameExtension(BaseCommand):
                 f.seek(0)
                 f.write(content)
                 f.truncate()
-            log(f"Updated {file}", "success")
+            self.log(f"Updated {file}", "success")
             return True
         except Exception as e:
-            log(f"Can't update {file}: {e}", "error")
+            self.log(f"Can't update {file}: {e}", "error")
             return False

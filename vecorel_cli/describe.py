@@ -5,7 +5,7 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_vecorel_file
+from .cli.util import valid_vecorel_files
 from .encoding.auto import create_encoding
 from .vecorel.schemas import Schemas
 
@@ -20,7 +20,7 @@ class DescribeFile(BaseCommand):
             "file": click.argument(
                 "file",
                 nargs=1,
-                callback=valid_vecorel_file,
+                callback=valid_vecorel_files,
             ),
             "num": click.option(
                 "--num",
@@ -109,7 +109,7 @@ class DescribeFile(BaseCommand):
             self.log("No collection metadata found", "warning")
 
     def columns(self):
-        columns = self.encoding.get_columns()
+        columns = self.encoding.get_properties()
         if columns:
             for key, value in columns.items():
                 self.log(f"{key}: ", "debug", nl=False)

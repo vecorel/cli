@@ -5,12 +5,12 @@ from typing import Optional, Union
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_file_for_cli
+from .cli.util import valid_file
 from .encoding.geojson import GeoJSON
 from .jsonschema.template import jsonschema_template
 from .vecorel.schemas import Schemas
 from .vecorel.util import load_file
-from .version import vecorel_version
+from .vecorel.version import vecorel_version
 
 
 class CreateJsonSchema(BaseCommand):
@@ -27,7 +27,7 @@ class CreateJsonSchema(BaseCommand):
                 "-s",
                 "schema_uri",
                 type=click.STRING,
-                callback=valid_file_for_cli,
+                callback=valid_file,
                 help=f"Vecorel schema to create the JSON Schema for. Can be a local file or a URL. If not provided, loads the schema for Vecorel version {vecorel_version}.",
                 show_default=True,
                 default=Schemas.get_core_uri(vecorel_version),
@@ -37,7 +37,7 @@ class CreateJsonSchema(BaseCommand):
                 "-d",
                 "datatypes_uri",
                 type=click.STRING,
-                callback=valid_file_for_cli,
+                callback=valid_file,
                 help=f"Schema for the Vecorel GeoJSON datatypes. Can be a local file or a URL. If not provided, loads the GeoJSON datatypes for Vecorel version {vecorel_version}.",
                 show_default=True,
                 default=GeoJSON.get_datatypes_uri(vecorel_version),

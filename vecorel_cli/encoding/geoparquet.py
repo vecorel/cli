@@ -9,14 +9,19 @@ from geopandas.io.arrow import _arrow_to_geopandas
 from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 
-from ..parquet.parquet import create_parquet
+from ..jsonschema.util import is_schema_empty, merge_schemas
+from ..parquet.geopandas import to_parquet
+from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
+from ..vecorel.schemas import Schemas
 from ..vecorel.util import get_fs, load_file
+from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
 
 
 class GeoParquet(BaseEncoding):
     schema_uri = "https://geoparquet.org/releases/v{version}/schema.json"
     ext = [".parquet", ".geoparquet"]
+    row_group_size = 25000
 
     def __init__(self, file: Union[Path, str, NativeFile]):
         self.file: Optional[Path] = None
@@ -37,8 +42,11 @@ class GeoParquet(BaseEncoding):
         summary["Row Groups"] = metadata.num_row_groups
         return summary
 
+    def get_geoparquet_metadata(self) -> Optional[dict]:
+        return self._parse_metadata(b"geo")
+
     def get_geoparquet_version(self) -> Optional[str]:
-        geo = self.get_metadata(b"geo")
+        geo = self.get_geoparquet_metadata()
         if geo is not None:
             return geo.get("version")
         return None
@@ -61,7 +69,7 @@ class GeoParquet(BaseEncoding):
         collection = self._parse_metadata(b"collection")
         return collection if collection else {}
 
-    def get_columns(self) -> Optional[dict[str, list[str]]]:
+    def get_properties(self) -> Optional[dict[str, list[str]]]:
         schema = self.get_pq_schema()
         if schema is None:
             return None
@@ -90,25 +98,165 @@ class GeoParquet(BaseEncoding):
         return self.pq_schema
 
     # kwargs:
-    # geoparquet1: bool = False (False => 1.1, True => 1.0)
-    # compression: str = None (brotli, snappy, gzip, lz4, zstd, ...)
-    def write(self, data: GeoDataFrame, collection: dict = {}, **kwargs) -> bool:
+    #   geoparquet1: bool, optional, default False
+    #       If True, writes the data in GeoParquet 1.0 format,
+    #       otherwise in GeoParquet 1.1 format.
+    #   compression: str, optional, default "brotli"
+    #       Compression algorithm to use, defaults to "brotli".
+    #       Other options are "snappy", "gzip", "lz4", "zstd", etc.
+    def write(
+        self,
+        data: GeoDataFrame,
+        collection: dict = {},
+        properties: Optional[list[str]] = None,
+        schema_map: dict = {},
+        missing_schemas: dict = {},
+        **kwargs,
+    ) -> bool:
+        compression = kwargs.get("compression", None)
+        if compression is None:
+            compression = "brotli"
+        geoparquet1 = kwargs.get("geoparquet1", False)
+
         self.file.parent.mkdir(parents=True, exist_ok=True)
-        create_parquet(data, self.file, collection=collection, **kwargs)
+
+        if properties is None:
+            properties = list(data.columns)
+        else:
+            # Restrict to the properties that actually exist, ignore all others
+            properties = list(set(properties) & set(data.columns))
+
+        # Don't write the bbox properties, will be added automatically later
+        if "bbox" in properties:
+            del data["bbox"]
+            properties.remove("bbox")
+
+        # Load the data schema
+        vecorel_schema = load_file(Schemas.spec_schema.format(version=vecorel_version))
+        schemas = merge_schemas(missing_schemas, vecorel_schema)
+
+        # Add the custom schemas to the collection for future use
+        if not is_schema_empty(missing_schemas):
+            collection = collection.copy()
+            collection["custom_schemas"] = missing_schemas
+
+        # todo: Load all extension schemas
+        extensions = {}
+        if "schemas" in collection and isinstance(collection["schemas"], list):
+            for ext in collection["schemas"]:
+                try:
+                    if ext in schema_map and schema_map[ext] is not None:
+                        path = schema_map[ext]
+                    else:
+                        path = ext
+                    extensions[ext] = load_file(path)
+                    schemas = merge_schemas(schemas, extensions[ext])
+                except Exception as e:
+                    self.log(f"Extension schema for {ext} can't be loaded: {e}", "warning")
+
+        # Update the GeoDataFrame with the correct types etc.
+        props = schemas.get("properties", {})
+        required_props = schemas.get("required", [])
+        for column in properties:
+            if column not in props:
+                continue
+            schema = props[column]
+            dtype = schema.get("type")
+            if dtype == "geometry":
+                continue
+
+            required = column in required_props
+            gp_type = get_geopandas_dtype(dtype, required, schema)
+            try:
+                if gp_type is None:
+                    self.log(f"{column}: No type conversion available for {dtype}", "warning")
+                elif callable(gp_type):
+                    data[column] = gp_type(data[column])
+                else:
+                    data[column] = data[column].astype(gp_type, copy=False)
+            except Exception as e:
+                self.log(f"{column}: Can't convert to {dtype}: {e}", "warning")
+
+        _columns = list(data.columns)
+        duplicates = set([x for x in _columns if _columns.count(x) > 1])
+        if len(duplicates):
+            raise ValueError(f"Columns are defined multiple times: {duplicates}")
+
+        # Define the fields for the schema
+        pq_fields = []
+        for name in properties:
+            required_props = schemas.get("required", [])
+            props = schemas.get("properties", {})
+            required = name in required_props
+            field = None
+            if name in props:
+                prop_schema = props[name]
+                try:
+                    field = get_pyarrow_field(name, schema=prop_schema, required=required)
+                except Exception as e:
+                    self.log(f"{name}: Skipped - {e}", "warning")
+            else:
+                pd_type = str(data[name].dtype)  # pandas data type
+                try:
+                    pa_type = get_pyarrow_type_for_geopandas(pd_type)  # pyarrow data type
+                    if pa_type is not None:
+                        self.log(
+                            f"{name}: No schema defined, converting {pd_type} to nullable {pa_type}",
+                            "warning",
+                        )
+                        field = get_pyarrow_field(name, pa_type=pa_type)
+                    else:
+                        self.log(
+                            f"{name}: Skipped - pandas type can't be converted to pyarrow type",
+                            "warning",
+                        )
+                        continue
+                except Exception as e:
+                    self.log(f"{name}: Skipped - {e}", "warning")
+                    continue
+
+            if field is None:
+                self.log(f"{name}: Skipped - invalid data type", "warning")
+                continue
+            else:
+                pq_fields.append(field)
+
+        # Define the schema for the Parquet file
+        pq_schema = pa.schema(pq_fields)
+        pq_schema = pq_schema.with_metadata({"fiboa": json.dumps(collection).encode("utf-8")})
+
+        if compression is None:
+            compression = "brotli"
+
+        # Write the data to the Parquet file
+        to_parquet(
+            data,
+            self.file,
+            schema=pq_schema,
+            index=False,
+            coerce_timestamps="ms",
+            compression=compression,
+            schema_version="1.0.0" if geoparquet1 else "1.1.0",
+            row_group_size=self.row_group_size,
+            write_covering_bbox=False if geoparquet1 else True,
+        )
+
         return True
 
     # kwargs:
     # if num = None => kwargs go into pq.read_table
     # if num is set => kwargs go into pg.ParquetFile
-    def read(self, num: int = None, columns: list[str] = None, **kwargs) -> GeoDataFrame:
-        if columns is not None or len(columns) == 0:
-            columns = None
+    def read(
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+    ) -> GeoDataFrame:
+        if properties is not None and len(properties) == 0:
+            properties = None
 
         if num is None:
-            table = pq.read_table(self.pa_file, columns=columns, **kwargs)
+            table = pq.read_table(self.pa_file, columns=properties, **kwargs)
         else:
             pf = pq.ParquetFile(self.pa_file, **kwargs)
-            rows = next(pf.iter_batches(batch_size=num, columns=columns))
+            rows = next(pf.iter_batches(batch_size=num, columns=properties))
             table = pa.Table.from_batches([rows])
 
         return _arrow_to_geopandas(table)

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import json_stream
 import numpy as np
@@ -16,6 +16,7 @@ from .base import BaseEncoding
 class GeoJSON(BaseEncoding):
     datatypes_schema_uri = "https://fiboa.github.io/specification/v{version}/geojson/datatypes.json"
     ext = [".json", ".geojson"]
+    crs = "EPSG:4326"
 
     def __init__(self, file: str):
         super().__init__(file)
@@ -48,7 +49,20 @@ class GeoJSON(BaseEncoding):
     # it doesn't correctly coverts some data types which are present in the Vecorel SDL
     # e.g. lists of tuples into a dict
 
-    def write(self, data: GeoDataFrame, collection: dict, **kwargs) -> bool:
+    # kwargs:
+    #   indent: int, optional, default None
+    #       If set, the JSON will be pretty-printed with the given indentation level.
+    def write(
+        self,
+        data: GeoDataFrame,
+        collection: dict = {},
+        properties: Optional[list[str]] = None,
+        schema_map: dict = {},
+        missing_schemas: dict = {},
+        **kwargs,
+    ) -> bool:
+        indent = kwargs.get("indent", None)
+
         self.file.parent.mkdir(parents=True, exist_ok=True)
 
         # We need to write GeoJSON in EPSG:4326
@@ -67,10 +81,16 @@ class GeoJSON(BaseEncoding):
         if isinstance(collection, dict):
             obj.update(collection)
 
-        self._write_json(obj, self.file, indent=kwargs.get("indent", None))
+        self._write_json(obj, self.file, indent=indent)
 
     def write_as_features(
-        self, data: GeoDataFrame, folder: Union[Path, str], collection: dict = {}, **kwargs
+        self,
+        data: GeoDataFrame,
+        folder: Union[Path, str],
+        collection: dict = {},
+        properties: Optional[list[str]] = None,
+        schema_map: dict = {},
+        **kwargs,
     ) -> bool:
         if isinstance(folder, str):
             folder = Path(folder)
@@ -92,92 +112,106 @@ class GeoJSON(BaseEncoding):
 
             i += 1
 
-    def read(self, num: int = None, columns: list[str] = None, **kwargs) -> GeoDataFrame:
-        # note: To read a GeoJSON Feature num and columns must be set to None
-        crs = "EPSG:4326"
-        self.collection = {}
-        if num is None and columns is None:
+    def read(
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+    ) -> GeoDataFrame:
+        # note: To read a GeoJSON Feature num and properties must be set to None
+        if num is None and properties is None:
             # The memory intensive way: read the whole file into memory
-            with open(self.file, "r", **kwargs) as f:
-                obj = json.load(f)
-
-            if not isinstance(obj, dict):
-                raise ValueError("JSON file must contain a GeoJSON object")
-            if obj["type"] == "Feature":
-                obj = {"type": "FeatureCollection", "features": [obj]}
-            if obj["type"] != "FeatureCollection":
-                raise ValueError("JSON file must contain a FeatureCollection")
-
-            # Preserve id: https://github.com/geopandas/geopandas/issues/1208
-            for feature in obj["features"]:
-                if "id" not in feature["properties"]:
-                    feature["properties"]["id"] = feature["id"]
-
-            # Add non-GeoJSON properties to the collection metadata
-            for key, value in obj.items():
-                if key == "type" or key == "features":
-                    continue
-                else:
-                    self.collection[key] = value
-
-            return GeoDataFrame.from_features(obj, crs=crs, columns=columns)
+            gdf, collection = self._read_json()
         else:
             # The memory efficient way: stream the file
-            with open(self.file, "r", **kwargs) as f:
-                streamam = json_stream.load(f)
-                data = {
-                    "id": [],
-                    "geometry": [],
-                }
+            gdf, collection = self._stream_json()
 
-                for key, value in streamam.items():
-                    if key == "type":
-                        if value == "Feature":
-                            # The memory efficient way can't easily read individual Features,
-                            # redirect to the other way by setting num and columns to None
-                            return self.read(**kwargs)
-                        elif value != "FeatureCollection":
-                            raise ValueError("JSON file must contain a FeatureCollection")
-                        else:
-                            continue
-                    elif key == "features":
-                        i = 0
-                        for feature in value:
-                            for k, v in feature.items():
-                                include = columns is None or k in columns
-                                if k == "id" and include:
-                                    data["id"].append(json_stream.to_standard_types(v))
-                                elif k == "geometry" and include:
-                                    geom = shape(json_stream.to_standard_types(v))
-                                    data["geometry"].append(geom)
-                                elif k == "properties":
-                                    for prop_key, prop_value in v.items():
-                                        # Column is not relevant
-                                        if columns is not None and prop_key not in columns:
-                                            continue
-                                        # New column, prepend None values if this is not the first feature
-                                        if prop_key not in data:
-                                            data[prop_key] = [None] * i
-                                        # Append the value
-                                        data[prop_key].append(
-                                            json_stream.to_standard_types(prop_value)
-                                        )
+        self.collection = collection
+        return gdf
 
-                            # If a property was not found in the feature, add None to the array of the column
-                            for key in data.keys():
-                                if len(data[key]) == i:
-                                    data[key].append(None)
+    def _read_json(
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+    ) -> GeoDataFrame:
+        with open(self.file, "r", **kwargs) as f:
+            obj = json.load(f)
 
-                            i = i + 1
-                            # If a limit is set, break the loop
-                            if num is not None and i >= num:
-                                break
+        if not isinstance(obj, dict):
+            raise ValueError("JSON file must contain a GeoJSON object")
+        if obj["type"] == "Feature":
+            obj = {"type": "FeatureCollection", "features": [obj]}
+        if obj["type"] != "FeatureCollection":
+            raise ValueError("JSON file must contain a FeatureCollection")
+
+        # Preserve id: https://github.com/geopandas/geopandas/issues/1208
+        for feature in obj["features"]:
+            if "id" not in feature["properties"]:
+                feature["properties"]["id"] = feature["id"]
+
+        collection = {}
+        # Add non-GeoJSON properties to the collection metadata
+        for key, value in obj.items():
+            if key == "type" or key == "features":
+                continue
+            else:
+                collection[key] = value
+
+        gdf = GeoDataFrame.from_features(obj, crs=self.crs, columns=properties)
+        return gdf, collection
+
+    def _stream_json(
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+    ) -> GeoDataFrame:
+        with open(self.file, "r", **kwargs) as f:
+            stream = json_stream.load(f)
+            data = {
+                "id": [],
+                "geometry": [],
+            }
+            collection = {}
+
+            for key, value in stream.items():
+                if key == "type":
+                    if value == "Feature":
+                        # The memory efficient way can't easily read individual Features
+                        # so we use _read_json() instead
+                        return self._read_json(**kwargs)
+                    elif value != "FeatureCollection":
+                        raise ValueError("JSON file must contain a FeatureCollection")
                     else:
-                        # Add non-GeoJSON properties to the collection metadata
-                        self.collection[key] = json_stream.to_standard_types(value)
+                        continue
+                elif key == "features":
+                    i = 0
+                    for feature in value:
+                        for k, v in feature.items():
+                            include = properties is None or k in properties
+                            if k == "id" and include:
+                                data["id"].append(json_stream.to_standard_types(v))
+                            elif k == "geometry" and include:
+                                geom = shape(json_stream.to_standard_types(v))
+                                data["geometry"].append(geom)
+                            elif k == "properties":
+                                for prop_key, prop_value in v.items():
+                                    # Property is not relevant
+                                    if properties is not None and prop_key not in properties:
+                                        continue
+                                    # New property, prepend None values if this is not the first feature
+                                    if prop_key not in data:
+                                        data[prop_key] = [None] * i
+                                    # Append the value
+                                    data[prop_key].append(json_stream.to_standard_types(prop_value))
 
-                df = DataFrame.from_dict(data)
-                return GeoDataFrame(df, crs=crs, geometry="geometry")
+                        # If a property was not found in the feature, add None to the array of the column
+                        for key in data.keys():
+                            if len(data[key]) == i:
+                                data[key].append(None)
+
+                        i = i + 1
+                        # If a limit is set, break the loop
+                        if num is not None and i >= num:
+                            break
+                else:
+                    # Add non-GeoJSON properties to the collection metadata
+                    collection[key] = json_stream.to_standard_types(value)
+
+            gdf = GeoDataFrame(DataFrame.from_dict(data), crs=self.crs, geometry="geometry")
+            return gdf, collection
 
     def _write_json(self, obj, path, indent=None):
         with open(path, "w") as f:

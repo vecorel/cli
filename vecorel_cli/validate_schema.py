@@ -1,6 +1,3 @@
-# ruff: noqa
-# todo: remove this comment once the code has been updated
-
 import json
 from pathlib import Path
 from typing import Optional, Union
@@ -13,7 +10,7 @@ from jsonschema.protocols import Validator
 from jsonschema.validators import Draft7Validator, Draft202012Validator
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_file_for_cli, valid_files_folders_for_cli
+from .cli.util import get_files, valid_file
 from .vecorel.util import load_file
 
 
@@ -28,14 +25,12 @@ class ValidateSchema(BaseCommand):
             "files": click.argument(
                 "files",
                 nargs=-1,
-                callback=lambda ctx, param, value: valid_files_folders_for_cli(
-                    value, ["yaml", "yml"]
-                ),
+                callback=lambda ctx, param, value: get_files(value, ["yaml", "yml"]),
             ),
             "metaschema": click.option(
                 "--metaschema",
                 "-m",
-                callback=valid_file_for_cli,
+                callback=valid_file,
                 help="Vecorel SDL metaschema to validate against.",
                 default=None,
             ),

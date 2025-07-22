@@ -37,7 +37,7 @@ class Schemas:
         extensions.sort()
         return version, uri, extensions
 
-    def get_core_version(self, schema_uri: str) -> str:
+    def get_core_version(self) -> str:
         version, uri, extensions = self.get()
         return version
 

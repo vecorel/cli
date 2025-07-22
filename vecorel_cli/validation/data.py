@@ -1,13 +1,10 @@
-# ruff: noqa
-# todo: remove this comment once the code has been updated
-
 import re
 from urllib.parse import urlparse
 
 import pandas as pd
 from shapely.validation import explain_validity
 
-from .parquet.types import PYTHON_TYPES, is_numerical_type, is_scalar_type
+from ..parquet.types import PYTHON_TYPES, is_numerical_type, is_scalar_type
 
 REGEX_EMAIL = re.compile("^[^@]+@[^@]+\\.[^@]+$")
 REGEX_UUID = re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
