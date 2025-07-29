@@ -4,7 +4,7 @@ from typing import Optional, Union
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import GEOPARQUET1, GEOPARQUET_COMPRESSION, SCHEMA_MAP
+from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION, SCHEMA_MAP
 from .cli.util import valid_vecorel_files
 from .encoding.auto import create_encoding
 from .encoding.geoparquet import GeoParquet
@@ -30,7 +30,7 @@ class CreateGeoParquet(BaseCommand):
                 required=True,
             ),
             "compression": GEOPARQUET_COMPRESSION,
-            "geoparquet1": GEOPARQUET1,
+            "geoparquet_version": GEOPARQUET_VERSION,
             "schemas": SCHEMA_MAP,
         }
 
@@ -40,7 +40,7 @@ class CreateGeoParquet(BaseCommand):
         source: Union[Path, str],
         target: Union[Path, str],
         compression: Optional[str] = None,
-        geoparquet1: bool = False,
+        geoparquet_version: Optional[str] = None,
         schemas: Optional[dict[str, Path]] = None,
     ):
         if isinstance(source, str):
@@ -59,7 +59,7 @@ class CreateGeoParquet(BaseCommand):
             geodata,
             collection,
             compression=compression,
-            geoparquet1=geoparquet1,
+            geoparquet_version=geoparquet_version,
             schema_map=schemas,
         )
 

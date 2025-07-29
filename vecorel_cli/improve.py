@@ -4,7 +4,7 @@ import click
 from geopandas import GeoDataFrame
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import CRS, GEOPARQUET1, GEOPARQUET_COMPRESSION
+from .cli.options import CRS, GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
 from .cli.util import parse_map, valid_vecorel_files
 from .encoding.auto import create_encoding
 from .jsonschema.util import (
@@ -71,11 +71,11 @@ class ImproveData(BaseCommand):
             ),
             "crs": CRS(None),
             "compression": GEOPARQUET_COMPRESSION,
-            "geoparquet1": GEOPARQUET1,
+            "geoparquet_version": GEOPARQUET_VERSION,
         }
 
     @runnable
-    def improve_file(self, input, out=None, compression=None, geoparquet1=False, **kwargs):
+    def improve_file(self, input, out=None, compression=None, geoparquet_version=None, **kwargs):
         input_encoding = create_encoding(input)
         output_encoding = create_encoding(out) if out else input_encoding
 
@@ -83,7 +83,10 @@ class ImproveData(BaseCommand):
         collection = input_encoding.get_collection()
         geodata, collection = self.improve(geodata, collection=collection, **kwargs)
         output_encoding.write(
-            geodata, collection=collection, compression=compression, geoparquet1=geoparquet1
+            geodata,
+            collection=collection,
+            compression=compression,
+            geoparquet_version=geoparquet_version,
         )
         return out
 

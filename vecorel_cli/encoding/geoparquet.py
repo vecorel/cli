@@ -9,6 +9,7 @@ from geopandas.io.arrow import _arrow_to_geopandas
 from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 
+from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..jsonschema.util import is_schema_empty, merge_schemas
 from ..parquet.geopandas import to_parquet
 from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
@@ -98,9 +99,9 @@ class GeoParquet(BaseEncoding):
         return self.pq_schema
 
     # kwargs:
-    #   geoparquet1: bool, optional, default False
-    #       If True, writes the data in GeoParquet 1.0 format,
-    #       otherwise in GeoParquet 1.1 format.
+    #   geoparquet_version: bool, optional, default False
+    #       If True, writes the data in GeoParquet 1.0.0 format,
+    #       otherwise in GeoParquet 1.1.0 format.
     #   compression: str, optional, default "brotli"
     #       Compression algorithm to use, defaults to "brotli".
     #       Other options are "snappy", "gzip", "lz4", "zstd", etc.
@@ -113,10 +114,13 @@ class GeoParquet(BaseEncoding):
         missing_schemas: dict = {},
         **kwargs,
     ) -> bool:
-        compression = kwargs.get("compression", None)
+        compression = kwargs.get("compression")
         if compression is None:
             compression = "brotli"
-        geoparquet1 = kwargs.get("geoparquet1", False)
+
+        gp_version = kwargs.get("geoparquet_version")
+        if gp_version not in GEOPARQUET_VERSIONS:
+            gp_version = GEOPARQUET_DEFAULT_VERSION
 
         self.file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -236,9 +240,9 @@ class GeoParquet(BaseEncoding):
             index=False,
             coerce_timestamps="ms",
             compression=compression,
-            schema_version="1.0.0" if geoparquet1 else "1.1.0",
+            schema_version=gp_version,
             row_group_size=self.row_group_size,
-            write_covering_bbox=False if geoparquet1 else True,
+            write_covering_bbox=bool(gp_version != "1.0.0"),
         )
 
         return True

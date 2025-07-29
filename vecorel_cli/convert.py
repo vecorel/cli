@@ -1,7 +1,7 @@
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import GEOPARQUET1, GEOPARQUET_COMPRESSION
+from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
 from .cli.util import parse_converter_input_files
 from .converters import Converters
 
@@ -59,7 +59,7 @@ class ConvertData(BaseCommand):
                 default=False,
             ),
             "compression": GEOPARQUET_COMPRESSION,
-            "geoparquet1": GEOPARQUET1,
+            "geoparquet_version": GEOPARQUET_VERSION,
             "mapping_file": click.option(
                 "--mapping-file",
                 "-m",
@@ -106,7 +106,7 @@ class ConvertData(BaseCommand):
         source_coop_url=None,
         collection=False,
         compression=None,
-        geoparquet1=False,
+        geoparquet_version=None,
         mapping_file=None,
         original_geometries=False,
     ):
@@ -127,7 +127,7 @@ class ConvertData(BaseCommand):
             source_coop_url=source_coop_url,
             store_collection=collection,
             compression=compression,
-            geoparquet1=geoparquet1,
+            geoparquet_version=geoparquet_version,
             mapping_file=mapping_file,
             original_geometries=original_geometries,
         )

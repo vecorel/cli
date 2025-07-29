@@ -5,7 +5,7 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import CRS, GEOPARQUET1, GEOPARQUET_COMPRESSION
+from .cli.options import CRS, GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
 from .encoding.auto import create_encoding
 from .jsonschema.util import (
     is_schema_empty,
@@ -59,7 +59,7 @@ class MergeDatasets(BaseCommand):
                 help="Default column names to exclude.",
             ),
             "compression": GEOPARQUET_COMPRESSION,
-            "geoparquet1": GEOPARQUET1,
+            "geoparquet_version": GEOPARQUET_VERSION,
         }
 
     @runnable
@@ -71,7 +71,7 @@ class MergeDatasets(BaseCommand):
         includes=[],
         excludes=[],
         compression=None,
-        geoparquet1=False,
+        geoparquet_version=False,
     ):
         if not crs:
             crs = self.default_crs
@@ -131,7 +131,10 @@ class MergeDatasets(BaseCommand):
         # Write the merged dataset to the output file
         target = create_encoding(out)
         target.write(
-            merged, collections=collection, compression=compression, geoparquet1=geoparquet1
+            merged,
+            collections=collection,
+            compression=compression,
+            geoparquet_version=geoparquet_version,
         )
 
         return out

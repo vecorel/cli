@@ -1,6 +1,6 @@
 import click
 
-from ..const import COMPRESSION_METHODS
+from ..const import COMPRESSION_METHODS, GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from .util import valid_schemas_for_cli
 
 
@@ -23,13 +23,13 @@ GEOPARQUET_COMPRESSION = click.option(
     default="brotli",
 )
 
-GEOPARQUET1 = click.option(
-    "--geoparquet1",
-    "-gp1",
-    is_flag=True,
-    type=click.BOOL,
-    help="GeoParquet only: Enforces generating a v1.0 file. Defaults to v1.1 with bounding box.",
-    default=False,
+GEOPARQUET_VERSION = click.option(
+    "--geoparquet_version",
+    "-pv",
+    type=click.Choice(GEOPARQUET_VERSIONS),
+    help="GeoParquet only: The GeoParquet version to generate.",
+    show_default=True,
+    default=GEOPARQUET_DEFAULT_VERSION,
 )
 
 SCHEMA_MAP = click.option(

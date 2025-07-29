@@ -363,7 +363,7 @@ class BaseConverter:
         store_collection=False,
         year=None,
         compression=None,
-        geoparquet1=False,
+        geoparquet_version=None,
         mapping_file=None,
         original_geometries=False,
         **kwargs,
@@ -497,7 +497,7 @@ class BaseConverter:
             properties=columns,
             missing_schemas=self.missing_schemas,
             compression=compression,
-            geoparquet1=geoparquet1,
+            geoparquet_version=geoparquet_version,
         )
         # if store_collection:
         #     external_collection = self._add_asset_to_collection(
