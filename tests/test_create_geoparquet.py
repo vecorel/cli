@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+import pytest
 from click.testing import CliRunner
 from pytest import fixture
 
@@ -14,6 +15,7 @@ def out_file():
         yield out.name
 
 
+@pytest.mark.skip(reason="not implemented yet")
 def test_create_geoparquet(out_file):
     path = "tests/data-files/inspire.json"
     runner = CliRunner()

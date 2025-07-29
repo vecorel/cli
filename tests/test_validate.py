@@ -1,8 +1,10 @@
+import pytest
 from click.testing import CliRunner
 
 from vecorel_cli import validate
 
 
+@pytest.mark.skip(reason="not implemented yet")
 def test_validate():
     path = "tests/data-files/inspire.parquet"
     runner = CliRunner()

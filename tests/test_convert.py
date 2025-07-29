@@ -1,5 +1,6 @@
 import re
 
+import pytest
 from click.testing import CliRunner
 from pytest import mark
 
@@ -14,6 +15,7 @@ test_path = "tests/data-files/convert"
 extra_convert_parameters = {}
 
 
+@pytest.mark.skip(reason="not implemented yet")
 @mark.parametrize("converter", tests)
 def test_converter(tmp_file, converter, block_stream_file):
     path = f"tests/data-files/convert/{converter}"

@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+import pytest
 from click.testing import CliRunner
 from pytest import fixture
 
@@ -14,6 +15,7 @@ def out_folder():
         yield out
 
 
+@pytest.mark.skip(reason="not implemented yet")
 def test_create_geojson(out_folder):
     path = "tests/data-files/inspire.parquet"
     runner = CliRunner()

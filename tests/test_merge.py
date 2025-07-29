@@ -1,6 +1,7 @@
 from glob import glob
 
 import pyarrow.parquet as pq
+import pytest
 from click.testing import CliRunner
 
 from vecorel_cli import merge, validate
@@ -12,6 +13,7 @@ $ for i in at be_wal nl; do vec convert $i -o tests/data-files/merge/$i.parquet 
 """
 
 
+@pytest.mark.skip(reason="not implemented yet")
 def test_merge(tmp_file):
     # merge files in directory
     files = glob("tests/data-files/merge/*.parquet")

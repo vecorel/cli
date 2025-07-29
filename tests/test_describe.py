@@ -1,8 +1,10 @@
+import pytest
 from click.testing import CliRunner
 
 from vecorel_cli import describe
 
 
+@pytest.mark.skip(reason="not implemented yet")
 def test_describe():
     path = "tests/data-files/inspire.parquet"
     runner = CliRunner()

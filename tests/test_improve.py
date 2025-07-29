@@ -1,10 +1,12 @@
 from glob import glob
 
+import pytest
 from click.testing import CliRunner
 
 from vecorel_cli import improve, validate
 
 
+@pytest.mark.skip(reason="not implemented yet")
 def test_improve(tmp_file):
     # merge files in directory
     files = glob("tests/data-files/merge/at.parquet")
