@@ -47,8 +47,8 @@ class DescribeFile(BaseCommand):
         return callback
 
     def __init__(self, filepath: Union[Path, str]):
-        self.cmd_title = f"Describe {filepath}"
         self.filepath = Path(filepath)
+        self.cmd_title = f"Describe {self.filepath.resolve()}"
 
         if not self.filepath.exists():
             raise FileNotFoundError(f"File {self.filepath} does not exist")
@@ -66,19 +66,19 @@ class DescribeFile(BaseCommand):
         if len(columns) == 0:
             columns = None
 
-        self.log("== FILE SUMMARY ==", "success")
+        self.success("== FILE SUMMARY ==", style="bold")
         self.summarize()
 
-        self.log("\n== VERSIONS & EXTENSIONS ==", "success")
+        self.success("== VERSIONS & EXTENSIONS ==", start="\n", style="bold")
         self.schemas()
 
-        self.log("\n== COLUMNS ==", "success")
+        self.success("== COLUMNS ==", start="\n", style="bold")
         self.columns()
 
-        self.log("\n== COLLECTION DATA ==", "success")
+        self.success("== COLLECTION DATA ==", start="\n", style="bold")
         self.collection()
 
-        self.log("\n== PER-GEOMETRY DATA ==", "success")
+        self.success("== PER-GEOMETRY DATA ==", start="\n", style="bold")
         self.data(num, columns)
 
     def summarize(self):
@@ -89,7 +89,7 @@ class DescribeFile(BaseCommand):
         schemas = self.encoding.get_schemas()
         count = len(schemas)
         if count == 0:
-            self.log("Data not compliant to specification, no version found", "error")
+            self.error("Data not compliant to specification, no version found")
             return
         if count == 1:
             schema = list(schemas.values())[0]
@@ -106,16 +106,15 @@ class DescribeFile(BaseCommand):
         if collection:
             self.print_pretty(collection)
         else:
-            self.log("No collection metadata found", "warning")
+            self.warning("No collection metadata found")
 
     def columns(self):
         columns = self.encoding.get_properties()
         if columns:
             for key, value in columns.items():
-                self.log(f"{key}: ", "debug", nl=False)
-                self.log(", ".join(value))
+                self.info(f"{key}: " + ", ".join(value))
         else:
-            self.log("File format is not columnar")
+            self.info("File format is not columnar")
 
     def data(self, num: int = 10, columns: Optional[list[str]] = None):
         if num > 0:
@@ -125,44 +124,10 @@ class DescribeFile(BaseCommand):
             # Load data
             gdf = self.encoding.read(num=num, columns=columns)
             # Print to console
-            self.log(gdf.head(num))
+            self.info(gdf.head(num))
         else:
-            self.log("Omitted", "warning")
+            self.warning("Omitted")
 
     def _schema_to_dict(self, schema: Schemas):
         version, uri, extensions = schema.get()
         return {"Version": version, "Extensions": extensions if len(extensions) > 0 else None}
-
-    # strlen = -1 disables truncation
-    def print_pretty(self, value: dict, depth=0, strlen=50):
-        prefix = "  " * depth
-        if hasattr(value, "to_dict"):
-            value = value.to_dict()
-        if isinstance(value, dict):
-            if depth <= 1:
-                if depth > 0:
-                    self.log("")
-                for key, value in value.items():
-                    self.log(prefix + key + ": ", "debug", nl=False)
-                    self.print_pretty(value, depth=depth + 1, strlen=strlen)
-            else:
-                self.log(f"object (omitted, {len(value)} key/value pairs)", "warning")
-        elif isinstance(value, list):
-            if depth <= 1:
-                if depth > 0:
-                    self.log("")
-                for item in value:
-                    self.log(prefix + "- ", nl=False)
-                    self.print_pretty(item, depth=depth + 1, strlen=strlen)
-            else:
-                self.log(f"array (omitted, {len(value)} elements)", "warning")
-        elif isinstance(value, str):
-            length = len(value)
-            if strlen >= 0 and length > strlen:
-                self.log(value[:strlen], nl=False)
-                if len(value) > strlen:
-                    self.log(f"... ({length - strlen} chars omitted)", "warning")
-            else:
-                self.log(value)
-        else:
-            self.log(value)

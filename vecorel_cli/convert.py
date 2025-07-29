@@ -111,12 +111,11 @@ class ConvertData(BaseCommand):
         original_geometries=False,
     ):
         if hasattr(self.converter, "DATA_ACCESS") and not cache and not input_files:
-            self.log(
+            self.warning(
                 "Data access is restricted. You need to manually get the data from the source.",
-                "warning",
             )
-            self.log("Instructions for data access:", "warning")
-            self.log(self.converter.DATA_ACCESS.strip(), "info")
+            self.warning("Instructions for data access:")
+            self.info(self.converter.DATA_ACCESS.strip())
             raise Exception("Provide the file through the `-i` parameter.")
 
         self.converter.convert(

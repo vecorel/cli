@@ -5,15 +5,8 @@ from typing import Union
 
 import click
 
+from .cli.logger import LoggerMixin
 from .registry import Registry
-
-LOG_STATUS_COLOR = {
-    "info": "white",
-    "warning": "yellow",
-    "error": "red",
-    "success": "green",
-    "debug": "blue",
-}
 
 
 def runnable(func):
@@ -21,9 +14,7 @@ def runnable(func):
     return func
 
 
-class BaseCommand:
-    verbose: bool = True  # todo: set to False before release
-
+class BaseCommand(LoggerMixin):
     cmd_name: str = ""
     cmd_title: str = ""
     cmd_help: str = ""
@@ -43,7 +34,7 @@ class BaseCommand:
 
     def run(self, *args, **kwargs):
         # Print header
-        self.log(f"{Registry.cli_title} {Registry.cli_version} - {self.cmd_title}\n")
+        self.info(f"{Registry.cli_title} {Registry.cli_version} - {self.cmd_title}", end="\n\n")
 
         # Detect method to run
         fn = None
@@ -61,24 +52,17 @@ class BaseCommand:
             try:
                 result = fn(*args, **kwargs)
             except Exception as e:
-                self.log(e, "error")
+                self.exception(e)
                 sys.exit(1)
 
         # Report command as finished
         if self.cmd_final_report:
             if isinstance(result, Path):
-                self.log(f"Finished - Result: {result.absolute()}", "success")
+                self.success(f"Finished - Result: {result.absolute()}")
             elif not result:
-                self.log("Finished", "success")
+                self.success("Finished")
             else:
-                self.log(result, "success")
+                self.success(result)
 
         # Return result
         return result
-
-    def log(self, text: Union[str, Exception], status="info", nl=True, **kwargs):
-        """Log a message with a severity level (which leads to different colors)"""
-        click.echo(click.style(text, fg=LOG_STATUS_COLOR[status], **kwargs), nl=nl)
-
-    def set_verbose(self, verbose: bool = True):
-        self.verbose = verbose

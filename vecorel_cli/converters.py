@@ -65,9 +65,9 @@ class Converters(BaseCommand):
         pd.set_option("display.max_colwidth", None if verbose else self.default_max_colwidth)
 
         if not df.empty:
-            self.log(df)
+            self.info(df)
         else:
-            self.log("No converters found.", "warning")
+            self.warning("No converters found.")
 
     def get_module(self, name=None):
         name = f".datasets.{name}" if name else ".datasets"

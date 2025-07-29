@@ -103,28 +103,28 @@ class ImproveData(BaseCommand):
         # Change the CRS
         if crs is not None:
             gdf = self.change_crs(gdf, crs)
-            self.log(f"Changed CRS to {crs}", "info")
+            self.info(f"Changed CRS to {crs}")
 
         # Fix geometries
         if fix_geometries:
             gdf = self.fix_geometries(gdf)
-            self.log("Fixed geometries", "info")
+            self.info("Fixed geometries")
 
         # Convert MultiPolygons to Polygons
         if explode_geometries:
             gdf = self.explode_geometries(gdf)
-            self.log("Exploded geometries", "info")
+            self.info("Exploded geometries")
 
         # Rename columns
         if len(rename) > 0:
             self.rename_warnings(gdf, rename)
             gdf, collection = self.rename_properties(gdf, rename, collection)
-            self.log("Renamed columns", "info")
+            self.info("Renamed columns")
 
         # Add sizes
         if add_sizes:
             gdf = self.add_sizes(gdf)
-            self.log("Computed sizes", "info")
+            self.info("Computed sizes")
 
         return gdf, collection
 
@@ -148,14 +148,10 @@ class ImproveData(BaseCommand):
         """
         for col in rename:
             if col in Registry.core_columns:
-                self.log(
-                    f"Column {col} is a core property - do you really want to rename it?",
-                    "warning",
-                )
+                self.warning(f"Column {col} is a core property - do you really want to rename it?")
             if ":" in col:
-                self.log(
-                    f"Column {col} might be an extension property - do you really want to rename it?",
-                    "warning",
+                self.warning(
+                    f"Column {col} might be an extension property - do you really want to rename it?"
                 )
 
     def rename_properties(

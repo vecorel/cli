@@ -57,21 +57,21 @@ class ValidateData(BaseCommand):
         }
 
         if len(files) == 0:
-            self.log("No files to validate", "error")
+            self.error("No files to validate")
             sys.exit(1)
 
         exit = 0
         for file in files:
-            self.log(f"Validating {file}", "info")
+            self.info(f"Validating {file}")
             try:
                 result = self.validate_file(file, config)
                 if result:
-                    self.log("\n  => VALID\n", "success")
+                    self.success("VALID", start="\n", end="\n", indent="  => ")
                 else:
-                    self.log("\n  => INVALID\n", "error")
+                    self.error("INVALID", start="\n", end="\n", indent="  => ")
                     exit = 1
             except Exception as e:
-                self.log(f"\n  => UNKNOWN: {e}\n", "error")
+                self.error(f"UNKNOWN: {e}", start="\n", end="\n", indent="  => ")
                 exit = 2
 
         sys.exit(exit)
@@ -91,12 +91,12 @@ class ValidateData(BaseCommand):
         valid = True
 
         if not isinstance(schemas, Schemas):
-            self.log("A valid Schemas object must be provided", "error")
+            self.error("A valid Schemas object must be provided")
             valid = False
 
         schema_uris = schemas.get_all()
         if len(schema_uris) == 0:
-            self.log("No schemas provided", "error")
+            self.error("No schemas provided")
             valid = False
 
         # Detect and check fiboa version
@@ -104,16 +104,13 @@ class ValidateData(BaseCommand):
         core_schema = schemas.get_core_schema_uri()
 
         if version is None:
-            self.log(
-                "Vecorel core schema not found in schemas, can't detect Vecorel version", "error"
-            )
+            self.error("Vecorel core schema not found in schemas, can't detect Vecorel version")
             valid = False
 
         # todo: use python-semanticversion to check for version ranges (e.g. allow 0.3.x)
         if not is_supported(version):
-            self.log(
-                f"Vecorel versions differs: Schema reports {version} and supported version is {supported_vecorel_versions}",
-                "warning",
+            self.warning(
+                f"Vecorel versions differs: Schema reports {version} and supported version is {supported_vecorel_versions}"
             )
 
         # Check schemas (core and extensions)
@@ -123,13 +120,13 @@ class ValidateData(BaseCommand):
             try:
                 if uri in schema_map:
                     actual_location = schema_map[uri]
-                    self.log(f"Redirecting {uri} to {actual_location}", "info")
+                    self.info(f"Redirecting {uri} to {actual_location}")
                 else:
                     actual_location = uri
 
                 schemas[uri] = load_file(actual_location)
             except Exception as e:
-                self.log(f"Extension {uri} can't be loaded: {e}", "error")
+                self.error(f"Extension {uri} can't be loaded: {e}")
                 valid = False
 
         # log_extensions(schema_uris, lambda x: log(x, "info", False))
@@ -140,11 +137,11 @@ class ValidateData(BaseCommand):
         try:
             data = load_file(file)
         except Exception as error:
-            self.log(error, "error")
+            self.exception(error)
             return False
 
         if not isinstance(data, dict):
-            self.log("Must be a JSON object", "error")
+            self.error("Must be a JSON object")
             return False
 
         schemas_uris = {}
@@ -158,7 +155,7 @@ class ValidateData(BaseCommand):
             schemas_uris = data.get("properties", {}).get("schemas", {})
             features = [data]
         else:
-            self.log("Must be a GeoJSON Feature or FeatureCollection", "error")
+            self.error("Must be a GeoJSON Feature or FeatureCollection")
             return False
 
         valid, version, core_schema_uri, schemas = self.validate_schemas(schemas_uris, config)
@@ -180,11 +177,11 @@ class ValidateData(BaseCommand):
                 ext_errors.append(f"Failed to load extension {ext}: {str(error)}")
 
         for error in ext_errors:
-            self.log(error, "error")
+            self.error(error)
 
         # Validate
         if len(features) == 0:
-            self.log("Must contain at least one Feature", "error")
+            self.error("Must contain at least one Feature")
             return False
 
         for index, feature in enumerate(features):
@@ -196,19 +193,19 @@ class ValidateData(BaseCommand):
 
             if not valid:
                 for error in errors:
-                    self.log(f"{label}: {error}", "error")
+                    self.error(f"{label}: {error}")
             else:
                 for ext, validate_fn in extensions.items():
                     if validate_fn:
                         ext_errors = validate_fn(feature)
                         if len(ext_errors) > 0:
                             for error in ext_errors:
-                                self.log(f"{label} (ext {ext}): {error}", "error")
+                                self.error(f"{label} (ext {ext}): {error}")
                             valid = False
                     else:
-                        self.log(f"{label}: Extension {ext} SKIPPED", "warning")
+                        self.warning(f"{label}: Extension {ext} SKIPPED")
                 if valid and len(features) > 1:
-                    self.log(f"{label}: VALID", "success")
+                    self.success(f"{label}: VALID")
 
         return valid
 
@@ -219,7 +216,7 @@ class ValidateData(BaseCommand):
 
         # Validate fiboa metadata in Parquet header
         if b"fiboa" not in pq.get_metadata():
-            self.log("Parquet file schema does not have a 'fiboa' key", "error")
+            self.error("Parquet file schema does not have a 'fiboa' key")
             return False
 
         collection = pq.get_collection()
@@ -236,7 +233,7 @@ class ValidateData(BaseCommand):
                 gp = GeoParquet(file)
                 gdf = gp.read()
             except Exception as e:
-                self.log(f"Data could not be read: {e}", "error")
+                self.error(f"Data could not be read: {e}")
                 valid = False
 
         # Compile all properties from the schemas
@@ -254,7 +251,7 @@ class ValidateData(BaseCommand):
         # Check that all required fields are present
         for key in schemas.get("required", []):
             if key not in parquet_schema.names:
-                self.log(f"{key}: Required field is missing", "error")
+                self.error(f"{key}: Required field is missing")
                 valid = False
 
         # Validate whether the Parquet schema complies with the property schemas
@@ -263,14 +260,14 @@ class ValidateData(BaseCommand):
         for key in parquet_schema.names:
             # Ignore fields without a schema
             if key not in properties:
-                self.log(f"{key}: No schema defined", "warning")
+                self.warning(f"{key}: No schema defined")
                 continue
 
             prop_schema = properties[key]
             # Make sure the schema has a data type assigned
             dtype = prop_schema.get("type")
             if dtype is None:
-                self.log(f"{key}: No type specified", "warning")
+                self.warning(f"{key}: No type specified")
                 continue
 
             pq_field = parquet_schema.field(key)
@@ -279,32 +276,31 @@ class ValidateData(BaseCommand):
             # Does the field (dis)allow null?
             nullable = key not in schemas.get("required", [])
             if nullable != pq_field.nullable:
-                self.log(
+                self.error(
                     f"{key}: Nullability differs, is {pq_field.nullable} but must be {nullable}",
-                    "error",
                 )
                 valid = False
 
             # Is the data type of the field correct?
             pa_check = PA_TYPE_CHECK.get(dtype)
             if pa_check is None:
-                self.log(f"{key}: Validating {dtype} is not supported yet", "warning")
+                self.warning(f"{key}: Validating {dtype} is not supported yet")
                 continue
             elif not pa_check(pq_type):
-                self.log(f"{key}: Data type invalid, is {pq_type} but must be {dtype}", "error")
+                self.error(f"{key}: Data type invalid, is {pq_type} but must be {dtype}")
                 valid = False
                 continue
 
             # Check specifics of some types
             if dtype == "date-time":
                 if pq_type.unit != "ms":
-                    self.log(f"{key}: Timestamp unit differs, should be ms", "warning")
+                    self.warning(f"{key}: Timestamp unit differs, should be ms")
                 if pq_type.tz != "UTC":
-                    self.log(f"{key}: Timestamp timezone invalid, must be UTC", "error")
+                    self.error(f"{key}: Timestamp timezone invalid, must be UTC")
                     valid = False
             elif dtype == "object":
                 if pat.is_map(pq_type) and not pat.is_string(pq_field.key_type):
-                    self.log(f"{key}: Map keys must be strings", "error")
+                    self.error(f"{key}: Map keys must be strings")
                     valid = False
             elif dtype == "geometry":
                 valid = self.validate_geometry_column(key, prop_schema, geo, valid)
@@ -314,19 +310,19 @@ class ValidateData(BaseCommand):
                 issues = self.validate_column(gdf[key], prop_schema)
                 if len(issues) > 0:
                     for issue in issues:
-                        self.log(f"{key}: {issue}")
+                        self.info(f"{key}: {issue}")
                     valid = False
 
         # Show a note once if data was not validated
         if not config.get("data"):
-            self.log("Data was not validated as the --data parameter was not provided", "info")
+            self.warning("Data was not validated as the --data parameter was not provided")
 
         return valid
 
     def validate_geometry_column(self, key, prop_schema, geo, valid=True):
         columns = geo.get("columns", {})
         if key not in columns:
-            self.log(f"{key}: Geometry column not found in GeoParquet metadata", "error")
+            self.error(f"{key}: Geometry column not found in GeoParquet metadata")
             valid = False
 
         schema_geo_types = prop_schema.get("geometryTypes", [])
@@ -335,12 +331,11 @@ class ValidateData(BaseCommand):
             gp_geo_types = columns[key].get("geometry_types", [])
             gp_geo_types.sort()
             if len(gp_geo_types) == 0:
-                self.log(f"{key}: No geometry types specified in GeoParquet metadata", "warning")
+                self.warning(f"{key}: No geometry types specified in GeoParquet metadata")
 
             if schema_geo_types != gp_geo_types:
-                self.log(
+                self.error(
                     f"{key}: GeoParquet geometry types differ, is {gp_geo_types} but must be {schema_geo_types}",
-                    "error",
                 )
                 valid = False
 
@@ -350,20 +345,18 @@ class ValidateData(BaseCommand):
     def validate_geoparquet_schema(self, pq: GeoParquet):
         geo = pq.get_geoparquet_metadata()
         if geo is None:
-            self.log("File does not have GeoParquet metadata", "error")
+            self.error("File does not have GeoParquet metadata")
             return False
 
         try:
             schema = pq.get_geoparquet_schema()
             errors = self.validate_json_schema(geo, schema)
             for error in errors:
-                self.log(f"GeoParquet metadata: {error.path}: {error.message}", "error")
+                self.error(f"GeoParquet metadata: {error.path}: {error.message}")
 
             return len(errors) == 0
         except Exception as e:
-            self.log(
-                f"Failed to validate GeoParquet metadata due to an internal error: {e}", "error"
-            )
+            self.error(f"Failed to validate GeoParquet metadata due to an internal error: {e}")
             return False
 
     def validate_json_schema(self, obj, schema):

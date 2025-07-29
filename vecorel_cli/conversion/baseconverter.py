@@ -167,7 +167,7 @@ class BaseConverter:
             opts = ", ".join([str(s) for s in self.years.keys()])
             if self.year is None:
                 self.year = next(iter(self.years))
-                self.log(f"Choosing first available year {self.year} from {opts}", "warning")
+                self.warning(f"Choosing first available year {self.year} from {opts}")
             if self.year in self.years:
                 urls = self.years[self.year]
             else:
@@ -181,7 +181,7 @@ class BaseConverter:
                 lst = glob(path)
                 assert len(lst) == 1, f"Can not match {path} to a single file"
                 path = lst[0]
-            self.log(f"Reading {path} into GeoDataFrame(s)")
+            self.info(f"Reading {path} into GeoDataFrame(s)")
             is_parquet = path.endswith(".parquet") or path.endswith(".geoparquet")
             is_json = path.endswith(".json") or path.endswith(".geojson")
             layers = [None]
@@ -192,12 +192,12 @@ class BaseConverter:
                     layer for layer in all_layers["name"] if self.layer_filter(str(layer), path)
                 ]
                 if len(layers) == 0:
-                    self.log("No layers left for layering after filtering", "warning")
+                    self.warning("No layers left for layering after filtering")
 
             for layer in layers:
                 if layer is not None:
                     kwargs["layer"] = layer
-                    self.log(f"- Reading layer {layer} into GeoDataFrame")
+                    self.info(f"Reading layer {layer} into GeoDataFrame", indent="- ")
 
                 if is_parquet:
                     data = gpd.read_parquet(path, **kwargs)
@@ -244,7 +244,7 @@ class BaseConverter:
 
     def filter_rows(self, gdf):
         if len(self.column_filters) > 0:
-            self.log("Applying filters")
+            self.info("Applying filters")
             for key, fn in self.column_filters.items():
                 if key in gdf.columns:
                     result = fn(gdf[key])
@@ -263,7 +263,7 @@ class BaseConverter:
                     # Filter columns based on the mask
                     gdf = gdf[mask]
                 else:
-                    self.log(f"Column '{key}' not found in dataset, skipping filter", "warning")
+                    self.warning(f"Column '{key}' not found in dataset, skipping filter")
         return gdf
 
     def get_title(self):
@@ -348,9 +348,9 @@ class BaseConverter:
             elif re.match(r"^[\w\.-]+$", self.license):
                 collection["license"] = self.license
             else:
-                self.log(f"Invalid license identifier: {self.license}", "warning")
+                self.warning(f"Invalid license identifier: {self.license}")
         else:
-            self.log("License information missing", "warning")
+            self.warning("License information missing")
 
         return collection
 
@@ -382,16 +382,14 @@ class BaseConverter:
             os.makedirs(directory, exist_ok=True)
 
         if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
-            self.log(
-                "Using user provided input file(s) instead of the pre-defined file(s)", "warning"
-            )
+            self.warning("Using user provided input file(s) instead of the pre-defined file(s)")
             urls = input_files
         else:
             urls = self.get_urls()
             if urls is None:
                 raise ValueError("No input files provided")
 
-        self.log("Getting file(s) if not cached yet")
+        self.info("Getting file(s) if not cached yet")
         request_args = {}
         if self.avoid_range_request:
             request_args["block_size"] = 0
@@ -400,19 +398,19 @@ class BaseConverter:
         kwargs.update(self.open_options)
         gdf = self.read_data(paths, **kwargs)
 
-        self.log("GeoDataFrame created from source(s):")
+        self.info("GeoDataFrame created from source(s):")
         # Make it so that everything is shown, don't output ... if there are too many columns or rows
         pd.set_option("display.max_columns", None)
         pd.set_option("display.max_rows", None)
 
         hash_before = self._hash_df(gdf.head())
-        self.log(gdf.head())
+        self.info(gdf.head())
 
         if self.index_as_id:
             gdf["id"] = gdf.index
 
         # 1. Run global migration
-        self.log("Applying global migrations")
+        self.info("Applying global migrations")
         gdf = self.migrate(gdf)
         assert isinstance(gdf, gpd.GeoDataFrame), "Migration function must return a GeoDataFrame"
 
@@ -421,25 +419,25 @@ class BaseConverter:
 
         # 3. Add constant columns
         if self.column_additions:
-            self.log("Adding columns")
+            self.info("Adding columns")
             for key, value in self.column_additions.items():
                 gdf[key] = value
                 columns[key] = key
 
         # 4. Run column migrations
         if self.column_migrations:
-            self.log("Applying column migrations")
+            self.info("Applying column migrations")
             for key, fn in self.column_migrations.items():
                 if key in gdf.columns:
                     gdf[key] = fn(gdf[key])
                 else:
-                    self.log(f"Column '{key}' not found in dataset, skipping migration", "warning")
+                    self.warning(f"Column '{key}' not found in dataset, skipping migration")
 
         gdf = self.post_migrate(gdf)
 
         if hash_before != self._hash_df(gdf.head()):
-            self.log("GeoDataFrame after migrations and filters:")
-            self.log(gdf.head())
+            self.info("GeoDataFrame after migrations and filters:")
+            self.info(gdf.head())
 
         # 5. Duplicate columns if needed
         actual_columns = {}
@@ -455,9 +453,7 @@ class BaseConverter:
                     actual_columns[old_key] = new_key
             # If old key is not found, remove from the schema and warn
             else:
-                self.log(
-                    f"Column '{old_key}' not found in dataset, removing from schema", "warning"
-                )
+                self.warning(f"Column '{old_key}' not found in dataset, removing from schema")
 
         # 6. Rename columns
         gdf.rename(columns=actual_columns, inplace=True)
@@ -474,7 +470,7 @@ class BaseConverter:
             gdf = gdf.explode()
             gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
             if gdf.geometry.array.has_z.any():
-                self.log("Removing Z geometry dimension", "info")
+                self.info("Removing Z geometry dimension")
                 gdf.geometry = gdf.geometry.force_2d()
 
         gdf.sort_values("geometry", inplace=True, ignore_index=True)
@@ -483,12 +479,12 @@ class BaseConverter:
         drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
         gdf.drop(columns=drop_columns, inplace=True)
 
-        self.log("GeoDataFrame fully migrated:")
-        self.log(gdf.head())
+        self.info("GeoDataFrame fully migrated:")
+        self.info(gdf.head())
 
         collection = self.create_collection(gdf, source_coop_url=source_coop_url)
 
-        self.log("Creating GeoParquet file: " + output_file)
+        self.info("Creating GeoParquet file: " + output_file)
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
         pq.write(
@@ -504,7 +500,7 @@ class BaseConverter:
         #         collection, output_file, rows=len(gdf), columns=pq_fields
         #     )
         #     collection_file = os.path.join(os.path.dirname(output_file), "collection.json")
-        #     self.log("Creating Collection file: " + collection_file)
+        #     self.info("Creating Collection file: " + collection_file)
         #     with open(collection_file, "w") as f:
         #         json.dump(external_collection, f, indent=2)
 

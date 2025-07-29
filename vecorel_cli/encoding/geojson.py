@@ -99,7 +99,8 @@ class GeoJSON(BaseEncoding):
         i = 1
         for obj in data.iterfeatures():
             if (i % 1000) == 0:
-                self.log(f"{i}...", nl=(i % 10000) == 0)
+                nl = "\n" if (i % 10000) == 0 else ""
+                self.info(f"{i}...", end=nl)
 
             if isinstance(collection, dict):
                 obj["properties"].update(collection)

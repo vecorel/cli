@@ -3,11 +3,12 @@ from typing import Optional, Union
 
 from geopandas import GeoDataFrame
 
+from ..cli.logger import LoggerMixin
 from ..vecorel.schemas import Schemas
 from ..vecorel.util import format_filesize
 
 
-class BaseEncoding:
+class BaseEncoding(LoggerMixin):
     ext = []
 
     def __init__(self, file: Union[Path, str]):

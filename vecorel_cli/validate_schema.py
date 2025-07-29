@@ -54,18 +54,18 @@ class ValidateSchema(BaseCommand):
     def validate_cli(self, files: list[Union[Path, str]]) -> bool:
         results = self.validate_files(files)
         if len(results) == 0:
-            self.log("No files to validate", "error")
+            self.error("No files to validate")
             return False
 
         invalid_count = 0
         for filepath, errors in results.items():
-            self.log(f"Validating {filepath}", "info")
+            self.info(f"Validating {filepath}")
             if len(errors) > 0:
                 for error in errors:
-                    self._log2(error, "error")
+                    self.error(error, indent=" - ")
                 invalid_count += 1
             else:
-                self._log2("VALID", "success")
+                self.success("VALID", indent=" => ")
 
         return invalid_count == 0
 
@@ -114,9 +114,6 @@ class ValidateSchema(BaseCommand):
             format_checker=instance.FORMAT_CHECKER,
             registry=referencing.Registry(retrieve=ValidateSchema.retrieve_remote_schema),
         )
-
-    def _log2(self, text: Union[Exception, str], status="info", nl=True, **kwargs):
-        self.log(" - " + str(text), status, nl, **kwargs)
 
     @staticmethod
     def retrieve_remote_schema(uri: str):

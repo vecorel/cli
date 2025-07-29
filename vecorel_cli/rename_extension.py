@@ -157,7 +157,7 @@ class RenameExtension(BaseCommand):
             filepath.unlink()
 
         if len(geojson_paths) == 0:
-            self.log(f"Deleted {filepath}", "warning")
+            self.warning(f"Deleted {filepath}")
             return False
 
         search, replace = self._get_urls()
@@ -198,8 +198,8 @@ class RenameExtension(BaseCommand):
                 f.seek(0)
                 f.write(content)
                 f.truncate()
-            self.log(f"Updated {file}", "success")
+            self.success(f"Updated {file}")
             return True
         except Exception as e:
-            self.log(f"Can't update {file}: {e}", "error")
+            self.error(f"Can't update {file}: {e}")
             return False

@@ -26,12 +26,14 @@ class GeoParquet(BaseEncoding):
 
     def __init__(self, file: Union[Path, str, NativeFile]):
         self.file: Optional[Path] = None
+        self.pa_file: Optional[NativeFile] = None
         self.pq_metadata = None
         self.pq_schema = None
 
         if not isinstance(file, NativeFile):
             self.file = Path(file)
-            self.pa_file = self._get_pyarrow_file(file)
+            if self.file.exists():
+                self.pa_file = self._get_pyarrow_file(file)
         else:
             self.pa_file = file
 
@@ -156,7 +158,7 @@ class GeoParquet(BaseEncoding):
                     extensions[ext] = load_file(path)
                     schemas = merge_schemas(schemas, extensions[ext])
                 except Exception as e:
-                    self.log(f"Extension schema for {ext} can't be loaded: {e}", "warning")
+                    self.warning(f"Extension schema for {ext} can't be loaded: {e}")
 
         # Update the GeoDataFrame with the correct types etc.
         props = schemas.get("properties", {})
@@ -173,13 +175,13 @@ class GeoParquet(BaseEncoding):
             gp_type = get_geopandas_dtype(dtype, required, schema)
             try:
                 if gp_type is None:
-                    self.log(f"{column}: No type conversion available for {dtype}", "warning")
+                    self.warning(f"{column}: No type conversion available for {dtype}")
                 elif callable(gp_type):
                     data[column] = gp_type(data[column])
                 else:
                     data[column] = data[column].astype(gp_type, copy=False)
             except Exception as e:
-                self.log(f"{column}: Can't convert to {dtype}: {e}", "warning")
+                self.warning(f"{column}: Can't convert to {dtype}: {e}")
 
         _columns = list(data.columns)
         duplicates = set([x for x in _columns if _columns.count(x) > 1])
@@ -198,29 +200,27 @@ class GeoParquet(BaseEncoding):
                 try:
                     field = get_pyarrow_field(name, schema=prop_schema, required=required)
                 except Exception as e:
-                    self.log(f"{name}: Skipped - {e}", "warning")
+                    self.warning(f"{name}: Skipped - {e}")
             else:
                 pd_type = str(data[name].dtype)  # pandas data type
                 try:
                     pa_type = get_pyarrow_type_for_geopandas(pd_type)  # pyarrow data type
                     if pa_type is not None:
-                        self.log(
+                        self.warning(
                             f"{name}: No schema defined, converting {pd_type} to nullable {pa_type}",
-                            "warning",
                         )
                         field = get_pyarrow_field(name, pa_type=pa_type)
                     else:
-                        self.log(
+                        self.warning(
                             f"{name}: Skipped - pandas type can't be converted to pyarrow type",
-                            "warning",
                         )
                         continue
                 except Exception as e:
-                    self.log(f"{name}: Skipped - {e}", "warning")
+                    self.warning(f"{name}: Skipped - {e}")
                     continue
 
             if field is None:
-                self.log(f"{name}: Skipped - invalid data type", "warning")
+                self.warning(f"{name}: Skipped - invalid data type")
                 continue
             else:
                 pq_fields.append(field)
