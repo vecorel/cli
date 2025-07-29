@@ -5,7 +5,7 @@ from geopandas import GeoDataFrame
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import CRS, GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
-from .cli.util import parse_map, valid_vecorel_files
+from .cli.util import parse_map, valid_vecorel_file
 from .encoding.auto import create_encoding
 from .jsonschema.util import (
     is_schema_empty,
@@ -28,7 +28,7 @@ class ImproveData(BaseCommand):
             "input": click.argument(
                 "input",
                 nargs=1,
-                callback=valid_vecorel_files,
+                callback=valid_vecorel_file,
             ),
             "out": click.option(
                 "--out",

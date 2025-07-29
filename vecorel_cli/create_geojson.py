@@ -5,7 +5,7 @@ from typing import Optional, Union
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_vecorel_files
+from .cli.util import valid_vecorel_file
 from .encoding.auto import create_encoding
 from .encoding.geojson import GeoJSON
 
@@ -22,7 +22,7 @@ class CreateGeoJson(BaseCommand):
             "source": click.argument(
                 "source",
                 nargs=1,
-                callback=valid_vecorel_files,
+                callback=valid_vecorel_file,
             ),
             "out": click.option(
                 "--out",

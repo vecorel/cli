@@ -114,6 +114,7 @@ class GeoParquet(BaseEncoding):
         properties: Optional[list[str]] = None,
         schema_map: dict = {},
         missing_schemas: dict = {},
+        hydrate: bool = False,
         **kwargs,
     ) -> bool:
         compression = kwargs.get("compression")
@@ -251,7 +252,7 @@ class GeoParquet(BaseEncoding):
     # if num = None => kwargs go into pq.read_table
     # if num is set => kwargs go into pg.ParquetFile
     def read(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, hydrate: bool = False, **kwargs
     ) -> GeoDataFrame:
         if properties is not None and len(properties) == 0:
             properties = None

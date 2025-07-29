@@ -20,7 +20,9 @@ class CreateGeoParquet(BaseCommand):
     def get_cli_args():
         return {
             "source": click.argument(
-                "source", nargs=-1, callback=lambda ctx, param, value: valid_vecorel_files(value)
+                "source",
+                nargs=-1,
+                callback=valid_vecorel_files
             ),
             "out": click.option(
                 "--out",
@@ -37,21 +39,19 @@ class CreateGeoParquet(BaseCommand):
     @runnable
     def create(
         self,
-        source: Union[Path, str],
+        source: list[Union[Path, str]],
         target: Union[Path, str],
         compression: Optional[str] = None,
         geoparquet_version: Optional[str] = None,
         schemas: Optional[dict[str, Path]] = None,
     ):
-        if isinstance(source, str):
-            source = Path(source)
         if isinstance(target, str):
             target = Path(target)
 
         # Read source data
         source_encoding = create_encoding(source)
-        collection = source_encoding.get_collection()
-        geodata = source_encoding.read()
+
+
 
         # Write to target
         target_encoding = GeoParquet(target)

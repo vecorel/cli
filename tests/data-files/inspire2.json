@@ -6,23 +6,23 @@
     ]
   },
   "type": "Feature",
-  "id": "6467974",
-  "bbox": [172.911, 1.343, 172.954, 1.369],
+  "id": "6467975",
+  "bbox": [173.911, 2.343, 173.954, 2.369],
   "geometry": {
     "type": "Polygon",
     "coordinates": [
       [
-        [172.911, 1.343],
-        [172.954, 1.343],
-        [172.954, 1.369],
-        [172.911, 1.369],
-        [172.911, 1.343]
+        [173.911, 2.343],
+        [173.954, 2.343],
+        [173.954, 2.369],
+        [173.911, 2.369],
+        [173.911, 2.343]
       ]
     ]
   },
   "properties": {
     "determination_datetime": "2020-01-01T00:00:00Z",
-    "inspire:id": "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467974",
+    "inspire:id": "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467975",
     "collection": "inspire"
   }
 }

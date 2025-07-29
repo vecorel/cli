@@ -90,6 +90,7 @@ class GeoJSON(BaseEncoding):
         collection: dict = {},
         properties: Optional[list[str]] = None,
         schema_map: dict = {},
+        hydrate: bool = False,
         **kwargs,
     ) -> bool:
         if isinstance(folder, str):
@@ -114,7 +115,7 @@ class GeoJSON(BaseEncoding):
             i += 1
 
     def read(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None, hydrate: bool = False, **kwargs
     ) -> GeoDataFrame:
         # note: To read a GeoJSON Feature num and properties must be set to None
         if num is None and properties is None:

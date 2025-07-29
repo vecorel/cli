@@ -57,13 +57,16 @@ def get_files(value, extensions=[]):
 def valid_file(ctx, param, value):
     return is_valid_file_uri(value)
 
+def valid_vecorel_file(ctx, param, value) -> Path:
+    ext = Registry.get_vecorel_extensions()
+    return is_valid_file_uri(value, extensions=ext)
 
-def valid_vecorel_files(ctx, param, value):
+def valid_vecorel_files(ctx, param, value) -> list[Path]:
     ext = Registry.get_vecorel_extensions()
 
     files = []
     if isinstance(value, str):
-        return is_valid_file_uri(value, extensions=ext)
+        files = [value]
     elif isinstance(value, tuple):
         files = list(value)
     elif isinstance(value, list):
@@ -73,9 +76,9 @@ def valid_vecorel_files(ctx, param, value):
         raise click.BadParameter("No files provided.")
 
     actual_files = []
-    for v in files:
-        if is_valid_file_uri(v, extensions=ext):
-            actual_files.append(v)
+    for file in files:
+        if is_valid_file_uri(file, extensions=ext):
+            actual_files.append(Path(file))
 
     return actual_files
 

@@ -5,7 +5,7 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_vecorel_files
+from .cli.util import valid_vecorel_file
 from .encoding.auto import create_encoding
 from .vecorel.schemas import Schemas
 
@@ -20,7 +20,7 @@ class DescribeFile(BaseCommand):
             "file": click.argument(
                 "file",
                 nargs=1,
-                callback=valid_vecorel_files,
+                callback=valid_vecorel_file,
             ),
             "num": click.option(
                 "--num",
