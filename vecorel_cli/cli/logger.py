@@ -75,7 +75,7 @@ class LoggerMixin:
     def print_pretty(self, data, depth=0, strlen=50):
         formatted = self._format_data(data, depth, strlen).strip()
         formatted = self._escape_cli_text(formatted, escape_tags=False)
-        LoggerMixin.logger.opt(colors=True).log("INFO", f"<n>{formatted}</n>")
+        LoggerMixin.logger.opt(colors=True, raw=True).log("INFO", f"<n>{formatted}</n>\n")
 
     def _escape_cli_text(self, text: str, escape_tags: bool = True) -> str:
         if escape_tags:

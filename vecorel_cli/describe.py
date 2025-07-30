@@ -5,7 +5,7 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_vecorel_file
+from .cli.options import VECOREL_FILE_ARG
 from .encoding.auto import create_encoding
 from .vecorel.schemas import Schemas
 
@@ -17,11 +17,7 @@ class DescribeFile(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "file": click.argument(
-                "file",
-                nargs=1,
-                callback=valid_vecorel_file,
-            ),
+            "source": VECOREL_FILE_ARG,
             "num": click.option(
                 "--num",
                 "-n",
@@ -41,8 +37,8 @@ class DescribeFile(BaseCommand):
 
     @staticmethod
     def get_cli_callback(cmd):
-        def callback(file, num, column):
-            return DescribeFile(file).run(num=num, columns=column)
+        def callback(source, num, column):
+            return DescribeFile(source).run(num=num, columns=column)
 
         return callback
 

@@ -9,8 +9,12 @@ from geopandas import GeoDataFrame
 from pandas import DataFrame
 from shapely.geometry import shape
 
+from ..vecorel.typing import Collection
 from ..vecorel.util import load_file, to_iso8601
 from .base import BaseEncoding
+
+FEATURE_PROPS = ["type", "id", "geometry", "bbox", "properties"]
+FEATURE_COLLECTION_PROPS = ["type", "features"]
 
 
 class GeoJSON(BaseEncoding):
@@ -18,9 +22,8 @@ class GeoJSON(BaseEncoding):
     ext = [".json", ".geojson"]
     crs = "EPSG:4326"
 
-    def __init__(self, file: str):
+    def __init__(self, file: Union[Path, str]):
         super().__init__(file)
-        self.collection = None
 
     @staticmethod
     def load_datatypes(uri: str) -> dict:
@@ -40,82 +43,86 @@ class GeoJSON(BaseEncoding):
     def get_format(self) -> str:
         return "GeoJSON"
 
-    def get_collection(self) -> dict:
-        if self.collection is None:
+    def get_collection(self) -> Collection:
+        if self.collection is None and self.file.exists():
             self.read(num=0)
-        return self.collection or {}
+        return super().get_collection()
 
     # todo: we shouldn't use iterfeature / __geo_interface__ directly
     # it doesn't correctly coverts some data types which are present in the Vecorel SDL
     # e.g. lists of tuples into a dict
 
-    # kwargs:
-    #   indent: int, optional, default None
-    #       If set, the JSON will be pretty-printed with the given indentation level.
+    # indent: int, optional, default None
+    #     If set, the JSON will be pretty-printed with the given indentation level.
     def write(
         self,
         data: GeoDataFrame,
-        collection: dict = {},
         properties: Optional[list[str]] = None,
         schema_map: dict = {},
         missing_schemas: dict = {},
-        **kwargs,
+        dehydrate: bool = True,
+        indent: Optional[int] = None,
     ) -> bool:
-        indent = kwargs.get("indent", None)
-
         self.file.parent.mkdir(parents=True, exist_ok=True)
 
+        if dehydrate:
+            data = self.dehydrate_to_collection(data, properties=properties)
+
         # We need to write GeoJSON in EPSG:4326
-        data = data.to_crs(epsg=4326)
+        data.to_crs(epsg=4326, inplace=True)
 
         # Convert to GeoJSON
-        obj = data.__geo_interface__
-
-        # Remove bbox from the GeoJSON object
-        del obj["bbox"]
+        features = data.__geo_interface__["features"]
 
         # Make Python's GeoJSON variant valid and compliant with Vecorel GeoJSON
-        obj["features"] = list(map(self._fix_geojson, obj["features"]))
+        features = list(map(GeoJSON.fix_geo_interface, features))
 
         # Add collection metadata to the FeatureCollection top-level properties
-        if isinstance(collection, dict):
-            obj.update(collection)
+        collection = self.get_collection()
+        collection["type"] = "FeatureCollection"
+        collection["features"] = features
 
-        self._write_json(obj, self.file, indent=indent)
+        self._write_json(collection, self.file, indent=indent)
 
-    def write_as_features(
+    # indent: int, optional, default None
+    #     If set, the JSON will be pretty-printed with the given indentation level.
+    def write_feature(
         self,
-        data: GeoDataFrame,
-        folder: Union[Path, str],
-        collection: dict = {},
+        data: dict,
         properties: Optional[list[str]] = None,
-        schema_map: dict = {},
-        hydrate: bool = False,
-        **kwargs,
+        indent: Optional[int] = None,
     ) -> bool:
-        if isinstance(folder, str):
-            folder = Path(folder)
-        folder.mkdir(parents=True, exist_ok=True)
+        """
+        Write a single GeoJSON feature to the file.
 
-        i = 1
-        for obj in data.iterfeatures():
-            if (i % 1000) == 0:
-                nl = "\n" if (i % 10000) == 0 else ""
-                self.info(f"{i}...", end=nl)
+        The dict must be reprojected to EPSG:4326.
+        """
+        self.file.parent.mkdir(parents=True, exist_ok=True)
 
-            if isinstance(collection, dict):
-                obj["properties"].update(collection)
+        # If the input is originating from a __geo_interface__ object,
+        # it may not be in the correct format.
+        data = GeoJSON.fix_geo_interface(data.copy())
 
-            obj = self._fix_geojson(obj)
+        # Let's get all collection metadata into the feature itself
+        collection = self.get_collection()
+        for key, value in collection.items():
+            if key not in BaseEncoding.non_collection_properties:
+                data["properties"][key] = value
+            elif key not in FEATURE_PROPS:
+                data[key] = value
 
-            id = obj.get("id", i)
-            path = folder.joinpath(f"{id}.json")
-            self.write_json(obj, path, indent=kwargs.get("indent", None))
+        # Remove properties that are not in the properties list
+        for key, value in data["properties"].items():
+            if properties is not None and key not in properties:
+                del data["properties"][key]
 
-            i += 1
+        self._write_json(data, self.file, indent=indent)
 
     def read(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None, hydrate: bool = False, **kwargs
+        self,
+        num: Optional[int] = None,
+        properties: Optional[list[str]] = None,
+        hydrate: bool = False,
     ) -> GeoDataFrame:
         # note: To read a GeoJSON Feature num and properties must be set to None
         if num is None and properties is None:
@@ -126,41 +133,55 @@ class GeoJSON(BaseEncoding):
             gdf, collection = self._stream_json()
 
         self.collection = collection
+
+        if hydrate:
+            gdf = self.hydrate_from_collection(gdf)
+
         return gdf
 
+    def _collection_from_geojson(self, geojson: dict) -> Collection:
+        """
+        Extract collection metadata (i.e. non-GeoJSON properties) from the GeoJSON object.
+        """
+        core_props = FEATURE_PROPS if geojson["type"] == "Feature" else FEATURE_COLLECTION_PROPS
+        collection = {}
+        for key, value in geojson.items():
+            if key in core_props:
+                continue
+            else:
+                collection[key] = value
+        return collection
+
     def _read_json(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
-    ) -> GeoDataFrame:
-        with open(self.file, "r", **kwargs) as f:
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None
+    ) -> tuple[GeoDataFrame, Collection]:
+        with open(self.file, "r") as f:
             obj = json.load(f)
 
         if not isinstance(obj, dict):
             raise ValueError("JSON file must contain a GeoJSON object")
+        if obj["type"] != "FeatureCollection" and obj["type"] != "Feature":
+            raise ValueError("JSON file must contain a FeatureCollection or Feature")
+
+        collection = self._collection_from_geojson(obj)
+
         if obj["type"] == "Feature":
             obj = {"type": "FeatureCollection", "features": [obj]}
-        if obj["type"] != "FeatureCollection":
-            raise ValueError("JSON file must contain a FeatureCollection")
 
         # Preserve id: https://github.com/geopandas/geopandas/issues/1208
         for feature in obj["features"]:
             if "id" not in feature["properties"]:
                 feature["properties"]["id"] = feature["id"]
 
-        collection = {}
-        # Add non-GeoJSON properties to the collection metadata
-        for key, value in obj.items():
-            if key == "type" or key == "features":
-                continue
-            else:
-                collection[key] = value
-
         gdf = GeoDataFrame.from_features(obj, crs=self.crs, columns=properties)
+        if num is not None:
+            gdf = gdf.head(num)
         return gdf, collection
 
     def _stream_json(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None, **kwargs
-    ) -> GeoDataFrame:
-        with open(self.file, "r", **kwargs) as f:
+        self, num: Optional[int] = None, properties: Optional[list[str]] = None
+    ) -> tuple[GeoDataFrame, Collection]:
+        with open(self.file, "r") as f:
             stream = json_stream.load(f)
             data = {
                 "id": [],
@@ -173,7 +194,7 @@ class GeoJSON(BaseEncoding):
                     if value == "Feature":
                         # The memory efficient way can't easily read individual Features
                         # so we use _read_json() instead
-                        return self._read_json(**kwargs)
+                        return self._read_json()
                     elif value != "FeatureCollection":
                         raise ValueError("JSON file must contain a FeatureCollection")
                     else:
@@ -219,11 +240,12 @@ class GeoJSON(BaseEncoding):
         with open(path, "w") as f:
             json.dump(obj, f, allow_nan=False, indent=indent, cls=VecorelJSONEncoder)
 
-    def _fix_geojson(self, obj):
+    @staticmethod
+    def fix_geo_interface(obj):
         # Fix id
         if "id" in obj["properties"]:
             obj["id"] = obj["properties"]["id"]
-        del obj["properties"]["id"]
+            del obj["properties"]["id"]
 
         # Fix bbox
         if (
@@ -236,21 +258,22 @@ class GeoJSON(BaseEncoding):
             del obj["properties"]["bbox"]
 
         # Remove null values
-        obj["properties"] = self._fix_omit_nulled_properties(obj["properties"])
+        obj["properties"] = GeoJSON._fix_omit_nulled_properties(obj["properties"])
 
         return obj
 
-    def _fix_omit_nulled_properties(self, obj):
+    @staticmethod
+    def _fix_omit_nulled_properties(obj):
         for key in obj.keys():
             if obj[key] is None:
                 del obj[key]
             elif isinstance(obj[key], dict):
-                obj[key] = self._fix_omit_nulled_properties(obj[key])
+                obj[key] = GeoJSON._fix_omit_nulled_properties(obj[key])
             elif isinstance(obj[key], list):
                 for i, item in enumerate(obj[key]):
                     if not isinstance(item, dict):
                         continue
-                    obj[key][i] = self._fix_omit_nulled_properties(item)
+                    obj[key][i] = GeoJSON._fix_omit_nulled_properties(item)
 
         return obj
 

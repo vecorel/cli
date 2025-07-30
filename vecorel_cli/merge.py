@@ -5,7 +5,11 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import CRS, GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
+from .cli.options import (
+    CRS,
+    VECOREL_FILES_ARG,
+    VECOREL_TARGET,
+)
 from .encoding.auto import create_encoding
 from .jsonschema.util import (
     is_schema_empty,
@@ -13,6 +17,7 @@ from .jsonschema.util import (
     pick_schemas,
 )
 from .registry import Registry
+from .vecorel.ops import merge as merge_
 
 
 class MergeDatasets(BaseCommand):
@@ -31,14 +36,8 @@ class MergeDatasets(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "datasets": click.argument("datasets", nargs=-1, type=click.Path(exists=True)),
-            "out": click.option(
-                "--out",
-                "-o",
-                type=click.Path(exists=False),
-                help="Path to write the GeoParquet file to.",
-                required=True,
-            ),
+            "source": VECOREL_FILES_ARG,
+            "target": VECOREL_TARGET(),
             "crs": CRS(MergeDatasets.default_crs),
             "include": click.option(
                 "--include",
@@ -56,37 +55,36 @@ class MergeDatasets(BaseCommand):
                 "excludes",
                 type=click.STRING,
                 multiple=True,
-                help="Default column names to exclude.",
+                help="Core column names to exclude.",
             ),
-            "compression": GEOPARQUET_COMPRESSION,
-            "geoparquet_version": GEOPARQUET_VERSION,
         }
 
     @runnable
     def merge(
         self,
-        datasets,
-        out: Union[Path, str],
+        source: list[Union[Path, str]],
+        target: Union[Path, str],
         crs=None,
         includes=[],
         excludes=[],
-        compression=None,
-        geoparquet_version=False,
     ):
+        encodings = [create_encoding(s) for s in source]
+        if isinstance(target, str):
+            target = Path(target)
         if not crs:
             crs = self.default_crs
-        if isinstance(out, str):
-            out = Path(out)
 
         columns = Registry.core_columns.copy()
         columns.extend(includes)
         columns = list(set(columns) - set(excludes))
 
+        gdf, collection = merge_(encodings, crs=crs, columns=columns)
+
         # Load the datasets
         all_gdf = []
         custom_schemas = {}
         all_schemas = {}
-        for dataset in datasets:
+        for dataset in source:
             # Load the dataset
             encoding = create_encoding(dataset)
             gdf = encoding.read(columns=columns)
@@ -123,18 +121,15 @@ class MergeDatasets(BaseCommand):
             "schemas": all_schemas,
         }
 
+        target = create_encoding(target)
+        target.set_collection(collection)
+
         # Add custom schemas
         custom_schemas = pick_schemas(custom_schemas, columns)
         if not is_schema_empty(custom_schemas):
-            collection["custom_schemas"] = custom_schemas
+            target.set_custom_schemas(custom_schemas)
 
         # Write the merged dataset to the output file
-        target = create_encoding(out)
-        target.write(
-            merged,
-            collections=collection,
-            compression=compression,
-            geoparquet_version=geoparquet_version,
-        )
+        target.write(merged, properties=columns)
 
-        return out
+        return target

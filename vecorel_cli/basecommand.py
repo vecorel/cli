@@ -34,7 +34,7 @@ class BaseCommand(LoggerMixin):
 
     def run(self, *args, **kwargs):
         # Print header
-        self.info(f"{Registry.cli_title} {Registry.cli_version} - {self.cmd_title}", end="\n\n")
+        self.info(f"{Registry.cli_title} {Registry.cli_version} - {self.cmd_title}", end="\n\n", style="bold")
 
         # Detect method to run
         fn = None

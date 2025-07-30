@@ -1,7 +1,7 @@
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
+from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION, VECOREL_TARGET
 from .cli.util import parse_converter_input_files
 from .converters import Converters
 
@@ -16,13 +16,7 @@ class ConvertData(BaseCommand):
         c = Converters()
         return {
             "dataset": click.argument("dataset", nargs=1, type=click.Choice(c.list_ids())),
-            "out": click.option(
-                "--out",
-                "-o",
-                type=click.Path(exists=False),
-                help="Path to write the GeoParquet file to.",
-                required=True,
-            ),
+            "target": VECOREL_TARGET(),
             "input": click.option(
                 "--input",
                 "-i",
@@ -99,7 +93,7 @@ class ConvertData(BaseCommand):
     @runnable
     def convert(
         self,
-        output_file,
+        target,
         input_files=None,
         year=None,
         cache=None,
@@ -119,7 +113,7 @@ class ConvertData(BaseCommand):
             raise Exception("Provide the file through the `-i` parameter.")
 
         self.converter.convert(
-            output_file,
+            target,
             input_files=input_files,
             year=year,
             cache=cache,

@@ -4,8 +4,14 @@ import click
 from geopandas import GeoDataFrame
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import CRS, GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION
-from .cli.util import parse_map, valid_vecorel_file
+from .cli.options import (
+    CRS,
+    GEOPARQUET_COMPRESSION,
+    GEOPARQUET_VERSION,
+    VECOREL_FILE_ARG,
+    VECOREL_TARGET,
+)
+from .cli.util import parse_map
 from .encoding.auto import create_encoding
 from .jsonschema.util import (
     is_schema_empty,
@@ -25,18 +31,8 @@ class ImproveData(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "input": click.argument(
-                "input",
-                nargs=1,
-                callback=valid_vecorel_file,
-            ),
-            "out": click.option(
-                "--out",
-                "-o",
-                type=click.Path(exists=False),
-                help="Path to write to. If not given, overwrites the input file.",
-                default=None,
-            ),
+            "source": VECOREL_FILE_ARG,
+            "target": VECOREL_TARGET(),
             "rename": click.option(
                 "--rename",
                 "-r",
@@ -75,9 +71,9 @@ class ImproveData(BaseCommand):
         }
 
     @runnable
-    def improve_file(self, input, out=None, compression=None, geoparquet_version=None, **kwargs):
-        input_encoding = create_encoding(input)
-        output_encoding = create_encoding(out) if out else input_encoding
+    def improve_file(self, source, target, compression=None, geoparquet_version=None, **kwargs):
+        input_encoding = create_encoding(source)
+        output_encoding = create_encoding(target)
 
         geodata = input_encoding.read()
         collection = input_encoding.get_collection()
@@ -88,7 +84,7 @@ class ImproveData(BaseCommand):
             compression=compression,
             geoparquet_version=geoparquet_version,
         )
-        return out
+        return target
 
     def improve(
         self,
@@ -167,10 +163,10 @@ class ImproveData(BaseCommand):
 
         gdf.rename(columns=rename, inplace=True)
 
-        custom_schemas = collection.get("custom_schemas", {})
+        custom_schemas = collection.get("schemas:custom", {})
         custom_schemas = pick_schemas(custom_schemas, columns, rename)
         if not is_schema_empty(custom_schemas):
-            collection["custom_schemas"] = custom_schemas
+            collection["schemas:custom"] = custom_schemas
 
         return gdf, collection
 

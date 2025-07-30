@@ -57,9 +57,11 @@ def get_files(value, extensions=[]):
 def valid_file(ctx, param, value):
     return is_valid_file_uri(value)
 
+
 def valid_vecorel_file(ctx, param, value) -> Path:
     ext = Registry.get_vecorel_extensions()
     return is_valid_file_uri(value, extensions=ext)
+
 
 def valid_vecorel_files(ctx, param, value) -> list[Path]:
     ext = Registry.get_vecorel_extensions()
@@ -81,14 +83,6 @@ def valid_vecorel_files(ctx, param, value) -> list[Path]:
             actual_files.append(Path(file))
 
     return actual_files
-
-
-def valid_folder(ctx, param, value):
-    """Determine if the input is a local folder."""
-    if os.path.exists(value) and os.path.isdir(value):
-        return value
-    else:
-        raise click.BadParameter("Input must be an existing local folder")
 
 
 def parse_converter_input_files(ctx, param, value):

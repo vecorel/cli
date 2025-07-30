@@ -487,11 +487,11 @@ class BaseConverter:
         self.info("Creating GeoParquet file: " + output_file)
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
+        pq.set_collection(collection)
+        pq.set_custom_schemas(self.missing_schemas)
         pq.write(
             gdf,
-            collection,
             properties=columns,
-            missing_schemas=self.missing_schemas,
             compression=compression,
             geoparquet_version=geoparquet_version,
         )

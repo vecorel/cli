@@ -1,40 +1,60 @@
-import os
 import tempfile
 
-import pytest
-from click.testing import CliRunner
+from pathlib import Path
 from pytest import fixture
 
-from vecorel_cli import create_geojson, validate
+from vecorel_cli.create_geojson import CreateGeoJson
 from vecorel_cli.vecorel.util import load_file
 
 
-@fixture
+@fixture(autouse=True)
 def out_folder():
-    with tempfile.TemporaryDirectory() as out:
-        yield out
+    # Windows can't properly handle NamedTemporaryFile etc.
+    # Let's create a folder instead and then create a file manually.
+    with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+        folder = Path(temp_dir)
+        yield folder
 
 
-@pytest.mark.skip(reason="not implemented yet")
-def test_create_geojson(out_folder):
-    path = "tests/data-files/inspire.parquet"
-    runner = CliRunner()
-    result = runner.invoke(create_geojson, [path, "-o", out_folder, "-f"])
-    assert result.exit_code == 0, result.output
-    assert "Found 1 feature" in result.output
-    assert "Files written to" in result.output
+def test_create_geojson_featurecollection(out_folder: Path):
+    source = "tests/data-files/inspire.parquet"
+    out_file = out_folder / "inspire.json"
 
-    out_file = os.path.join(out_folder, "6467974.json")
-    assert os.path.exists(out_file)
+    gj = CreateGeoJson()
+    gj.create(source, out_file, split=False)
+
+    assert out_file.exists()
+
     geojson = load_file(out_file)
-    assert geojson["id"] == "6467974"
-    assert geojson["type"] == "Feature"
-    assert geojson["properties"]["determination_datetime"] == "2020-01-01T00:00:00Z"
-    assert (
-        geojson["properties"]["inspire:id"]
-        == "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467974"
-    )
-    assert geojson["geometry"]["type"] == "Polygon"
+    assert geojson.get('type') == "FeatureCollection"
+    assert len(geojson.get("features", [])) == 2
 
-    result = runner.invoke(validate, [out_file, "--data"])
-    assert result.exit_code == 0, result.output
+    def checks(features, id):
+        assert any(feature.get('id') == id for feature in features)
+        assert any(feature.get('properties', {}).get("inspire:id") == "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467974" for feature in features)
+
+    checks(geojson.get("features", []), "6467974")
+    checks(geojson.get("features", []), "6467975")
+
+
+def test_create_geojson_features(out_folder: Path):
+    source = "tests/data-files/inspire.parquet"
+
+    gj = CreateGeoJson()
+    gj.create(source, out_folder, split=True)
+
+    def check_file(id_):
+        out_file = out_folder / f"{id_}.json"
+        assert out_file.exists()
+
+        geojson = load_file(out_file)
+        assert geojson.get("type") == "Feature"
+        assert geojson.get('id') == id_
+        assert geojson.get('properties', {}).get("inspire:id") == f"https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/{id_}"
+
+        assert isinstance(geojson.get("schemas"), dict)
+        assert isinstance(geojson.get("schemas").get('inspire'), list)
+
+
+    check_file("6467974")
+    check_file("6467975")

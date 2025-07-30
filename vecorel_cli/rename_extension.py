@@ -5,7 +5,6 @@ from typing import Optional
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_folder
 from .create_geoparquet import CreateGeoParquet
 
 
@@ -30,7 +29,11 @@ class RenameExtension(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "folder": click.argument("folder", nargs=1, callback=valid_folder),
+            "folder": click.argument(
+                "folder",
+                nargs=1,
+                type=click.Path(exists=True, file_okay=False, resolve_path=True),
+            ),
             "title": click.option(
                 "--title",
                 "-t",

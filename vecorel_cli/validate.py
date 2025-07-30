@@ -214,12 +214,12 @@ class ValidateData(BaseCommand):
         if not self.validate_geoparquet_schema(pq):
             return False
 
-        # Validate fiboa metadata in Parquet header
-        if b"fiboa" not in pq.get_metadata():
-            self.error("Parquet file schema does not have a 'fiboa' key")
+        # Validate collection metadata in Parquet header
+        if b"collection" not in pq.get_metadata():
+            self.error("Parquet file schema does not have a 'collection' key")
             return False
 
-        collection = pq.get_collection()
+        # collection = pq.get_collection()
         schemas = pq.get_schemas()
 
         valid, version, core_schema_uri, schemas = self.validate_schemas(schemas, config)
@@ -244,10 +244,10 @@ class ValidateData(BaseCommand):
             schemas = merge_schemas(schemas, ext)
 
         # Add custom schemas
-        custom_schemas = collection.get("custom_schemas", {})
+        custom_schemas = pq.get_custom_schemas()
         schemas = merge_schemas(schemas, custom_schemas)
 
-        parquet_schema = pq.get_pq_schema()
+        parquet_schema = pq.get_parquet_schema()
         # Check that all required fields are present
         for key in schemas.get("required", []):
             if key not in parquet_schema.names:

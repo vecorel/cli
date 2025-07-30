@@ -10,10 +10,11 @@ from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 
 from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
-from ..jsonschema.util import is_schema_empty, merge_schemas
+from ..jsonschema.util import merge_schemas
 from ..parquet.geopandas import to_parquet
 from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
 from ..vecorel.schemas import Schemas
+from ..vecorel.typing import Collection
 from ..vecorel.util import get_fs, load_file
 from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
@@ -24,22 +25,14 @@ class GeoParquet(BaseEncoding):
     ext = [".parquet", ".geoparquet"]
     row_group_size = 25000
 
-    def __init__(self, file: Union[Path, str, NativeFile]):
-        self.file: Optional[Path] = None
-        self.pa_file: Optional[NativeFile] = None
+    def __init__(self, file: Union[Path, str]):
+        super().__init__(file)
         self.pq_metadata = None
         self.pq_schema = None
 
-        if not isinstance(file, NativeFile):
-            self.file = Path(file)
-            if self.file.exists():
-                self.pa_file = self._get_pyarrow_file(file)
-        else:
-            self.pa_file = file
-
     def get_summary(self) -> dict:
         summary = super().get_summary()
-        metadata = self.get_pq_metadata()
+        metadata = self.get_parquet_metadata()
         summary["Columns"] = metadata.num_columns
         summary["Rows"] = metadata.num_rows
         summary["Row Groups"] = metadata.num_row_groups
@@ -68,64 +61,69 @@ class GeoParquet(BaseEncoding):
             version = geo.get("version", "unknown")
             return f"GeoParquet, version {version}"
 
-    def get_collection(self) -> dict:
-        collection = self._parse_metadata(b"collection")
-        return collection if collection else {}
+    def get_collection(self) -> Collection:
+        if self.collection is None and self.file.exists():
+            self.collection = self._parse_metadata(b"collection")
+        return super().get_collection()
 
     def get_properties(self) -> Optional[dict[str, list[str]]]:
-        schema = self.get_pq_schema()
-        if schema is None:
-            return None
+        schema = self.get_parquet_schema().to_arrow_schema()
         columns = {}
-        for field in schema:
+        for name in schema.names:
+            field = schema.field(name)
             types = [str(field.type)]
             if field.nullable:
                 types.append("null")
-            columns[field.name] = types
+            columns[name] = types
         return columns
 
     def get_metadata(self) -> dict:
-        metadata = self.get_pq_metadata()
-        return metadata.to_dict()
+        schema = self.get_parquet_schema().to_arrow_schema()
+        return schema.metadata
 
-    def get_pq_metadata(self) -> pq.FileMetaData:
+    def _get_pg_file(self) -> pq.ParquetFile:
+        pa_file = self._get_pyarrow_file()
+        return pq.ParquetFile(pa_file)
+
+    def get_parquet_metadata(self) -> pq.FileMetaData:
         if self.pq_metadata is None:
-            self.pq_metadata = pq.read_metadata(self.pa_file)
+            pg_file = self._get_pg_file()
+            self.pq_metadata = pg_file.metadata
 
         return self.pq_metadata
 
-    def get_pq_schema(self) -> pq.ParquetSchema:
+    def get_parquet_schema(self) -> pq.ParquetSchema:
         if self.pq_schema is None:
-            self.pq_schema = pq.read_schema(self.pa_file)
+            pg_file = self._get_pg_file()
+            self.pq_schema = pg_file.schema
 
         return self.pq_schema
 
-    # kwargs:
-    #   geoparquet_version: bool, optional, default False
-    #       If True, writes the data in GeoParquet 1.0.0 format,
-    #       otherwise in GeoParquet 1.1.0 format.
-    #   compression: str, optional, default "brotli"
-    #       Compression algorithm to use, defaults to "brotli".
-    #       Other options are "snappy", "gzip", "lz4", "zstd", etc.
+    # geoparquet_version: bool, optional, default False
+    #     If True, writes the data in GeoParquet 1.0.0 format,
+    #     otherwise in GeoParquet 1.1.0 format.
+    # compression: str, optional, default "brotli"
+    #     Compression algorithm to use, defaults to "brotli".
+    #     Other options are "snappy", "gzip", "lz4", "zstd", etc.
     def write(
         self,
         data: GeoDataFrame,
-        collection: dict = {},
         properties: Optional[list[str]] = None,
         schema_map: dict = {},
-        missing_schemas: dict = {},
-        hydrate: bool = False,
-        **kwargs,
+        dehydrate: bool = True,
+        compression: Optional[str] = None,
+        geoparquet_version: Optional[str] = None,
     ) -> bool:
-        compression = kwargs.get("compression")
         if compression is None:
             compression = "brotli"
 
-        gp_version = kwargs.get("geoparquet_version")
-        if gp_version not in GEOPARQUET_VERSIONS:
-            gp_version = GEOPARQUET_DEFAULT_VERSION
+        if geoparquet_version not in GEOPARQUET_VERSIONS:
+            geoparquet_version = GEOPARQUET_DEFAULT_VERSION
 
         self.file.parent.mkdir(parents=True, exist_ok=True)
+
+        if dehydrate:
+            data = self.dehydrate_to_collection(data, properties=properties)
 
         if properties is None:
             properties = list(data.columns)
@@ -140,14 +138,11 @@ class GeoParquet(BaseEncoding):
 
         # Load the data schema
         vecorel_schema = load_file(Schemas.spec_schema.format(version=vecorel_version))
+        missing_schemas = self.get_custom_schemas()
         schemas = merge_schemas(missing_schemas, vecorel_schema)
 
-        # Add the custom schemas to the collection for future use
-        if not is_schema_empty(missing_schemas):
-            collection = collection.copy()
-            collection["custom_schemas"] = missing_schemas
-
         # todo: Load all extension schemas
+        collection = self.get_collection()
         extensions = {}
         if "schemas" in collection and isinstance(collection["schemas"], list):
             for ext in collection["schemas"]:
@@ -228,7 +223,7 @@ class GeoParquet(BaseEncoding):
 
         # Define the schema for the Parquet file
         pq_schema = pa.schema(pq_fields)
-        pq_schema = pq_schema.with_metadata({"fiboa": json.dumps(collection).encode("utf-8")})
+        pq_schema = pq_schema.with_metadata({"collection": json.dumps(collection).encode("utf-8")})
 
         if compression is None:
             compression = "brotli"
@@ -241,9 +236,9 @@ class GeoParquet(BaseEncoding):
             index=False,
             coerce_timestamps="ms",
             compression=compression,
-            schema_version=gp_version,
+            schema_version=geoparquet_version,
             row_group_size=self.row_group_size,
-            write_covering_bbox=bool(gp_version != "1.0.0"),
+            write_covering_bbox=bool(geoparquet_version != "1.0.0"),
         )
 
         return True
@@ -252,28 +247,37 @@ class GeoParquet(BaseEncoding):
     # if num = None => kwargs go into pq.read_table
     # if num is set => kwargs go into pg.ParquetFile
     def read(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None, hydrate: bool = False, **kwargs
+        self,
+        num: Optional[int] = None,
+        properties: Optional[list[str]] = None,
+        hydrate: bool = False,
     ) -> GeoDataFrame:
         if properties is not None and len(properties) == 0:
             properties = None
 
         if num is None:
-            table = pq.read_table(self.pa_file, columns=properties, **kwargs)
+            pa_file = self._get_pyarrow_file()
+            table = pq.read_table(pa_file, columns=properties)
         else:
-            pf = pq.ParquetFile(self.pa_file, **kwargs)
+            pf = self._get_pg_file()
             rows = next(pf.iter_batches(batch_size=num, columns=properties))
             table = pa.Table.from_batches([rows])
 
-        return _arrow_to_geopandas(table)
+        gdf = _arrow_to_geopandas(table)
 
-    def _get_pyarrow_file(self, file: Union[Path, str]) -> NativeFile:
-        if isinstance(file, Path):
-            file = str(file)
-        pyarrow_fs = PyFileSystem(FSSpecHandler(get_fs(file)))
-        return pyarrow_fs.open_input_file(file)
+        if hydrate:
+            gdf = self.hydrate_from_collection(gdf)
+
+        return gdf
+
+    def _get_pyarrow_file(self) -> NativeFile:
+        filepath = str(self.file)
+        fs = get_fs(filepath)
+        pyarrow_fs = PyFileSystem(FSSpecHandler(fs))
+        return pyarrow_fs.open_input_file(filepath)
 
     def _parse_metadata(self, key) -> Optional[dict]:
-        metadata = self.get_pq_metadata().to_dict()
+        metadata = self.get_metadata()
         if key in metadata:
             return json.loads(metadata[key].decode("utf-8"))
         else:

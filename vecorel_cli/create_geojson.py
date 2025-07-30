@@ -5,7 +5,7 @@ from typing import Optional, Union
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import valid_vecorel_file
+from .cli.options import PROPERTIES, VECOREL_FILE_ARG, VECOREL_TARGET
 from .encoding.auto import create_encoding
 from .encoding.geojson import GeoJSON
 
@@ -19,19 +19,11 @@ class CreateGeoJson(BaseCommand):
     @staticmethod
     def get_cli_args():
         return {
-            "source": click.argument(
-                "source",
-                nargs=1,
-                callback=valid_vecorel_file,
-            ),
-            "out": click.option(
-                "--out",
-                "-o",
-                type=click.Path(exists=False),
-                help="Folder or file to write the data to.",
-                required=True,
-            ),
+            "source": VECOREL_FILE_ARG,
+            "target": VECOREL_TARGET(folder=True),
+            "properties": PROPERTIES,
             "features": click.option(
+                "split",
                 "--features",
                 "-f",
                 is_flag=True,
@@ -57,8 +49,10 @@ class CreateGeoJson(BaseCommand):
 
     @runnable
     def create(
+        self,
         source: Union[Path, str],
         target: Union[Path, str],
+        properties: Optional[Union[tuple[str], list[str]]] = None,
         split: bool = False,
         num: Optional[int] = None,
         indent: Optional[int] = None,
@@ -67,22 +61,37 @@ class CreateGeoJson(BaseCommand):
             source = Path(source)
         if isinstance(target, str):
             target = Path(target)
+        if not split and target.is_dir():
+            target = target / "features.json"
+        if isinstance(properties, tuple):
+            properties = list(properties)
 
         # Read source data
         source_encoding = create_encoding(source)
+        geodata = source_encoding.read(num=num, properties=properties, hydrate=split)
         collection = source_encoding.get_collection()
-        geodata = source_encoding.read(num=num)
 
         # Write to target
         if split:
             # GeoJSON features
-            GeoJSON().write_as_features(geodata, target, collection, indent=indent)
+            geodata.to_crs(epsg=4326, inplace=True)
+            i = 0
+            for obj in geodata.iterfeatures():
+                i += 1
+
+                obj = GeoJSON.fix_geo_interface(obj)
+                id_ = obj.get("id", i)
+                target_file = target / f"{id_}.json"
+
+                print(target_file.absolute())
+
+                target_encoding = GeoJSON(target_file)
+                target_encoding.set_collection(collection)
+                target_encoding.write_feature(obj, properties=properties, indent=indent)
         else:
             # GeoJSON feature collection
-            if os.path.isdir(target):
-                target = os.path.join(target, "features.json")
-
             target_encoding = GeoJSON(target)
-            target_encoding.write(geodata, collection, indent=indent)
+            target_encoding.set_collection(collection)
+            target_encoding.write(geodata, properties=properties, indent=indent)
 
         return target
