@@ -1,20 +1,56 @@
-import pytest
-from click.testing import CliRunner
+import sys
 
-from vecorel_cli import describe
+from loguru import logger
+
+from vecorel_cli.describe import DescribeFile
 
 
-@pytest.mark.skip(reason="not implemented yet")
-def test_describe():
+def test_describe_geoparquet(capsys):
+    # todo: use fixture
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+
     path = "tests/data-files/inspire.parquet"
-    runner = CliRunner()
-    result = runner.invoke(describe, [path])
-    assert result.exit_code == 0, result.output
-    assert "Geometry columns: geometry" in result.output
-    assert "- https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in result.output
-    assert "== SCHEMA (columns: 4) ==" in result.output
-    assert "determination_datetime: timestamp[ms, tz=UTC]" in result.output
-    assert "geometry: binary not null" in result.output
-    assert "id: string not null" in result.output
-    assert "inspire:id: string not null" in result.output
-    assert "DATA (rows: 1, groups: 1)" in result.output
+    describe = DescribeFile(path)
+    describe.describe()
+
+    out, err = capsys.readouterr()
+
+    assert "Format: GeoParquet, version 1.1.0" in out
+    assert "- https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in out
+    assert "Columns: 8" in out
+    assert "Rows: 2" in out
+    assert "Row Groups: 1" in out
+    assert "Version: 0.1.0" in out
+    assert "https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in out
+
+    assert "geometry: binary" in out
+    assert "inspire:id: string" in out
+    assert "collection: string" in out
+    assert "id: string" in out
+    assert "bbox: struct<xmin: double, ymin: double, xmax: double, ymax: double>" in out
+
+    assert "determination_datetime: 2020-01-01T00:00:00Z" in out
+    assert "collection: inspire" in out
+
+    assert "6467974" in out
+    assert "6467975" in out
+
+
+def test_describe_geojson(capsys):
+    # todo: use fixture
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+
+    path = "tests/data-files/inspire.json"
+    describe = DescribeFile(path)
+    describe.describe()
+
+    out, err = capsys.readouterr()
+
+    assert "Format: GeoJSON" in out
+    assert "Version: 0.1.0" in out
+    assert "https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in out
+    assert "File format is not columnar" in out
+    assert "No collection metadata found" in out
+    assert "6467974" in out

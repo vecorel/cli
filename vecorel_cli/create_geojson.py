@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Optional, Union
 
@@ -82,8 +81,6 @@ class CreateGeoJson(BaseCommand):
                 obj = GeoJSON.fix_geo_interface(obj)
                 id_ = obj.get("id", i)
                 target_file = target / f"{id_}.json"
-
-                print(target_file.absolute())
 
                 target_encoding = GeoJSON(target_file)
                 target_encoding.set_collection(collection)

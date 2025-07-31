@@ -1,6 +1,6 @@
 import tempfile
-
 from pathlib import Path
+
 from pytest import fixture
 
 from vecorel_cli.create_geojson import CreateGeoJson
@@ -26,12 +26,16 @@ def test_create_geojson_featurecollection(out_folder: Path):
     assert out_file.exists()
 
     geojson = load_file(out_file)
-    assert geojson.get('type') == "FeatureCollection"
+    assert geojson.get("type") == "FeatureCollection"
     assert len(geojson.get("features", [])) == 2
 
     def checks(features, id):
-        assert any(feature.get('id') == id for feature in features)
-        assert any(feature.get('properties', {}).get("inspire:id") == "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467974" for feature in features)
+        assert any(feature.get("id") == id for feature in features)
+        assert any(
+            feature.get("properties", {}).get("inspire:id")
+            == "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467974"
+            for feature in features
+        )
 
     checks(geojson.get("features", []), "6467974")
     checks(geojson.get("features", []), "6467975")
@@ -49,12 +53,14 @@ def test_create_geojson_features(out_folder: Path):
 
         geojson = load_file(out_file)
         assert geojson.get("type") == "Feature"
-        assert geojson.get('id') == id_
-        assert geojson.get('properties', {}).get("inspire:id") == f"https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/{id_}"
+        assert geojson.get("id") == id_
+        assert (
+            geojson.get("properties", {}).get("inspire:id")
+            == f"https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/{id_}"
+        )
 
         assert isinstance(geojson.get("schemas"), dict)
-        assert isinstance(geojson.get("schemas").get('inspire'), list)
-
+        assert isinstance(geojson.get("schemas").get("inspire"), list)
 
     check_file("6467974")
     check_file("6467975")

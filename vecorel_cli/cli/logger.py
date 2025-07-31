@@ -53,9 +53,6 @@ class LoggerMixin:
         if not isinstance(message, str):
             message = str(message)
 
-        # Escape special characters
-        message = self._escape_cli_text(message)
-
         # Handle indentation (including multiple lines)
         message = self._indent_text(message, indent)
 
@@ -65,8 +62,13 @@ class LoggerMixin:
         if style is not None:
             message = f"<{style}>{message}</{style}>"
 
+        # Default template for the message
+        message = start + f"<level>{message}</level>" + end
+
         # Log it
-        LoggerMixin.logger.opt(colors=True).bind(start=start, end=end).log(level.upper(), message)
+        LoggerMixin.logger.opt(colors=True, raw=True).bind(start=start, end=end).log(
+            level.upper(), message
+        )
 
     def exception(self, e: Exception):
         LoggerMixin.logger.exception(e)
@@ -74,14 +76,7 @@ class LoggerMixin:
     # strlen = -1 disables truncation
     def print_pretty(self, data, depth=0, strlen=50):
         formatted = self._format_data(data, depth, strlen).strip()
-        formatted = self._escape_cli_text(formatted, escape_tags=False)
         LoggerMixin.logger.opt(colors=True, raw=True).log("INFO", f"<n>{formatted}</n>\n")
-
-    def _escape_cli_text(self, text: str, escape_tags: bool = True) -> str:
-        if escape_tags:
-            text = text.replace("<", "\\<")
-
-        return text.replace("{", "{{").replace("}", "}}")
 
     def _indent_text(self, text: str, indent: str) -> str:
         indent2 = "\n" + " " * len(indent)

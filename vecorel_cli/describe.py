@@ -27,6 +27,7 @@ class DescribeFile(BaseCommand):
                 default=10,
             ),
             "column": click.option(
+                "properties",
                 "--column",
                 "-c",
                 type=click.STRING,
@@ -37,8 +38,8 @@ class DescribeFile(BaseCommand):
 
     @staticmethod
     def get_cli_callback(cmd):
-        def callback(source, num, column):
-            return DescribeFile(source).run(num=num, columns=column)
+        def callback(source, num, properties):
+            return DescribeFile(source).run(num=num, properties=properties)
 
         return callback
 
@@ -55,12 +56,12 @@ class DescribeFile(BaseCommand):
     def describe(
         self,
         num: int = 10,
-        columns: Optional[Union[list[str], tuple[str]]] = None,
+        properties: Optional[Union[list[str], tuple[str]]] = None,
     ):
-        if isinstance(columns, tuple):
-            columns = list(columns)
-        if len(columns) == 0:
-            columns = None
+        if isinstance(properties, tuple):
+            properties = list(properties)
+        if not properties:
+            properties = None
 
         self.success("== FILE SUMMARY ==", style="bold")
         self.summarize()
@@ -75,7 +76,7 @@ class DescribeFile(BaseCommand):
         self.collection()
 
         self.success("== PER-GEOMETRY DATA ==", start="\n", style="bold")
-        self.data(num, columns)
+        self.data(num, properties=properties)
 
     def summarize(self):
         summary = self.encoding.get_summary()
@@ -112,13 +113,13 @@ class DescribeFile(BaseCommand):
         else:
             self.info("File format is not columnar")
 
-    def data(self, num: int = 10, columns: Optional[list[str]] = None):
+    def data(self, num: int = 10, properties: Optional[list[str]] = None):
         if num > 0:
             # Make it so that everything is shown, don't output "..." if there are too many columns or rows
             pd.set_option("display.max_columns", None)
             pd.set_option("display.max_rows", None)
             # Load data
-            gdf = self.encoding.read(num=num, columns=columns)
+            gdf = self.encoding.read(num=num, properties=properties)
             # Print to console
             self.info(gdf.head(num))
         else:
