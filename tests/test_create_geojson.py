@@ -1,24 +1,12 @@
-import tempfile
 from pathlib import Path
-
-from pytest import fixture
 
 from vecorel_cli.create_geojson import CreateGeoJson
 from vecorel_cli.vecorel.util import load_file
 
 
-@fixture(autouse=True)
-def out_folder():
-    # Windows can't properly handle NamedTemporaryFile etc.
-    # Let's create a folder instead and then create a file manually.
-    with tempfile.TemporaryDirectory() as temp_dir:
-        folder = Path(temp_dir)
-        yield folder
-
-
-def test_create_geojson_featurecollection(out_folder: Path):
+def test_create_geojson_featurecollection(tmp_folder: Path):
     source = "tests/data-files/inspire.parquet"
-    out_file = out_folder / "inspire.json"
+    out_file = tmp_folder / "inspire.json"
 
     gj = CreateGeoJson()
     gj.create(source, out_file, split=False)
@@ -41,14 +29,14 @@ def test_create_geojson_featurecollection(out_folder: Path):
     checks(geojson.get("features", []), "6467975")
 
 
-def test_create_geojson_features(out_folder: Path):
+def test_create_geojson_features(tmp_folder: Path):
     source = "tests/data-files/inspire.parquet"
 
     gj = CreateGeoJson()
-    gj.create(source, out_folder, split=True)
+    gj.create(source, tmp_folder, split=True)
 
     def check_file(id_):
-        out_file = out_folder / f"{id_}.json"
+        out_file = tmp_folder / f"{id_}.json"
         assert out_file.exists()
 
         geojson = load_file(out_file)

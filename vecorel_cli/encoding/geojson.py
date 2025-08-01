@@ -18,7 +18,9 @@ FEATURE_COLLECTION_PROPS = ["type", "features"]
 
 
 class GeoJSON(BaseEncoding):
-    datatypes_schema_uri = "https://fiboa.github.io/specification/v{version}/geojson/datatypes.json"
+    datatypes_schema_uri = (
+        "https://vecorel.github.io/specification/v{version}/geojson/datatypes.json"
+    )
     ext = [".json", ".geojson"]
     crs = "EPSG:4326"
 

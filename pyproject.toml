@@ -62,8 +62,10 @@ vecorel-cli = {path = ".", editable = true}
 
 [tool.pixi.feature.dev.dependencies]
 pytest = ">=8.4.1,<9.0.0"
+pytest-cov = ">=6.0.0,<7.0.0"
 pre-commit = ">=4.2.0,<5.0.0"
 ruff = "==0.9.6"
+GitPython = ">=3.0.0,<4.0.0"
 
 [tool.pixi.feature.dev.pypi-dependencies]
 build = ">=1.0.0"
@@ -81,7 +83,7 @@ all = {features = ["dev", "cloud"], solve-group = "default"}
 [tool.pixi.tasks]
 # Development tasks
 install-dev = "pip install -e ."
-test = "pytest"
+test = "pytest --cov=vecorel_cli --cov-report=term-missing --cov-report=html --cov-report=xml"
 lint = "ruff check --fix"
 format = "ruff format"
 check = {depends-on = ["lint", "format", "test"]}
@@ -131,4 +133,32 @@ docstring-code-format = false
 docstring-code-line-length = "dynamic"
 
 [tool.coverage.run]
-omit = []
+source = ["vecorel_cli"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/.*",
+]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
+fail_under = 50
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"

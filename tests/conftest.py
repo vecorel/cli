@@ -17,6 +17,15 @@ def tmp_parquet_file():
         yield file
 
 
+@fixture
+def tmp_folder():
+    # Windows can't properly handle NamedTemporaryFile etc.
+    # Let's create a folder instead and then create a file manually.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        folder = Path(temp_dir)
+        yield folder
+
+
 def raiser(message):
     def _method(*args, **kwargs):
         raise Exception(message)
