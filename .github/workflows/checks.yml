@@ -26,6 +26,11 @@ jobs:
           - "3.13"
 
     steps:
+    # Pixi should manage Python versions, but it doesn't work on Windows in GitHub Actions
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - uses: actions/checkout@v4
 
     - name: Set up pixi
@@ -54,6 +59,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Pixi should manage Python versions, but it doesn't work on Windows in GitHub Actions
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - uses: actions/checkout@v4
 
     - name: Set up pixi
