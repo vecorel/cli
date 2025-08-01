@@ -20,7 +20,7 @@ class Registry:
     package: str = "vecorel_cli"
 
     # todo: in fiboa CLI add "area", "perimeter", "determination_datetime", "determination_method"
-    core_columns = [
+    core_properties = [
         "id",
         "geometry",
         "collection",

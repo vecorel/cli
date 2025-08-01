@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Union
 
 import click
-import pandas as pd
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import (
@@ -11,11 +10,6 @@ from .cli.options import (
     VECOREL_TARGET,
 )
 from .encoding.auto import create_encoding
-from .jsonschema.util import (
-    is_schema_empty,
-    merge_schemas,
-    pick_schemas,
-)
 from .registry import Registry
 from .vecorel.ops import merge as merge_
 
@@ -45,9 +39,9 @@ class MergeDatasets(BaseCommand):
                 "includes",
                 type=click.STRING,
                 multiple=True,
-                help="Additional column names to include.",
+                help="Properties to include in addition to the core properties.",
                 show_default=True,
-                default=Registry.core_columns,
+                default=Registry.core_properties,
             ),
             "exclude": click.option(
                 "--exclude",
@@ -55,7 +49,7 @@ class MergeDatasets(BaseCommand):
                 "excludes",
                 type=click.STRING,
                 multiple=True,
-                help="Core column names to exclude.",
+                help="Core properties to exclude.",
             ),
         }
 
@@ -74,62 +68,14 @@ class MergeDatasets(BaseCommand):
         if not crs:
             crs = self.default_crs
 
-        columns = Registry.core_columns.copy()
-        columns.extend(includes)
-        columns = list(set(columns) - set(excludes))
+        properties = Registry.core_properties.copy()
+        properties.extend(includes)
+        properties = list(set(properties) - set(excludes))
 
-        gdf, collection = merge_(encodings, crs=crs, columns=columns)
-
-        # Load the datasets
-        all_gdf = []
-        custom_schemas = {}
-        all_schemas = {}
-        for dataset in source:
-            # Load the dataset
-            encoding = create_encoding(dataset)
-            gdf = encoding.read(columns=columns)
-            collection = encoding.get_collection()
-
-            # Change the CRS if necessary
-            gdf.to_crs(crs=crs, inplace=True)
-
-            # Add collection column to each dataset
-            if collection is not None and "collection" in collection:
-                gdf["collection"] = collection["collection"]
-            elif "collection" not in gdf.columns:
-                gdf["collection"] = str(dataset)
-
-            # todo: add more checks
-            schemas = collection.get("schemas", {})
-            all_schemas.update(schemas)
-
-            # Merge custom schemas
-            custom_schema = collection.get("custom_schemas", {})
-            custom_schemas = merge_schemas(custom_schemas, custom_schema)
-
-            all_gdf.append(gdf)
-
-        merged = pd.concat(all_gdf, ignore_index=True)
-
-        # Remove empty columns
-        merged.dropna(axis=1, how="all", inplace=True)
-        columns = list(merged.columns)
-        columns.sort()
-
-        # Create collection metadata
-        collection = {
-            "schemas": all_schemas,
-        }
+        gdf, collection = merge_(encodings, crs=crs, properties=properties)
 
         target = create_encoding(target)
         target.set_collection(collection)
-
-        # Add custom schemas
-        custom_schemas = pick_schemas(custom_schemas, columns)
-        if not is_schema_empty(custom_schemas):
-            target.set_custom_schemas(custom_schemas)
-
-        # Write the merged dataset to the output file
-        target.write(merged, properties=columns)
+        target.write(gdf, properties=properties)
 
         return target

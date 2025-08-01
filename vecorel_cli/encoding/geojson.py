@@ -127,10 +127,11 @@ class GeoJSON(BaseEncoding):
         # note: To read a GeoJSON Feature num and properties must be set to None
         if num is None and properties is None:
             # The memory intensive way: read the whole file into memory
-            gdf, collection = self._read_json()
+            # todo: Should we remove this and always use the streaming method?
+            gdf, collection = self._read_json(num=num, properties=properties)
         else:
             # The memory efficient way: stream the file
-            gdf, collection = self._stream_json()
+            gdf, collection = self._stream_json(num=num, properties=properties)
 
         self.collection = collection
 
@@ -194,7 +195,7 @@ class GeoJSON(BaseEncoding):
                     if value == "Feature":
                         # The memory efficient way can't easily read individual Features
                         # so we use _read_json() instead
-                        return self._read_json()
+                        return self._read_json(num=num, properties=properties)
                     elif value != "FeatureCollection":
                         raise ValueError("JSON file must contain a FeatureCollection")
                     else:

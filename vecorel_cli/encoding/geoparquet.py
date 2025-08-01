@@ -255,6 +255,11 @@ class GeoParquet(BaseEncoding):
         if properties is not None and len(properties) == 0:
             properties = None
 
+        if properties is not None:
+            # Make sure we ignore properties that don't exist
+            existing_properties = set(self.get_properties().keys())
+            properties = list(set(properties) & existing_properties)
+
         if num is None:
             pa_file = self._get_pyarrow_file()
             table = pq.read_table(pa_file, columns=properties)

@@ -1,33 +1,45 @@
-from glob import glob
+from pathlib import Path
 
-import pyarrow.parquet as pq
-import pytest
-from click.testing import CliRunner
-
-from vecorel_cli import merge, validate
-
-"""
-Create input files with:
-
-$ for i in at be_wal nl; do vec convert $i -o tests/data-files/merge/$i.parquet -c tests/data-files/convert/$i; done
-"""
+from vecorel_cli.encoding.geoparquet import GeoParquet
+from vecorel_cli.merge import MergeDatasets
 
 
-@pytest.mark.skip(reason="not implemented yet")
-def test_merge(tmp_file):
-    # merge files in directory
-    files = glob("tests/data-files/merge/*.parquet")
-    runner = CliRunner()
-    args = files + ["-o", tmp_file.name]
-    result = runner.invoke(merge, args)
-    assert result.exit_code == 0, result.output
+def test_merge(tmp_parquet_file: Path):
+    files = [
+        "tests/data-files/inspire.parquet",
+        "tests/data-files/admin.json",
+    ]
 
-    # Merged parquet file should be valid
-    result = runner.invoke(validate, [tmp_file.name, "--data"])
-    assert result.exit_code == 0, result.output
+    crs = "EPSG:25832"
 
-    data = pq.read_table(tmp_file.name)
-    assert data.num_rows == 112
+    merge = MergeDatasets()
+    merge.merge(
+        source=files,
+        target=tmp_parquet_file,
+        crs=crs,
+        includes=["inspire:id", "admin:country_code", "admin:subdivision_code"],
+        excludes=[],
+    )
 
-    fields = {f.name for f in pq.read_table(tmp_file.name).schema}
-    assert {"area", "determination_datetime", "id", "geometry"}.issubset(fields)
+    gp = GeoParquet(tmp_parquet_file)
+
+    collection = gp.get_collection()
+    cids = list(collection.get("schemas", {}).keys())
+    cids.sort()
+    assert cids == ["de", "inspire"]
+
+    data = gp.read()
+    assert len(data) == 3
+    assert data.crs == crs
+
+    columns = list(gp.get_properties().keys())
+    columns.sort()
+    assert columns == [
+        "admin:country_code",
+        "admin:subdivision_code",
+        "bbox",
+        "collection",
+        "geometry",
+        "id",
+        "inspire:id",
+    ]

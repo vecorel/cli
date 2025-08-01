@@ -11,7 +11,7 @@ from vecorel_cli.vecorel.util import load_file
 def out_folder():
     # Windows can't properly handle NamedTemporaryFile etc.
     # Let's create a folder instead and then create a file manually.
-    with tempfile.TemporaryDirectory(delete=False) as temp_dir:
+    with tempfile.TemporaryDirectory() as temp_dir:
         folder = Path(temp_dir)
         yield folder
 

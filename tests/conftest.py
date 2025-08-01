@@ -1,4 +1,5 @@
 import tempfile
+from pathlib import Path
 
 from pytest import fixture
 
@@ -6,9 +7,14 @@ import vecorel_cli.vecorel.util as util
 
 
 @fixture
-def tmp_file():
-    with tempfile.NamedTemporaryFile() as out:
-        yield out
+def tmp_parquet_file():
+    # Windows can't properly handle NamedTemporaryFile etc.
+    # Let's create a folder instead and then create a file manually.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        folder = Path(temp_dir)
+        file = folder / "test.parquet"
+
+        yield file
 
 
 def raiser(message):

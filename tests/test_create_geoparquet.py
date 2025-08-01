@@ -1,33 +1,19 @@
-import tempfile
 from pathlib import Path
-
-from pytest import fixture
 
 from vecorel_cli.create_geoparquet import CreateGeoParquet
 from vecorel_cli.encoding.geoparquet import GeoParquet
 
 
-@fixture(autouse=True)
-def out_file():
-    # Windows can't properly handle NamedTemporaryFile etc.
-    # Let's create a folder instead and then create a file manually.
-    with tempfile.TemporaryDirectory() as temp_dir:
-        folder = Path(temp_dir)
-        file = folder / "test.parquet"
-
-        yield file
-
-
-def test_create_geoparquet(out_file: Path):
+def test_create_geoparquet(tmp_parquet_file: Path):
     inputs = [
         "tests/data-files/inspire.json",
         "tests/data-files/inspire2.json",
     ]
     creator = CreateGeoParquet()
-    creator.create(inputs, out_file)
-    assert out_file.exists()
+    creator.create(inputs, tmp_parquet_file)
+    assert tmp_parquet_file.exists()
 
-    gp = GeoParquet(out_file)
+    gp = GeoParquet(tmp_parquet_file)
 
     collection = gp.get_collection()
     assert "schemas" in collection

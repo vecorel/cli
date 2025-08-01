@@ -132,7 +132,8 @@ class BaseEncoding(LoggerMixin):
                 continue
             if properties and key not in properties:
                 continue
-            if data[key].nunique() == 1:
+
+            if data[key].nunique(dropna=False) == 1:
                 collection[key] = data[key].iloc[0]
                 if key != "collection":
                     del data[key]

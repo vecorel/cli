@@ -143,7 +143,7 @@ class ImproveData(BaseCommand):
         Print warnings for columns that will be renamed.
         """
         for col in rename:
-            if col in Registry.core_columns:
+            if col in Registry.core_properties:
                 self.warning(f"Column {col} is a core property - do you really want to rename it?")
             if ":" in col:
                 self.warning(
