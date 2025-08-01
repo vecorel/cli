@@ -27,6 +27,7 @@ class BaseEncoding(LoggerMixin):
         return {
             "Format": self.get_format(),
             "Size": format_filesize(self.file.stat().st_size),
+            "Compression": self.get_compression() or "None",
         }
 
     def get_schemas(self) -> dict[str, Schemas]:
@@ -65,6 +66,12 @@ class BaseEncoding(LoggerMixin):
         self.collection = collection
 
     def get_properties(self) -> Optional[dict[str, list[str]]]:
+        return None
+
+    def get_compression(self) -> Optional[str]:
+        """
+        Get the compression method used in the file.
+        """
         return None
 
     def get_metadata(self) -> dict:

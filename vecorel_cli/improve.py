@@ -18,6 +18,7 @@ from .jsonschema.util import (
     pick_schemas,
 )
 from .registry import Registry
+from .vecorel.typing import Collection
 
 
 class ImproveData(BaseCommand):
@@ -73,14 +74,15 @@ class ImproveData(BaseCommand):
     @runnable
     def improve_file(self, source, target, compression=None, geoparquet_version=None, **kwargs):
         input_encoding = create_encoding(source)
-        output_encoding = create_encoding(target)
-
         geodata = input_encoding.read()
         collection = input_encoding.get_collection()
+
         geodata, collection = self.improve(geodata, collection=collection, **kwargs)
+
+        output_encoding = create_encoding(target)
+        output_encoding.set_collection(collection)
         output_encoding.write(
             geodata,
-            collection=collection,
             compression=compression,
             geoparquet_version=geoparquet_version,
         )
@@ -95,7 +97,7 @@ class ImproveData(BaseCommand):
         fix_geometries: bool = False,
         explode_geometries: bool = False,
         crs: Optional[str] = None,
-    ) -> tuple[GeoDataFrame, dict]:
+    ) -> tuple[GeoDataFrame, Collection]:
         # Change the CRS
         if crs is not None:
             gdf = self.change_crs(gdf, crs)
@@ -151,8 +153,8 @@ class ImproveData(BaseCommand):
                 )
 
     def rename_properties(
-        self, gdf: GeoDataFrame, rename: dict, collection: dict = {}
-    ) -> tuple[GeoDataFrame, dict]:
+        self, gdf: GeoDataFrame, rename: dict, collection: Collection = {}
+    ) -> tuple[GeoDataFrame, Collection]:
         """
         Rename properties (columns) in the GeoDataFrame according to the provided mapping.
 

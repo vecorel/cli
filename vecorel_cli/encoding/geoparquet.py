@@ -99,6 +99,28 @@ class GeoParquet(BaseEncoding):
 
         return self.pq_schema
 
+    def get_compression(self) -> Optional[str]:
+        """
+        Get the compression method used in the file.
+        Returns "mixed" if multiple compression methods are found.
+        """
+        metadata = self.get_parquet_metadata()
+        compressions = set()
+
+        row_group = metadata.row_group(0)
+        for col_idx in range(row_group.num_columns):
+            column = row_group.column(col_idx)
+            compression = column.compression
+            if compression != "UNCOMPRESSED":
+                compressions.add(compression.lower())
+
+        if len(compressions) == 0:
+            return None
+        elif len(compressions) == 1:
+            return next(iter(compressions))
+        else:
+            return "mixed"
+
     # geoparquet_version: bool, optional, default False
     #     If True, writes the data in GeoParquet 1.0.0 format,
     #     otherwise in GeoParquet 1.1.0 format.
