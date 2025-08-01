@@ -13,8 +13,9 @@ from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..jsonschema.util import merge_schemas
 from ..parquet.geopandas import to_parquet
 from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
+from ..validation.base import Validator
 from ..vecorel.schemas import Schemas
-from ..vecorel.typing import Collection
+from ..vecorel.typing import Collection, SchemaMapping
 from ..vecorel.util import get_fs, load_file
 from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
@@ -65,6 +66,11 @@ class GeoParquet(BaseEncoding):
         if self.collection is None and self.file.exists():
             self.collection = self._parse_metadata(b"collection")
         return super().get_collection()
+
+    def get_validator(self) -> Optional[Validator]:
+        from ..validation.geoparquet import GeoParquetValidator
+
+        return GeoParquetValidator(self)
 
     def get_properties(self) -> Optional[dict[str, list[str]]]:
         schema = self.get_parquet_schema().to_arrow_schema()
@@ -131,7 +137,7 @@ class GeoParquet(BaseEncoding):
         self,
         data: GeoDataFrame,
         properties: Optional[list[str]] = None,
-        schema_map: dict = {},
+        schema_map: SchemaMapping = {},
         dehydrate: bool = True,
         compression: Optional[str] = None,
         geoparquet_version: Optional[str] = None,

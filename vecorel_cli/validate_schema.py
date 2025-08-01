@@ -81,11 +81,14 @@ class ValidateSchema(BaseCommand):
 
     def validate_file(self, filepath: Union[Path, str]) -> list[ValidationError]:
         schema = load_file(filepath)
-        if not isinstance(schema, dict):
+        return self.validate(schema)
+
+    def validate(self, obj: dict) -> list[ValidationError]:
+        if not isinstance(obj, dict):
             return [ValidationError("Schema is not an object")]
 
         if self.validator is None:
-            metaschema_uri = schema.get("$schema")
+            metaschema_uri = obj.get("$schema")
             if metaschema_uri:
                 metaschema = load_file(metaschema_uri)
                 validator = self.create_validator(metaschema)
@@ -98,9 +101,6 @@ class ValidateSchema(BaseCommand):
         else:
             validator = self.validator
 
-        return self.validate(schema, validator)
-
-    def validate(self, obj: dict, validator: Validator) -> list[ValidationError]:
         return list(sorted(validator.iter_errors(obj), key=lambda e: e.path))
 
     def create_validator(self, schema) -> Validator:

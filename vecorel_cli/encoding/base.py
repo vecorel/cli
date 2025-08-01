@@ -4,8 +4,9 @@ from typing import Optional, Union
 from geopandas import GeoDataFrame
 
 from ..cli.logger import LoggerMixin
+from ..validation.base import Validator
 from ..vecorel.schemas import Schemas
-from ..vecorel.typing import Collection
+from ..vecorel.typing import Collection, SchemaMapping
 from ..vecorel.util import format_filesize
 
 
@@ -65,6 +66,9 @@ class BaseEncoding(LoggerMixin):
     def set_collection(self, collection: Collection):
         self.collection = collection
 
+    def get_validator(self) -> Optional[Validator]:
+        return None
+
     def get_properties(self) -> Optional[dict[str, list[str]]]:
         return None
 
@@ -81,7 +85,7 @@ class BaseEncoding(LoggerMixin):
         self,
         data: GeoDataFrame,
         properties: Optional[list[str]] = None,
-        schema_map: dict = {},
+        schema_map: SchemaMapping = {},
         missing_schemas: dict = {},
         dehydrate: bool = True,
         **kwargs,
