@@ -42,6 +42,8 @@ class CreateGeoParquet(BaseCommand):
         geoparquet_version: Optional[str] = None,
         schemas: Optional[dict[str, Path]] = None,  # Schema map
     ) -> Path:
+        if not isinstance(source, list):
+            raise ValueError("Source must be a list of file paths.")
         if isinstance(target, str):
             target = Path(target)
         if not properties:

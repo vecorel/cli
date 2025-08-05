@@ -67,14 +67,19 @@ VECOREL_FILE_ARG = click.argument(
 
 
 def VECOREL_TARGET(required=True, folder=False):
+    if folder:
+        help = "Folder to write the Vecorel file(s) to."
+    else:
+        help = "File or folder to write the Vecorel file(s) to."
+    if not required:
+        help += " If not provided, the source file will be overwritten."
+
     return click.option(
         "--target",
         "--out",  # for backward compatibility
         "-o",
         type=click.Path(exists=False, dir_okay=folder, resolve_path=True),
-        help="File or folder to write the Vecorel file(s) to."
-        if folder
-        else "Path to write the Vecorel file to.",
+        help=help,
         required=required,
         default=None,
     )

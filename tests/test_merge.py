@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.merge import MergeDatasets
 
@@ -43,3 +45,12 @@ def test_merge(tmp_parquet_file: Path):
         "id",
         "inspire:id",
     ]
+
+
+def test_merge_invalid_file(tmp_folder):
+    out = tmp_folder / "output.parquet"
+    merge = MergeDatasets()
+    with pytest.raises(ValueError):
+        merge.merge("invalid.parquet", out)
+    with pytest.raises(FileNotFoundError):
+        merge.merge(["invalid.parquet"], out)

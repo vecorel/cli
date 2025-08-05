@@ -62,6 +62,8 @@ class MergeDatasets(BaseCommand):
         includes=[],
         excludes=[],
     ):
+        if not isinstance(source, list):
+            raise ValueError("Source must be a list of file paths.")
         encodings = [create_encoding(s) for s in source]
         if isinstance(target, str):
             target = Path(target)

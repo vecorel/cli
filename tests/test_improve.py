@@ -1,3 +1,5 @@
+import pytest
+
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.improve import ImproveData
 
@@ -47,3 +49,9 @@ def test_improve_crs(tmp_parquet_file):
     gp = GeoParquet(tmp_parquet_file)
     data = gp.read()
     assert data.crs == "EPSG:3857"
+
+
+def test_improve_invalid_file():
+    improve = ImproveData()
+    with pytest.raises(FileNotFoundError):
+        improve.improve_file("invalid.parquet")

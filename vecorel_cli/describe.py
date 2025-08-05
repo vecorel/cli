@@ -48,7 +48,7 @@ class DescribeFile(BaseCommand):
         self.cmd_title = f"Describe {self.filepath.resolve()}"
 
         if not self.filepath.exists():
-            raise FileNotFoundError(f"File {self.filepath} does not exist")
+            raise FileNotFoundError(f"File '{self.filepath}' does not exist")
 
         self.encoding = create_encoding(self.filepath)
 

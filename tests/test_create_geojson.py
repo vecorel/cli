@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from vecorel_cli.create_geojson import CreateGeoJson
 from vecorel_cli.vecorel.util import load_file
 
@@ -52,3 +54,9 @@ def test_create_geojson_features(tmp_folder: Path):
 
     check_file("6467974")
     check_file("6467975")
+
+
+def test_create_geojson_invalid_file(tmp_folder):
+    gj = CreateGeoJson()
+    with pytest.raises(FileNotFoundError):
+        gj.create("invalid.parquet", tmp_folder)

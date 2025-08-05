@@ -1,18 +1,26 @@
 import sys
 
+import pytest
 from loguru import logger
 
 from vecorel_cli.describe import DescribeFile
 
+tests = [
+    ("tests/data-files/inspire.parquet", {}),
+    ("tests/data-files/inspire.parquet", {"num": 0}),
+    ("tests/data-files/inspire.parquet", {"num": 1}),
+]
 
-def test_describe_geoparquet(capsys):
+
+@pytest.mark.parametrize("test", tests)
+def test_describe_geoparquet(capsys, test):
+    path, kwargs = test
     # todo: use fixture
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
 
-    path = "tests/data-files/inspire.parquet"
     describe = DescribeFile(path)
-    describe.describe()
+    describe.describe(**kwargs)
 
     out, err = capsys.readouterr()
 
@@ -33,8 +41,15 @@ def test_describe_geoparquet(capsys):
     assert "determination_datetime: 2020-01-01T00:00:00Z" in out
     assert "collection: inspire" in out
 
-    assert "6467974" in out
-    assert "6467975" in out
+    num = kwargs.get("num", 10)
+    if num == 0:
+        assert "Omitted" in out
+    if num == 1:
+        assert "6467974" in out
+        assert "6467975" not in out
+    if num > 1:
+        assert "6467974" in out
+        assert "6467975" in out
 
 
 def test_describe_geojson(capsys):
@@ -54,3 +69,9 @@ def test_describe_geojson(capsys):
     assert "File format is not columnar" in out
     assert "No collection metadata found" in out
     assert "6467974" in out
+
+
+def test_describe_invalid_file():
+    with pytest.raises(FileNotFoundError):
+        describe = DescribeFile("invalid.json")
+        describe.describe()

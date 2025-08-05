@@ -33,7 +33,7 @@ class ImproveData(BaseCommand):
     def get_cli_args():
         return {
             "source": VECOREL_FILE_ARG,
-            "target": VECOREL_TARGET(),
+            "target": VECOREL_TARGET(required=False),
             "rename": click.option(
                 "--rename",
                 "-r",
@@ -72,7 +72,9 @@ class ImproveData(BaseCommand):
         }
 
     @runnable
-    def improve_file(self, source, target, compression=None, geoparquet_version=None, **kwargs):
+    def improve_file(
+        self, source, target=None, compression=None, geoparquet_version=None, **kwargs
+    ):
         input_encoding = create_encoding(source)
         geodata = input_encoding.read()
         collection = input_encoding.get_collection()
