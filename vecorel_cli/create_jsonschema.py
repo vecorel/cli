@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 from typing import Optional, Union
@@ -64,9 +65,10 @@ class CreateJsonSchema(BaseCommand):
         self,
         schema_uri: str,
         datatypes_uri: str,
-        out: Optional[str] = None,
+        out: Optional[Union[str, Path]] = None,
         schema_id: Optional[str] = None,
     ) -> Union[Path, dict]:
+        out = Path(out) if out else None
         schema = load_file(schema_uri)
         datatypes = GeoJSON.load_datatypes(datatypes_uri)
         jsonschema = self.create_from_dict(schema, datatypes, schema_id)
@@ -79,11 +81,12 @@ class CreateJsonSchema(BaseCommand):
 
     def create_from_dict(self, schema: dict, datatypes: dict, schema_id=None):
         required = schema.get("required", [])
-        properties = {}
-        for key, prop_schema in schema.get("properties", {}).items():
-            properties[key] = self.convert_schema(prop_schema, datatypes, key in required)
+        collection = schema.get("collection", {})
+        properties = schema.get("properties", {}).copy()
+        for key, prop_schema in properties.items():
+            properties[key] = self.convert_schema(prop_schema, datatypes)
 
-        return jsonschema_template(properties, required, schema_id)
+        return jsonschema_template(properties, set(required), collection, schema_id)
 
     def convert_schema(self, prop_schema, datatypes, required=False):
         if not isinstance(prop_schema, dict) or "type" not in prop_schema:
@@ -91,7 +94,7 @@ class CreateJsonSchema(BaseCommand):
         elif prop_schema["type"] not in datatypes:
             raise ValueError(f"Unknown datatype {prop_schema['type']}")
 
-        datatype_schema = datatypes[prop_schema["type"]].copy()
+        datatype_schema = copy.deepcopy(datatypes[prop_schema["type"]])
 
         if prop_schema["type"] == "geometry":
             geom_types = prop_schema.get("geometryTypes", [])

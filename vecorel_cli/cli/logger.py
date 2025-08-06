@@ -11,7 +11,7 @@ def format_logs(record):
 
 
 class LoggerMixin:
-    verbose: bool = True  # todo: set to False before release
+    verbose: bool = False
     logger: Logger = None
 
     def __init__(self):

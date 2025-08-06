@@ -50,6 +50,9 @@ def test_rename_extension(cloned_repo):
     assert "test:field1" in readme
     assert "test:field2" in readme
 
+    schema_map = {
+        "https://vecorel.github.io/test-extension/v0.1.0/schema.yaml": schema_path.absolute()
+    }
     examples = [
         folder / "examples" / "geojson" / "example.json",
         folder / "examples" / "geoparquet" / "example.parquet",
@@ -57,6 +60,6 @@ def test_rename_extension(cloned_repo):
     for p in examples:
         assert p.exists(), f"{p.name} not present"
         enc = create_encoding(p)
-        data = enc.read()
+        data = enc.read(schema_map=schema_map)
         assert "test:field1" in data, f"test:field1 not found in {p.name}"
         assert "test:field2" in data, f"test:field2 not found in {p.name}"

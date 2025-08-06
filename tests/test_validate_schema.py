@@ -4,7 +4,7 @@ from vecorel_cli.validate_schema import ValidateSchema
 
 
 def test_validate_schema_valid():
-    path = "tests/data-files/inspire-schema.yaml"
+    path = "tests/data-files/sdl/inspire-schema.yaml"
     cmd = ValidateSchema()
     result = cmd.validate_file(path)
     assert isinstance(result, list)
@@ -12,7 +12,7 @@ def test_validate_schema_valid():
 
 
 def test_validate_schema_invalid():
-    path = "tests/data-files/inspire-schema-invalid.yaml"
+    path = "tests/data-files/sdl/inspire-schema-invalid.yaml"
     cmd = ValidateSchema()
     result = cmd.validate_file(path)
     assert isinstance(result, list)

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from vecorel_cli.encoding.geoparquet import GeoParquet
+from vecorel_cli.vecorel.collection import Collection
 
 
 def test_init_paths(tmp_folder):
@@ -31,15 +32,17 @@ def test_get_collection_exists():
 
 def test_get_collection_does_not_exist():
     collection = GeoParquet("invalid.parquet").get_collection()
-    assert collection == {}
+    assert isinstance(collection, Collection)
+    assert collection.is_empty()
 
 
 def test_get_collection_returns_existing(tmp_folder):
     file_path = tmp_folder / "test.parquet"
-    geojson = GeoParquet(file_path)
+    test_collection = Collection({"test": "data"})
 
-    test_collection = {"test": "data"}
+    geojson = GeoParquet(file_path)
     geojson.collection = test_collection
 
     result = geojson.get_collection()
+    assert isinstance(result, Collection)
     assert result == test_collection

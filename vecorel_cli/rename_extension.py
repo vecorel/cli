@@ -6,6 +6,7 @@ import click
 
 from .basecommand import BaseCommand, runnable
 from .create_geoparquet import CreateGeoParquet
+from .vecorel.typing import SchemaMapping
 
 
 class RenameExtension(BaseCommand):
@@ -169,9 +170,10 @@ class RenameExtension(BaseCommand):
             search,
             replace,
         )
-        schemas = {schema_url: schemapath.absolute()}
+        schema_map: SchemaMapping = {schema_url: schemapath.absolute()}
         gp = CreateGeoParquet()
-        gp.create(geojson_paths, filepath, schemas=schemas)
+        gp.create(geojson_paths, filepath, schema_map=schema_map)
+        self.success(f"Updated {filepath}")
         return True
 
     def _replace_in_str(self, content, search, replace):

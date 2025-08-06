@@ -1,0 +1,469 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "if": {
+    "type": "object",
+    "required": [
+      "type"
+    ],
+    "properties": {
+      "type": {
+        "const": "FeatureCollection"
+      }
+    }
+  },
+  "then": {
+    "type": "object",
+    "allOf": [
+      {
+        "$ref": "https://geojson.org/schema/FeatureCollection.json"
+      },
+      {
+        "$ref": "#/$defs/featurecollection_schemas"
+      },
+      {
+        "$ref": "#/$defs/featurecollection_requirements"
+      },
+      {
+        "$ref": "#/$defs/featurecollection_uniqueness"
+      }
+    ]
+  },
+  "else": {
+    "allOf": [
+      {
+        "$ref": "https://geojson.org/schema/Feature.json"
+      },
+      {
+        "$ref": "#/$defs/feature_schemas"
+      },
+      {
+        "$ref": "#/$defs/feature_requirements"
+      }
+    ]
+  },
+  "$defs": {
+    "feature_schemas": {
+      "type": "object",
+      "properties": {
+        "properties": {
+          "type": "object",
+          "not": {
+            "required": [
+              "bbox",
+              "geometry",
+              "id"
+            ]
+          },
+          "properties": {
+            "area": {
+              "type": "number",
+              "maximum": 100000,
+              "exclusiveMinimum": 0
+            },
+            "collection": {
+              "type": "string",
+              "minLength": 1
+            },
+            "determination_datetime": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            "determination_method": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "driven",
+                "surveyed",
+                "administrative",
+                "auto-operation",
+                "auto-imagery",
+                "unknown"
+              ]
+            },
+            "perimeter": {
+              "type": "number",
+              "maximum": 125000,
+              "exclusiveMinimum": 0
+            },
+            "schemas": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https?://"
+                },
+                "contains": {
+                  "type": "string",
+                  "enum": [
+                    "https://vecorel.github.io/specification/v0.1.0/schema.yaml"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "bbox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          }
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "https://geojson.org/schema/Point.json"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "feature_requirements": {
+      "type": "object",
+      "required": [
+        "geometry",
+        "id"
+      ],
+      "not": {
+        "required": [
+          "area",
+          "collection",
+          "determination_datetime",
+          "determination_method",
+          "perimeter",
+          "schemas"
+        ]
+      },
+      "properties": {
+        "properties": {
+          "type": "object",
+          "required": [
+            "collection",
+            "schemas"
+          ]
+        }
+      }
+    },
+    "featurecollection_schemas": {
+      "type": "object",
+      "properties": {
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/feature_schemas"
+          }
+        }
+      }
+    },
+    "featurecollection_requirements": {
+      "type": "object",
+      "required": [
+        "schemas"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "collection"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "features": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "properties": {
+                        "required": [
+                          "collection"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "features": {
+          "type": "array",
+          "items": {
+            "not": {
+              "required": [
+                "area",
+                "perimeter"
+              ]
+            },
+            "type": "object",
+            "properties": {
+              "properties": {
+                "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "featurecollection_uniqueness": {
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "area"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "area"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "bbox"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "bbox"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "collection"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "collection"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "determination_datetime"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "determination_datetime"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "determination_method"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "determination_method"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "geometry"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "geometry"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "id"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "id"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "perimeter"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "perimeter"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "schemas"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "properties": {
+                      "not": {
+                        "required": [
+                          "schemas"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$id": "https://example.com/schema.json"
+}

@@ -25,12 +25,12 @@ def test_describe_geoparquet(capsys, test):
     out, err = capsys.readouterr()
 
     assert "Format: GeoParquet, version 1.1.0" in out
-    assert "- https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in out
+    assert "- https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml" in out
     assert "Columns: 8" in out
     assert "Rows: 2" in out
     assert "Row Groups: 1" in out
     assert "Version: 0.1.0" in out
-    assert "https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in out
+    assert "https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml" in out
 
     assert "geometry: binary" in out
     assert "inspire:id: string" in out
@@ -65,7 +65,7 @@ def test_describe_geojson(capsys):
 
     assert "Format: GeoJSON" in out
     assert "Version: 0.1.0" in out
-    assert "https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in out
+    assert "https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml" in out
     assert "File format is not columnar" in out
     assert "No collection metadata found" in out
     assert "6467974" in out

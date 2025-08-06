@@ -4,8 +4,9 @@ from typing import Optional, Union
 from geopandas import GeoDataFrame
 
 from ..cli.logger import LoggerMixin
-from ..vecorel.schemas import Schemas
-from ..vecorel.typing import Collection
+from ..validation.base import Validator
+from ..vecorel.collection import Collection
+from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import format_filesize
 
 
@@ -30,40 +31,28 @@ class BaseEncoding(LoggerMixin):
             "Compression": self.get_compression() or "None",
         }
 
-    def get_schemas(self) -> dict[str, Schemas]:
-        collection = self.get_collection()
-        schemas = collection.get("schemas", {})
-        for key, value in schemas.items():
-            schemas[key] = Schemas(value, key)
-        return schemas
-
-    def get_collection_schemas(self, collection: str) -> Schemas:
-        collections = self.get_all_schemas()
-        return collections.get(collection, Schemas())
-
-    def get_custom_schemas(self) -> dict[str, dict]:
-        """
-        Get custom schemas from the collection.
-        """
-        collection = self.get_collection()
-        return collection.get("schemas:custom", {})
-
-    def set_custom_schemas(self, custom_schemas: dict[str, dict]):
-        """
-        Set custom schemas in the collection.
-        """
-        collection = self.get_collection()
-        collection["schemas:custom"] = custom_schemas
-        self.collection = collection
+    def _load_collection(self) -> dict:
+        return {}
 
     def get_collection(self) -> Collection:
         """
         Get the collection metadata.
         """
-        return self.collection or {}
+        if self.collection is None:
+            if self.file.exists():
+                self.collection = Collection(self._load_collection())
+            else:
+                self.collection = Collection()
+        return self.collection
 
-    def set_collection(self, collection: Collection):
+    def set_collection(self, collection: Union[Collection, dict]):
+        if not isinstance(collection, Collection):
+            collection = Collection(collection)
+
         self.collection = collection
+
+    def get_validator(self) -> Optional[Validator]:
+        return None
 
     def get_properties(self) -> Optional[dict[str, list[str]]]:
         return None
@@ -81,8 +70,7 @@ class BaseEncoding(LoggerMixin):
         self,
         data: GeoDataFrame,
         properties: Optional[list[str]] = None,
-        schema_map: dict = {},
-        missing_schemas: dict = {},
+        schema_map: SchemaMapping = {},
         dehydrate: bool = True,
         **kwargs,
     ) -> bool:
@@ -92,6 +80,7 @@ class BaseEncoding(LoggerMixin):
         self,
         num: Optional[int] = None,
         properties: Optional[list[str]] = None,
+        schema_map: SchemaMapping = {},
         hydrate: bool = False,
         **kwargs,
     ) -> GeoDataFrame:
@@ -118,7 +107,6 @@ class BaseEncoding(LoggerMixin):
                 data[key] = value
                 del collection[key]
 
-        self.collection = collection
         return data
 
     def dehydrate_to_collection(
@@ -145,5 +133,4 @@ class BaseEncoding(LoggerMixin):
                 if key != "collection":
                     del data[key]
 
-        self.collection = collection
         return data

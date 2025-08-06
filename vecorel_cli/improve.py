@@ -13,12 +13,8 @@ from .cli.options import (
 )
 from .cli.util import parse_map
 from .encoding.auto import create_encoding
-from .jsonschema.util import (
-    is_schema_empty,
-    pick_schemas,
-)
 from .registry import Registry
-from .vecorel.typing import Collection
+from .vecorel.collection import Collection
 
 
 class ImproveData(BaseCommand):
@@ -155,7 +151,7 @@ class ImproveData(BaseCommand):
                 )
 
     def rename_properties(
-        self, gdf: GeoDataFrame, rename: dict, collection: Collection = {}
+        self, gdf: GeoDataFrame, rename: dict, collection: Collection
     ) -> tuple[GeoDataFrame, Collection]:
         """
         Rename properties (columns) in the GeoDataFrame according to the provided mapping.
@@ -167,10 +163,8 @@ class ImproveData(BaseCommand):
 
         gdf.rename(columns=rename, inplace=True)
 
-        custom_schemas = collection.get("schemas:custom", {})
-        custom_schemas = pick_schemas(custom_schemas, columns, rename)
-        if not is_schema_empty(custom_schemas):
-            collection["schemas:custom"] = custom_schemas
+        custom_schemas = collection.get_custom_schemas().pick(columns, rename=rename)
+        collection.set_custom_schemas(custom_schemas)
 
         return gdf, collection
 

@@ -1,16 +1,44 @@
 import pytest
-from click.testing import CliRunner
+from jsonschema.exceptions import ValidationError
 
-from vecorel_cli import validate
+from vecorel_cli.validate import ValidateData
+
+tests = [
+    # valid files
+    ("tests/data-files/admin.json", True),
+    ("tests/data-files/inspire.json", True),
+    ("tests/data-files/inspire.parquet", True),
+    # non-existing files
+    ("invalid.json", [FileNotFoundError()]),
+    ("invalid.parquet", [FileNotFoundError()]),
+    # invalid files
+    ("tests/data-files/inspire-invalid.json", [ValidationError("6467975 is not of type 'string'")]),
+    # todo
+]
 
 
-@pytest.mark.skip(reason="not implemented yet")
-def test_validate():
-    path = "tests/data-files/inspire.parquet"
-    runner = CliRunner()
-    result = runner.invoke(validate, [path, "--data"])
-    assert result.exit_code == 0, result.output
-    assert "Validating tests/data-files/inspire.parquet" in result.output
-    assert "- https://fiboa.github.io/inspire-extension/v0.2.0/schema.yaml" in result.output
-    assert "Data was not validated" not in result.output
-    assert "=> VALID" in result.output
+@pytest.mark.parametrize("test", tests)
+def test_validate(test):
+    filepath, expected = test
+
+    result = ValidateData().validate(filepath)
+    if expected is True:
+        assert result.errors == []
+        assert result.is_valid()
+    else:
+        assert isinstance(result.errors, list)
+        assert len(result.errors) == len(expected), "More or less errors than expected"
+        for idx, error in enumerate(result.errors):
+            expect = expected[idx]
+            if isinstance(expect, Exception):
+                assert isinstance(error, type(expect)), (
+                    f"Expected {type(expect)} but got {type(error)}"
+                )
+                if isinstance(error, ValidationError):
+                    assert error.message == expect.message
+            else:
+                assert error == expect
+
+        print(result.errors)
+
+        assert not result.is_valid()

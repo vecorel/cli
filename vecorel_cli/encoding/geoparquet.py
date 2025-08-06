@@ -10,13 +10,12 @@ from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 
 from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
-from ..jsonschema.util import merge_schemas
+from ..encoding.geojson import VecorelJSONEncoder
 from ..parquet.geopandas import to_parquet
 from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
-from ..vecorel.schemas import Schemas
-from ..vecorel.typing import Collection
+from ..validation.base import Validator
+from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import get_fs, load_file
-from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
 
 
@@ -61,10 +60,13 @@ class GeoParquet(BaseEncoding):
             version = geo.get("version", "unknown")
             return f"GeoParquet, version {version}"
 
-    def get_collection(self) -> Collection:
-        if self.collection is None and self.file.exists():
-            self.collection = self._parse_metadata(b"collection")
-        return super().get_collection()
+    def _load_collection(self) -> dict:
+        return self._parse_metadata(b"collection")
+
+    def get_validator(self) -> Optional[Validator]:
+        from ..validation.geoparquet import GeoParquetValidator
+
+        return GeoParquetValidator(self)
 
     def get_properties(self) -> Optional[dict[str, list[str]]]:
         schema = self.get_parquet_schema().to_arrow_schema()
@@ -131,7 +133,7 @@ class GeoParquet(BaseEncoding):
         self,
         data: GeoDataFrame,
         properties: Optional[list[str]] = None,
-        schema_map: dict = {},
+        schema_map: SchemaMapping = {},
         dehydrate: bool = True,
         compression: Optional[str] = None,
         geoparquet_version: Optional[str] = None,
@@ -159,24 +161,8 @@ class GeoParquet(BaseEncoding):
             properties.remove("bbox")
 
         # Load the data schema
-        vecorel_schema = load_file(Schemas.spec_schema.format(version=vecorel_version))
-        missing_schemas = self.get_custom_schemas()
-        schemas = merge_schemas(missing_schemas, vecorel_schema)
-
-        # todo: Load all extension schemas
         collection = self.get_collection()
-        extensions = {}
-        if "schemas" in collection and isinstance(collection["schemas"], list):
-            for ext in collection["schemas"]:
-                try:
-                    if ext in schema_map and schema_map[ext] is not None:
-                        path = schema_map[ext]
-                    else:
-                        path = ext
-                    extensions[ext] = load_file(path)
-                    schemas = merge_schemas(schemas, extensions[ext])
-                except Exception as e:
-                    self.warning(f"Extension schema for {ext} can't be loaded: {e}")
+        schemas = collection.merge_schemas(schema_map)
 
         # Update the GeoDataFrame with the correct types etc.
         props = schemas.get("properties", {})
@@ -245,7 +231,13 @@ class GeoParquet(BaseEncoding):
 
         # Define the schema for the Parquet file
         pq_schema = pa.schema(pq_fields)
-        pq_schema = pq_schema.with_metadata({"collection": json.dumps(collection).encode("utf-8")})
+        pq_schema = pq_schema.with_metadata(
+            {
+                "collection": json.dumps(self.get_collection(), cls=VecorelJSONEncoder).encode(
+                    "utf-8"
+                )
+            }
+        )
 
         if compression is None:
             compression = "brotli"
@@ -272,6 +264,7 @@ class GeoParquet(BaseEncoding):
         self,
         num: Optional[int] = None,
         properties: Optional[list[str]] = None,
+        schema_map: SchemaMapping = {},
         hydrate: bool = False,
     ) -> GeoDataFrame:
         if properties is not None and len(properties) == 0:

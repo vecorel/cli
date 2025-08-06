@@ -13,6 +13,7 @@ from .cli.options import (
 from .encoding.auto import create_encoding
 from .encoding.geoparquet import GeoParquet
 from .vecorel.ops import merge
+from .vecorel.typing import SchemaMapping
 
 
 class CreateGeoParquet(BaseCommand):
@@ -29,7 +30,7 @@ class CreateGeoParquet(BaseCommand):
             "properties": PROPERTIES,
             "compression": GEOPARQUET_COMPRESSION,
             "geoparquet_version": GEOPARQUET_VERSION,
-            "schemas": SCHEMA_MAP,
+            "schema_map": SCHEMA_MAP,
         }
 
     @runnable
@@ -40,7 +41,7 @@ class CreateGeoParquet(BaseCommand):
         properties: Optional[Union[tuple[str], list[str]]] = None,
         compression: Optional[str] = None,
         geoparquet_version: Optional[str] = None,
-        schemas: Optional[dict[str, Path]] = None,  # Schema map
+        schema_map: SchemaMapping = {},
     ) -> Path:
         if not isinstance(source, list):
             raise ValueError("Source must be a list of file paths.")
@@ -54,7 +55,7 @@ class CreateGeoParquet(BaseCommand):
         # Read source data
         encodings = [create_encoding(s) for s in source]
         # Merge encodings into a single GeoDataFrame
-        geodata, collection = merge(encodings, properties=properties)
+        geodata, collection = merge(encodings, properties=properties, schema_map=schema_map)
 
         # Write to target
         target_encoding = GeoParquet(target)
@@ -64,7 +65,7 @@ class CreateGeoParquet(BaseCommand):
             compression=compression,
             geoparquet_version=geoparquet_version,
             properties=properties,
-            schema_map=schemas,
+            schema_map=schema_map,
         )
 
         return target

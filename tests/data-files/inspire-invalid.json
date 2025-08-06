@@ -22,7 +22,7 @@
       ]
     },
     "determination_datetime": "2020-01-01T00:00:00Z",
-    "inspire:id": "https://geodaten.nrw.de/id/inspire-lc-dgl/landcoverunit/6467975",
+    "inspire:id": 6467975,
     "collection": "inspire"
   }
 }

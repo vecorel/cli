@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from vecorel_cli.encoding.geojson import GeoJSON
+from vecorel_cli.vecorel.collection import Collection
 
 
 def test_init_paths(tmp_folder):
@@ -26,22 +27,22 @@ def test_get_collection_exists():
 
     collection = geojson.get_collection()
 
-    assert isinstance(collection, dict)
+    assert isinstance(collection, Collection)
     assert list(collection.keys()) == ["schemas"]
     assert "inspire" in collection["schemas"]
 
 
 def test_get_collection_does_not_exist():
     collection = GeoJSON("invalid.json").get_collection()
-    assert collection == {}
+    assert collection == Collection()
 
 
 def test_get_collection_returns_existing(tmp_folder):
     file_path = tmp_folder / "test.json"
     geojson = GeoJSON(file_path)
 
-    test_collection = {"test": "data"}
-    geojson.collection = test_collection
+    expected = Collection({"test": "data"})
+    geojson.collection = expected
 
     result = geojson.get_collection()
-    assert result == test_collection
+    assert result == expected

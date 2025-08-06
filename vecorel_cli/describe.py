@@ -7,7 +7,7 @@ import pandas as pd
 from .basecommand import BaseCommand, runnable
 from .cli.options import VECOREL_FILE_ARG
 from .encoding.auto import create_encoding
-from .vecorel.schemas import Schemas
+from .vecorel.schemas import CollectionSchemas
 
 
 class DescribeFile(BaseCommand):
@@ -83,7 +83,7 @@ class DescribeFile(BaseCommand):
         self.print_pretty(summary, strlen=-1)
 
     def schemas(self):
-        schemas = self.encoding.get_schemas()
+        schemas = self.encoding.get_collection().get_schemas()
         count = len(schemas)
         if count == 0:
             self.error("Data not compliant to specification, no version found")
@@ -125,6 +125,6 @@ class DescribeFile(BaseCommand):
         else:
             self.warning("Omitted")
 
-    def _schema_to_dict(self, schema: Schemas):
+    def _schema_to_dict(self, schema: CollectionSchemas):
         version, uri, extensions = schema.get()
         return {"Version": version, "Extensions": extensions if len(extensions) > 0 else None}

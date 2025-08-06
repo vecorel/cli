@@ -9,7 +9,10 @@ from geopandas import GeoDataFrame
 from pandas import DataFrame
 from shapely.geometry import shape
 
-from ..vecorel.typing import Collection
+from ..validation.base import Validator
+from ..vecorel.collection import Collection
+from ..vecorel.schemas import Schemas
+from ..vecorel.typing import FeatureCollection, SchemaMapping
 from ..vecorel.util import load_file, to_iso8601
 from .base import BaseEncoding
 
@@ -36,19 +39,17 @@ class GeoJSON(BaseEncoding):
     def get_datatypes_uri(version: str) -> str:
         return GeoJSON.datatypes_schema_uri.format(version=version)
 
-    def get_datatypes(self) -> dict:
-        version = self.get_version()
-        if version is None:
-            return {}
-        return self.load_datatypes(version)
-
     def get_format(self) -> str:
         return "GeoJSON"
 
-    def get_collection(self) -> Collection:
-        if self.collection is None and self.file.exists():
-            self.read(num=0)
-        return super().get_collection()
+    def _load_collection(self) -> dict:
+        self.read(num=0)
+        return self.collection
+
+    def get_validator(self) -> Optional[Validator]:
+        from ..validation.geojson import GeoJSONValidator
+
+        return GeoJSONValidator(self)
 
     # todo: we shouldn't use iterfeature / __geo_interface__ directly
     # it doesn't correctly coverts some data types which are present in the Vecorel SDL
@@ -60,8 +61,7 @@ class GeoJSON(BaseEncoding):
         self,
         data: GeoDataFrame,
         properties: Optional[list[str]] = None,
-        schema_map: dict = {},
-        missing_schemas: dict = {},
+        schema_map: SchemaMapping = {},
         dehydrate: bool = True,
         indent: Optional[int] = None,
     ) -> bool:
@@ -103,7 +103,7 @@ class GeoJSON(BaseEncoding):
 
         # If the input is originating from a __geo_interface__ object,
         # it may not be in the correct format.
-        data = GeoJSON.fix_geo_interface(data.copy())
+        data = GeoJSON.fix_geo_interface(data)
 
         # Let's get all collection metadata into the feature itself
         collection = self.get_collection()
@@ -124,40 +124,24 @@ class GeoJSON(BaseEncoding):
         self,
         num: Optional[int] = None,
         properties: Optional[list[str]] = None,
+        schema_map: SchemaMapping = {},
         hydrate: bool = False,
     ) -> GeoDataFrame:
-        # note: To read a GeoJSON Feature num and properties must be set to None
         if num is None and properties is None:
-            # The memory intensive way: read the whole file into memory
-            # todo: Should we remove this and always use the streaming method?
-            gdf, collection = self._read_json(num=num, properties=properties)
+            # The memory intensive and fast way: read the whole file into memory
+            gdf = self._read_json(num=num, properties=properties, schema_map=schema_map)
         else:
             # The memory efficient way: stream the file
-            gdf, collection = self._stream_json(num=num, properties=properties)
-
-        self.collection = collection
+            gdf = self._stream_json(num=num, properties=properties, schema_map=schema_map)
 
         if hydrate:
             gdf = self.hydrate_from_collection(gdf)
 
         return gdf
 
-    def _collection_from_geojson(self, geojson: dict) -> Collection:
-        """
-        Extract collection metadata (i.e. non-GeoJSON properties) from the GeoJSON object.
-        """
-        core_props = FEATURE_PROPS if geojson["type"] == "Feature" else FEATURE_COLLECTION_PROPS
-        collection = {}
-        for key, value in geojson.items():
-            if key in core_props:
-                continue
-            else:
-                collection[key] = value
-        return collection
-
-    def _read_json(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None
-    ) -> tuple[GeoDataFrame, Collection]:
+    def read_featurecollection(
+        self, num: Optional[int] = None, schema_map: SchemaMapping = {}, hydrate: bool = False
+    ) -> FeatureCollection:
         with open(self.file, "r") as f:
             obj = json.load(f)
 
@@ -166,38 +150,93 @@ class GeoJSON(BaseEncoding):
         if obj["type"] != "FeatureCollection" and obj["type"] != "Feature":
             raise ValueError("JSON file must contain a FeatureCollection or Feature")
 
-        collection = self._collection_from_geojson(obj)
+        # Extract collection metadata (i.e. non-GeoJSON properties) from the GeoJSON object.
+        collection = Collection()
+        if obj["type"] == "FeatureCollection":
+            for key, value in obj.items():
+                if key in FEATURE_COLLECTION_PROPS:
+                    continue
+                else:
+                    collection[key] = value
+        elif obj["type"] == "Feature":
+            props = obj.get("properties", {})
+            schemas = Schemas(props.get("schemas", {}))
+            cschema = schemas.get(props.get("collection"))
+            if cschema:
+                # todo: should be pass the schema map and custom schemas?
+                resolved = cschema.merge_schemas(schema_map=schema_map)
+                collection_props = resolved.get("collection", {})
+                for key, value in collection_props.items():
+                    if value and key not in FEATURE_PROPS and key in props:
+                        collection[key] = props.get(key)
+                        if not hydrate:
+                            del props[key]
 
         if obj["type"] == "Feature":
             obj = {"type": "FeatureCollection", "features": [obj]}
+
+        if num is not None:
+            obj["features"] = obj["features"][:num]
+
+        if hydrate:
+            obj, collection = self._hydrate_featurecollection(obj, collection)
+
+        self.set_collection(collection)
+
+        return obj
+
+    def _hydrate_featurecollection(
+        self, data: FeatureCollection, collection: Collection
+    ) -> tuple[FeatureCollection, Collection]:
+        for feature in data["features"]:
+            feature.update(collection)
+
+        new_collection = {
+            "schemas": collection.get("schemas", {}),
+            "schemas:custom": collection.get("schemas:custom", {}),
+        }
+
+        return data, new_collection
+
+    def _read_json(
+        self,
+        num: Optional[int] = None,
+        schema_map: SchemaMapping = {},
+        properties: Optional[list[str]] = None,
+    ) -> GeoDataFrame:
+        obj = self.read_featurecollection(num=num, schema_map=schema_map)
 
         # Preserve id: https://github.com/geopandas/geopandas/issues/1208
         for feature in obj["features"]:
             if "id" not in feature["properties"]:
                 feature["properties"]["id"] = feature["id"]
 
-        gdf = GeoDataFrame.from_features(obj, crs=self.crs, columns=properties)
-        if num is not None:
-            gdf = gdf.head(num)
-        return gdf, collection
+        crs = self.crs if len(obj["features"]) > 0 else None
+        gdf = GeoDataFrame.from_features(obj, crs=crs, columns=properties)
+        return gdf
 
     def _stream_json(
-        self, num: Optional[int] = None, properties: Optional[list[str]] = None
-    ) -> tuple[GeoDataFrame, Collection]:
+        self,
+        num: Optional[int] = None,
+        schema_map: SchemaMapping = {},
+        properties: Optional[list[str]] = None,
+    ) -> GeoDataFrame:
         with open(self.file, "r") as f:
             stream = json_stream.load(f)
             data = {
                 "id": [],
                 "geometry": [],
             }
-            collection = {}
+            self.collection = Collection()
 
             for key, value in stream.items():
                 if key == "type":
                     if value == "Feature":
                         # The memory efficient way can't easily read individual Features
-                        # so we use _read_json() instead
-                        return self._read_json(num=num, properties=properties)
+                        # use the other method
+                        return self._read_json(
+                            num=num, properties=properties, schema_map=schema_map
+                        )
                     elif value != "FeatureCollection":
                         raise ValueError("JSON file must contain a FeatureCollection")
                     else:
@@ -234,10 +273,10 @@ class GeoJSON(BaseEncoding):
                             break
                 else:
                     # Add non-GeoJSON properties to the collection metadata
-                    collection[key] = json_stream.to_standard_types(value)
+                    self.collection[key] = json_stream.to_standard_types(value)
 
             gdf = GeoDataFrame(DataFrame.from_dict(data), crs=self.crs, geometry="geometry")
-            return gdf, collection
+            return gdf
 
     def _write_json(self, obj, path, indent=None):
         with open(path, "w") as f:
@@ -287,5 +326,7 @@ class VecorelJSONEncoder(json.JSONEncoder):
             return to_iso8601(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, set):
+            return list(obj)
         else:
             return super().default(obj)

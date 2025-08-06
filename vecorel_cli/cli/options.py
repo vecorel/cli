@@ -33,7 +33,7 @@ GEOPARQUET_VERSION = click.option(
 )
 
 SCHEMA_MAP = click.option(
-    "schemas",
+    "schema_map",
     "--schema",
     "-s",
     multiple=True,
