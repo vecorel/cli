@@ -23,8 +23,7 @@ class VecorelSchema(dict):
             return VecorelSchema()
         else:
             base = copy.deepcopy(schemas[0])
-            if "$id" in base:
-                del base["$id"]
+            base.pop("$id", None)
             for schema in schemas[1:]:
                 base.merge(schema)
 
@@ -78,13 +77,12 @@ class VecorelSchema(dict):
         """Migrate schema to a new version"""
         if not self.get("$schema"):
             self["$schema"] = VecorelSchema.sdl_schema
-        if not self.get("required"):
+        if "required" not in self:
             self["required"] = []
-        if not self.get("collection"):
+        if "collection" not in self:
             self["collection"] = {}
-        if not self.get("properties"):
+        if "properties" not in self:
             self["properties"] = {}
-        return
 
     def merge(self, other: "VecorelSchema"):
         """Merge another schema into this one, in-place."""
@@ -92,9 +90,7 @@ class VecorelSchema(dict):
             other = VecorelSchema(other)
 
         if other.is_empty():
-            return self
-        if self.is_empty():
-            return other
+            return
 
         if self.get_sdl_version() != other.get_sdl_version():
             raise ValueError("Schemas have different SDL versions, can't merge.")
@@ -123,10 +119,14 @@ class VecorelSchema(dict):
 
     def pick(self, property_names: list[str], rename: dict[str, str] = {}) -> "VecorelSchema":
         """Pick and rename schemas for specific properties"""
-        result = {"required": [], "collection": {}, "properties": {}}
         required = self.get("required", [])
         collection = self.get("collection", {})
         properties = self.get("properties", {})
+
+        result = self.copy()
+        result["required"] = []
+        result["collection"] = {}
+        result["properties"] = {}
         for prop in property_names:
             prop2 = rename[prop] if prop in rename else prop
             if prop in required:

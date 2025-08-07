@@ -31,7 +31,10 @@ class Collection(dict):
         """
         if not isinstance(custom_schemas, VecorelSchema):
             custom_schemas = VecorelSchema(custom_schemas)
-        self["schemas:custom"] = custom_schemas
+        if custom_schemas.is_empty():
+            self.pop("schemas:custom", None)
+        else:
+            self["schemas:custom"] = custom_schemas
 
     def resolve_schemas(
         self, schema_map: SchemaMapping = {}, validator: Optional[Validator] = None
@@ -69,5 +72,9 @@ class Collection(dict):
         for key, value in context.items():
             if value:
                 props.append(key)
+
+        # Add the proprietary property for custom schemas as it's not in the core spec,
+        # but used in the CLI. Should it be added to the core spec?
+        props.append("schemas:custom")
 
         return props

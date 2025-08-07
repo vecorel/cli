@@ -107,7 +107,7 @@ class BaseEncoding(LoggerMixin):
                 continue
             if key not in data.columns:
                 data[key] = value
-                del collection[key]
+                collection.pop(key, None)
 
         return data
 

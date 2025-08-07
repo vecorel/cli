@@ -115,7 +115,7 @@ class GeoJSON(BaseEncoding):
         # Remove properties that are not in the properties list
         for key, value in data["properties"].items():
             if properties is not None and key not in properties:
-                del data["properties"][key]
+                data["properties"].pop(key)
 
         self._write_json(data, self.file, indent=indent)
 
@@ -288,7 +288,7 @@ class GeoJSON(BaseEncoding):
         # Fix id
         if "id" in obj["properties"]:
             obj["id"] = obj["properties"]["id"]
-            del obj["properties"]["id"]
+            obj["properties"].pop("id")
 
         # Fix bbox
         if (
@@ -298,7 +298,7 @@ class GeoJSON(BaseEncoding):
         ):
             bbox = obj["properties"]["bbox"]
             obj["bbox"] = [bbox["xmin"], bbox["ymin"], bbox["xmax"], bbox["ymax"]]
-            del obj["properties"]["bbox"]
+            obj["properties"].pop("bbox")
 
         # Remove null values
         obj["properties"] = GeoJSON._fix_omit_nulled_properties(obj["properties"])
@@ -309,7 +309,7 @@ class GeoJSON(BaseEncoding):
     def _fix_omit_nulled_properties(obj):
         for key in obj.keys():
             if obj[key] is None:
-                del obj[key]
+                obj.pop(key)
             elif isinstance(obj[key], dict):
                 obj[key] = GeoJSON._fix_omit_nulled_properties(obj[key])
             elif isinstance(obj[key], list):

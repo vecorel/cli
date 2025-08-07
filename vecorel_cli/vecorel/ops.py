@@ -47,20 +47,20 @@ def merge_collections(collections: list[Collection], properties=None) -> Collect
     custom_schemas = VecorelSchema()
 
     for collection in collections:
-        schema = Schemas(collection.get("schemas", {}))
-        schemas.add_all(schema)
+        schemas.add_all(collection.get_schemas())
 
-        custom = VecorelSchema(collection.get("schemas:custom", {}))
-        if not custom.is_empty():
-            custom_schemas.merge(custom)
+        custom = collection.get_custom_schemas()
+        custom_schemas.merge(custom)
 
-    collection = {
-        "schemas": schemas,
-    }
+    collection = Collection(
+        {
+            "schemas": schemas,
+        }
+    )
 
     if properties is not None:
         custom_schemas = custom_schemas.pick(properties)
-    if not custom_schemas.is_empty():
-        collection["schemas:custom"] = custom_schemas
+
+    collection.set_custom_schemas(custom_schemas)
 
     return collection

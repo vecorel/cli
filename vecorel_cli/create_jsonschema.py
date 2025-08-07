@@ -104,7 +104,7 @@ class CreateJsonSchema(BaseCommand):
                         {"$ref": f"https://geojson.org/schema/{type}.json"} for type in geom_types
                     ]
                 }
-                del prop_schema["geometryTypes"]
+                prop_schema.pop("geometryTypes", None)
 
         # Avoid conflicting statements
         if "exclusiveMaximum" in prop_schema:

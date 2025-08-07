@@ -105,10 +105,9 @@ class DescribeFile(BaseCommand):
 
     def collection(self, verbose: bool = False):
         collection = self.encoding.get_collection().copy()
-        if "schemas" in collection:
-            del collection["schemas"]
-        if "schemas:custom" in collection and not verbose:
-            del collection["schemas:custom"]
+        collection.pop("schemas", None)
+        if not verbose:
+            collection.pop("schemas:custom", None)
         if collection:
             self.print_pretty(
                 collection,
