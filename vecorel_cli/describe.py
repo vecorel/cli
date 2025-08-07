@@ -91,17 +91,26 @@ class DescribeFile(BaseCommand):
         self.print_pretty(summary, strlen=-1)
 
     def schemas(self):
-        schemas = self.encoding.get_collection().get_schemas()
+        collection = self.encoding.get_collection()
+        schemas = collection.get_schemas()
         count = len(schemas)
         if count == 0:
-            self.error("Data not compliant to specification, no version found")
+            self.error("Data not compliant to the specification or outdated, no version found")
             return
         if count == 1:
             schema = list(schemas.values())[0]
             data = self._schema_to_dict(schema)
+            self.print_pretty(data, strlen=-1)
         else:
-            data = {key: self._schema_to_dict(schema) for key, schema in schemas.items()}
-        self.print_pretty(data, strlen=-1)
+            for cid, schema in schemas.items():
+                self.info(f"Collection '{cid}':", style="bold")
+                data = self._schema_to_dict(schema)
+                self.print_pretty(data, depth=1, max_depth=2, strlen=-1)
+
+        nl = "\n" if count > 1 else ""
+        self.print_pretty(
+            {f"{nl}Custom Schemas": "Yes" if "schemas:custom" in collection else "No"}
+        )
 
     def collection(self, verbose: bool = False):
         collection = self.encoding.get_collection().copy()
@@ -121,7 +130,7 @@ class DescribeFile(BaseCommand):
         columns = self.encoding.get_properties()
         if columns:
             for key, value in columns.items():
-                self.info(f"{key}: " + ", ".join(value))
+                self.print_pretty({key: ", ".join(value)}, strlen=-1)
         else:
             self.info("File format is not columnar")
 
@@ -139,10 +148,8 @@ class DescribeFile(BaseCommand):
 
     def _schema_to_dict(self, schema: CollectionSchemas):
         version, uri, extensions = schema.get()
-        collection = self.encoding.get_collection()
         obj = {
             "Version": version,
             "Extensions": extensions if len(extensions) > 0 else None,
         }
-        obj["Custom Schemas"] = "Yes" if "schemas:custom" in collection else "No"
         return obj

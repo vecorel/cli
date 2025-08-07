@@ -11,7 +11,7 @@ from shapely.geometry import shape
 
 from ..validation.base import Validator
 from ..vecorel.collection import Collection
-from ..vecorel.typing import FeatureCollection, SchemaMapping
+from ..vecorel.typing import Feature, FeatureCollection, SchemaMapping
 from ..vecorel.util import load_file, to_iso8601
 from .base import BaseEncoding
 
@@ -138,9 +138,14 @@ class GeoJSON(BaseEncoding):
 
         return gdf
 
-    def read_featurecollection(
-        self, num: Optional[int] = None, schema_map: SchemaMapping = {}, hydrate: bool = False
-    ) -> FeatureCollection:
+    def read_geojson(
+        self,
+        num: Optional[int] = None,
+        schema_map: SchemaMapping = {},
+        hydrate: bool = False,
+        enforce_featurecollection: bool = False,
+    ) -> Union[FeatureCollection, Feature]:
+        # num only applies to FeatureCollections
         with open(self.file, "r") as f:
             obj = json.load(f)
 
@@ -161,11 +166,11 @@ class GeoJSON(BaseEncoding):
                 collection[key] = value
 
         # Wrap a single Feature into a FeatureCollection
-        if is_feature:
+        if is_feature and enforce_featurecollection:
             obj = {"type": "FeatureCollection", "features": [obj]}
 
         # Restrict to number of features requested
-        if num is not None:
+        if not is_feature and num is not None:
             obj["features"] = obj["features"][:num]
 
         # Move the collection properties to the Features in the FeatureCollection.
@@ -205,7 +210,7 @@ class GeoJSON(BaseEncoding):
         schema_map: SchemaMapping = {},
         properties: Optional[list[str]] = None,
     ) -> GeoDataFrame:
-        obj = self.read_featurecollection(num=num, schema_map=schema_map)
+        obj = self.read_geojson(num=num, schema_map=schema_map, enforce_featurecollection=True)
 
         # Preserve id: https://github.com/geopandas/geopandas/issues/1208
         for feature in obj["features"]:

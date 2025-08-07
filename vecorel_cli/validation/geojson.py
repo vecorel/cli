@@ -11,11 +11,15 @@ class GeoJSONValidator(Validator):
         super().__init__(encoding, mixed_versions=True)
 
     def _validate(self, num: Optional[int] = None, schema_map: SchemaMapping = {}):
+        """
+        Validate GeoJSON data against the schema.
+
+        :param num: Optional number of records to validate. Only applies to FeatureCollections.
+        :param schema_map: Optional mapping of schema names to their definitions.
+        """
         # Load data
         try:
-            data = self.encoding.read_featurecollection(
-                num=num, schema_map=schema_map, hydrate=True
-            )
+            data = self.encoding.read_geojson(num=num, schema_map=schema_map)
         except Exception as e:
             return self.error(e)
 
@@ -48,22 +52,49 @@ class GeoJSONValidator(Validator):
                 vecorel_schema, datatypes[version]
             )
 
-        # Skip validating data
-        if num == 0:
-            return
-
         # Validate data
-        features = data.get("features", [])
-        if len(features) == 0:
-            return self.error("Must contain at least one Feature")
-
-        for index, feature in enumerate(features):
-            collection = feature.get("properties", {}).get("collection")
+        gj_type = data.get("type")
+        errors = []
+        if gj_type == "Feature":
+            collection = data.get("properties", {}).get("collection")
             if not collection:
-                self.error(f"Feature {index} is missing 'collection' property")
-                continue
+                return self.error("Missing the 'collection' property")
 
-            jsonschema = jsonschemas.get(collection)
-            errors = self.validate_json_schema(feature, jsonschema)
+            if collection not in jsonschemas:
+                return self.error(f"Collection '{collection}' not found in schemas")
+
+            errors = self.validate_json_schema(data, jsonschemas.get(collection))
             for error in errors:
                 self.error(error)
+
+        else:  # FeatureCollection
+            features = data.get("features", [])
+            if len(features) == 0:
+                self.warning("No data to validate")
+            if not features:
+                return self.error("FeatureCollection is empty")
+
+            grouped = {}
+            for index, feature in enumerate(features):
+                collection = feature.get("properties", {}).get("collection")
+                if not collection:
+                    self.error(f"Feature {index + 1}: Missing the 'collection' property")
+                    continue
+
+                if collection not in jsonschemas:
+                    self.error(
+                        f"Feature {index + 1}: Collection '{collection}' not found in schemas"
+                    )
+                    continue
+
+                if collection not in grouped:
+                    grouped[collection] = []
+                grouped[collection].append(feature)
+
+            for cid, jsonschema in jsonschemas.items():
+                # not super clean to just override the features in the original dict,
+                # but should be most memory efficient
+                data["features"] = grouped.get(cid, [])
+                errors = self.validate_json_schema(data, jsonschema)
+                for error in errors:
+                    self.error(error)

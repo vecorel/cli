@@ -34,6 +34,7 @@ class GeoParquetValidator(Validator):
         # Validate schema lists
         schemas = collection.get_schemas()
         self.validate_schemas(schemas)
+        has_multiple_collections = len(schemas) > 1
 
         # Resolve schemas
         schema = collection.merge_schemas(
@@ -71,7 +72,7 @@ class GeoParquetValidator(Validator):
 
             # Does the field (dis)allow null?
             nullable = key not in schema.get("required", [])
-            if nullable != pq_field.nullable:
+            if not has_multiple_collections and nullable != pq_field.nullable:
                 self.error(
                     f"{key}: Nullability differs, is {pq_field.nullable} but must be {nullable}",
                 )
@@ -98,15 +99,33 @@ class GeoParquetValidator(Validator):
                 self.validate_geometry_column(key, prop_schema, geo)
 
             # Validate data of the column
-            if validate_data:
+            issues = []
+            if validate_data and not has_multiple_collections:
                 issues = validate_column(data[key], prop_schema)
-                for issue in issues:
-                    self.error(f"{key}: {issue}")
+            elif validate_data and has_multiple_collections:
+                # Validate data for each collection separately
+                for cid, cschema in schemas.items():
+                    vecorel_schema = cschema.merge_schemas(
+                        schema_map=schema_map,
+                        custom_schemas=collection.get_custom_schemas(),
+                        validator=self,
+                    )
+                    sub_prop_schema = vecorel_schema.get("properties", {}).get(key, {})
+                    sub_data = data[data["collection"] == cid]
+                    sub_issues = validate_column(sub_data[key], sub_prop_schema)
+                    issues.extend(sub_issues)
+
+            for issue in issues:
+                self.error(f"{key}: {issue}")
 
         # Show a note once if data was not validated
         if not validate_data:
             self.warning("Data was not validated, only structural checks were applied")
-        if validate_data and num is not None and num < self.get_parquet_metadata().num_rows:
+        if (
+            validate_data
+            and num is not None
+            and num < self.encoding.get_parquet_metadata().num_rows
+        ):
             self.warning(
                 f"Data was not fully validated, only the first {num} rows were checked",
             )

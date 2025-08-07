@@ -163,6 +163,7 @@ class GeoParquet(BaseEncoding):
         # Load the data schema
         collection = self.get_collection()
         schemas = collection.merge_schemas(schema_map)
+        has_multiple_collections = len(schemas) > 1
 
         # Update the GeoDataFrame with the correct types etc.
         props = schemas.get("properties", {})
@@ -175,7 +176,7 @@ class GeoParquet(BaseEncoding):
             if dtype == "geometry":
                 continue
 
-            required = column in required_props
+            required = column in required_props and not has_multiple_collections
             gp_type = get_geopandas_dtype(dtype, required, schema)
             try:
                 if gp_type is None:
@@ -197,7 +198,7 @@ class GeoParquet(BaseEncoding):
         for name in properties:
             required_props = schemas.get("required", [])
             props = schemas.get("properties", {})
-            required = name in required_props
+            required = name in required_props and not has_multiple_collections
             field = None
             if name in props:
                 prop_schema = props[name]

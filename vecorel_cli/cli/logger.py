@@ -1,3 +1,4 @@
+import re
 import sys
 from logging import Logger
 
@@ -53,6 +54,9 @@ class LoggerMixin:
         if not isinstance(message, str):
             message = str(message)
 
+        # Escape special characters
+        message = re.sub(r"(<\w+>)", r"\\\1", message, 0, re.IGNORECASE)
+
         # Handle indentation (including multiple lines)
         message = self._indent_text(message, indent)
 
@@ -75,7 +79,9 @@ class LoggerMixin:
 
     # strlen = -1 disables truncation
     def print_pretty(self, data, depth=0, max_depth=1, strlen=50):
-        formatted = self._format_data(data, depth=depth, max_depth=max_depth, strlen=strlen).strip()
+        formatted = self._format_data(data, depth=depth, max_depth=max_depth, strlen=strlen).strip(
+            "\r\n"
+        )
         LoggerMixin.logger.opt(colors=True, raw=True).log("INFO", f"<n>{formatted}</n>\n")
 
     def _indent_text(self, text: str, indent: str) -> str:
@@ -94,13 +100,13 @@ class LoggerMixin:
                 if depth > 0:
                     output += "\n"
                 for key, value in value.items():
-                    output += f"{prefix}<blue>{key}</blue>: "
+                    output += f"{prefix}<yellow>{key}</>: "
                     output += self._format_data(
                         value, depth=depth + 1, max_depth=max_depth, strlen=strlen
                     )
                 return output
             else:
-                return f"<yellow>object (omitted, {len(value)} key/value pairs)</yellow>\n"
+                return f"<yellow>object (omitted, {len(value)} key/value pairs)</>\n"
         elif isinstance(value, list):
             if depth <= max_depth:
                 if depth > 0:
@@ -112,7 +118,7 @@ class LoggerMixin:
                     )
                 return output
             else:
-                return f"<yellow>array (omitted, {len(value)} elements)</yellow>\n"
+                return f"<yellow>array (omitted, {len(value)} elements)</>\n"
 
         if not isinstance(value, str):
             value = str(value)
@@ -121,7 +127,7 @@ class LoggerMixin:
         if strlen >= 0 and length > strlen:
             output += value[:strlen]
             if len(value) > strlen:
-                output += f"<yellow>... ({length - strlen} chars omitted)</yellow>"
+                output += f"<yellow>... ({length - strlen} chars omitted)</>"
         else:
             output += value
 
