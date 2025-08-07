@@ -92,7 +92,9 @@ class BaseEncoding(LoggerMixin):
         """
         raise NotImplementedError("Not supported by encoding")
 
-    def hydrate_from_collection(self, data: GeoDataFrame, schema_map: SchemaMapping = {}) -> GeoDataFrame:
+    def hydrate_from_collection(
+        self, data: GeoDataFrame, schema_map: SchemaMapping = {}
+    ) -> GeoDataFrame:
         """
         Merge the collection metadata into the GeoDataFrame.
         """
@@ -110,7 +112,10 @@ class BaseEncoding(LoggerMixin):
         return data
 
     def dehydrate_to_collection(
-        self, data: GeoDataFrame, properties: Optional[list[str]] = None, schema_map: SchemaMapping = {}
+        self,
+        data: GeoDataFrame,
+        properties: Optional[list[str]] = None,
+        schema_map: SchemaMapping = {},
     ) -> GeoDataFrame:
         """
         Extract the collection metadata from the GeoDataFrame.

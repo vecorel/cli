@@ -11,7 +11,6 @@ from shapely.geometry import shape
 
 from ..validation.base import Validator
 from ..vecorel.collection import Collection
-from ..vecorel.schemas import Schemas
 from ..vecorel.typing import FeatureCollection, SchemaMapping
 from ..vecorel.util import load_file, to_iso8601
 from .base import BaseEncoding
@@ -154,7 +153,9 @@ class GeoJSON(BaseEncoding):
 
         # Extract collection metadata (i.e. non-GeoJSON properties) from the GeoJSON object.
         collection = Collection()
-        geojson_props = GeoJSON.feature_properties if is_feature else GeoJSON.feature_collection_properties
+        geojson_props = (
+            GeoJSON.feature_properties if is_feature else GeoJSON.feature_collection_properties
+        )
         for key, value in obj.items():
             if key not in geojson_props:
                 collection[key] = value
@@ -170,7 +171,9 @@ class GeoJSON(BaseEncoding):
         # Move the collection properties to the Features in the FeatureCollection.
         # Not needed for Features according to the specification.
         if hydrate and not is_feature:
-            obj, collection = self._hydrate_featurecollection(obj, collection, schema_map=schema_map)
+            obj, collection = self._hydrate_featurecollection(
+                obj, collection, schema_map=schema_map
+            )
 
         self.set_collection(collection)
 

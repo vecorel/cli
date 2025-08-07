@@ -74,8 +74,8 @@ class LoggerMixin:
         LoggerMixin.logger.exception(e)
 
     # strlen = -1 disables truncation
-    def print_pretty(self, data, depth=0, strlen=50):
-        formatted = self._format_data(data, depth, strlen).strip()
+    def print_pretty(self, data, depth=0, max_depth=1, strlen=50):
+        formatted = self._format_data(data, depth=depth, max_depth=max_depth, strlen=strlen).strip()
         LoggerMixin.logger.opt(colors=True, raw=True).log("INFO", f"<n>{formatted}</n>\n")
 
     def _indent_text(self, text: str, indent: str) -> str:
@@ -83,29 +83,33 @@ class LoggerMixin:
         lines = text.splitlines()
         return indent + indent2.join(lines)
 
-    def _format_data(self, value: dict, depth=0, strlen=50):
+    def _format_data(self, value: dict, depth=0, max_depth=1, strlen=50):
         if hasattr(value, "to_dict"):
             value = value.to_dict()
 
         output = ""
         prefix = "  " * depth
         if isinstance(value, dict):
-            if depth <= 1:
+            if depth <= max_depth:
                 if depth > 0:
                     output += "\n"
                 for key, value in value.items():
-                    output += f"<blue>{key}</blue>: "
-                    output += self._format_data(value, depth=depth + 1, strlen=strlen)
+                    output += f"{prefix}<blue>{key}</blue>: "
+                    output += self._format_data(
+                        value, depth=depth + 1, max_depth=max_depth, strlen=strlen
+                    )
                 return output
             else:
                 return f"<yellow>object (omitted, {len(value)} key/value pairs)</yellow>\n"
         elif isinstance(value, list):
-            if depth <= 1:
+            if depth <= max_depth:
                 if depth > 0:
                     output += "\n"
                 for item in value:
                     output += f"{prefix}- "
-                    output += self._format_data(item, depth=depth + 1, strlen=strlen)
+                    output += self._format_data(
+                        item, depth=depth + 1, max_depth=max_depth, strlen=strlen
+                    )
                 return output
             else:
                 return f"<yellow>array (omitted, {len(value)} elements)</yellow>\n"

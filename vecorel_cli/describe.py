@@ -34,12 +34,19 @@ class DescribeFile(BaseCommand):
                 multiple=True,
                 help="Column names to show in the excerpt. Can be used multiple times. Shows all by default.",
             ),
+            "verbose": click.option(
+                "--verbose",
+                "-v",
+                is_flag=True,
+                help="Show more detailed information.",
+                default=False,
+            ),
         }
 
     @staticmethod
     def get_cli_callback(cmd):
-        def callback(source, num, properties):
-            return DescribeFile(source).run(num=num, properties=properties)
+        def callback(source, num, properties, verbose):
+            return DescribeFile(source).run(num=num, properties=properties, verbose=verbose)
 
         return callback
 
@@ -57,6 +64,7 @@ class DescribeFile(BaseCommand):
         self,
         num: int = 10,
         properties: Optional[Union[list[str], tuple[str]]] = None,
+        verbose: bool = False,
     ):
         if isinstance(properties, tuple):
             properties = list(properties)
@@ -73,7 +81,7 @@ class DescribeFile(BaseCommand):
         self.columns()
 
         self.success("== COLLECTION DATA ==", start="\n", style="bold")
-        self.collection()
+        self.collection(verbose=verbose)
 
         self.success("== PER-GEOMETRY DATA ==", start="\n", style="bold")
         self.data(num, properties=properties)
@@ -95,15 +103,20 @@ class DescribeFile(BaseCommand):
             data = {key: self._schema_to_dict(schema) for key, schema in schemas.items()}
         self.print_pretty(data, strlen=-1)
 
-    def collection(self):
-        collection = self.encoding.get_collection()
+    def collection(self, verbose: bool = False):
+        collection = self.encoding.get_collection().copy()
         if "schemas" in collection:
-            collection = collection.copy()
             del collection["schemas"]
+        if "schemas:custom" in collection and not verbose:
+            del collection["schemas:custom"]
         if collection:
-            self.print_pretty(collection)
+            self.print_pretty(
+                collection,
+                max_depth=3 if verbose else 1,
+                strlen=-1 if verbose else 50,
+            )
         else:
-            self.warning("No collection metadata found")
+            self.warning("Nothing found")
 
     def columns(self):
         columns = self.encoding.get_properties()
@@ -127,4 +140,10 @@ class DescribeFile(BaseCommand):
 
     def _schema_to_dict(self, schema: CollectionSchemas):
         version, uri, extensions = schema.get()
-        return {"Version": version, "Extensions": extensions if len(extensions) > 0 else None}
+        collection = self.encoding.get_collection()
+        obj = {
+            "Version": version,
+            "Extensions": extensions if len(extensions) > 0 else None,
+        }
+        obj["Custom Schemas"] = "Yes" if "schemas:custom" in collection else "No"
+        return obj

@@ -51,18 +51,30 @@ def test_describe_geoparquet(capsys, test):
         assert "6467974" in out
         assert "6467975" in out
 
-@pytest.mark.parametrize("test", [
-    ("tests/data-files/inspire.json", ["6467974", "schemas:custom:"]),
-    ("tests/data-files/inspire2.json", ["6467975", "No collection metadata found"]),
-])
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        (
+            "tests/data-files/inspire.json",
+            True,
+            ["6467974", "schemas:custom:", "Custom Schemas: Yes"],
+        ),
+        (
+            "tests/data-files/inspire2.json",
+            False,
+            ["6467975", "Nothing found", "Custom Schemas: No"],
+        ),
+    ],
+)
 def test_describe_geojson(capsys, test):
     # todo: use fixture
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
 
-    path, matches = test
+    path, verbose, matches = test
     describe = DescribeFile(path)
-    describe.describe()
+    describe.describe(verbose=verbose)
 
     out, err = capsys.readouterr()
 

@@ -85,10 +85,7 @@ def test_no_schemas_in_props():
         {
             "id": "1",
             "type": "Feature",
-            "properties": {
-                "schemas": schemas,
-                "collection": "test_collection"
-            },
+            "properties": {"schemas": schemas, "collection": "test_collection"},
             "geometry": point,
         }
     )
