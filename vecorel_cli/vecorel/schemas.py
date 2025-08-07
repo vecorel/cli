@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import load_file
-from .version import is_sdl_supported
+from .version import is_sdl_supported, sdl_uri
 
 if TYPE_CHECKING:
     from ..validation.base import Validator
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 class VecorelSchema(dict):
     sdl_pattern = r"https://vecorel.github.io/sdl/v([^/]+)/schema.json"
+    sdl_schema = sdl_uri
 
     @staticmethod
     def merge_all(*schemas) -> VecorelSchema:
@@ -75,6 +76,8 @@ class VecorelSchema(dict):
 
     def migrate(self):
         """Migrate schema to a new version"""
+        if not self.get("$schema"):
+            self["$schema"] = VecorelSchema.sdl_schema
         if not self.get("required"):
             self["required"] = []
         if not self.get("collection"):

@@ -146,7 +146,7 @@ branch = true
 show_missing = true
 skip_covered = false
 precision = 2
-fail_under = 50
+fail_under = 60
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

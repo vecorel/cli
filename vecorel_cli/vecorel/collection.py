@@ -52,3 +52,22 @@ class Collection(dict):
             validator=validator,
         ).values()
         return VecorelSchema.merge_all(*resolved, custom_schemas)
+
+    def get_collection_context(self, schema_map: SchemaMapping = {}) -> list[str]:
+        """
+        Get the properties that should only be present in the collection metadata.
+        """
+        schema = self.merge_schemas(schema_map=schema_map)
+        return schema.get("collection", {})
+
+    def get_collection_only_properties(self, schema_map: SchemaMapping = {}) -> list[str]:
+        """
+        Get the properties that should only be present in the collection metadata.
+        """
+        context = self.get_collection_context(schema_map=schema_map)
+        props = []
+        for key, value in context.items():
+            if value:
+                props.append(key)
+
+        return props

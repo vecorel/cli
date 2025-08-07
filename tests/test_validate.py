@@ -39,6 +39,4 @@ def test_validate(test):
             else:
                 assert error == expect
 
-        print(result.errors)
-
         assert not result.is_valid()

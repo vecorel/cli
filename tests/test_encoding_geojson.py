@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import pytest
 from vecorel_cli.encoding.geojson import GeoJSON
 from vecorel_cli.vecorel.collection import Collection
 
@@ -21,14 +21,17 @@ def test_get_datatypes_uri():
 def test_get_format():
     assert GeoJSON("test.json").get_format() == "GeoJSON"
 
-
-def test_get_collection_exists():
-    geojson = GeoJSON("tests/data-files/inspire.json")
-
+@pytest.mark.parametrize("test", [
+    ("tests/data-files/inspire.json", ["schemas", "schemas:custom"]),
+    ("tests/data-files/inspire2.json", ["schemas"]),
+])
+def test_get_collection_exists(test):
+    path, expected_keys = test
+    geojson = GeoJSON(path)
     collection = geojson.get_collection()
 
     assert isinstance(collection, Collection)
-    assert list(collection.keys()) == ["schemas"]
+    assert list(collection.keys()) == expected_keys
     assert "inspire" in collection["schemas"]
 
 

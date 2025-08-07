@@ -1,4 +1,10 @@
 {
+  "schemas": {
+    "de": [
+      "https://vecorel.github.io/specification/v0.1.0/schema.yaml",
+      "https://vecorel.github.io/administrative-division-extension/v0.1.0/schema.yaml"
+    ]
+  },
   "type": "Feature",
   "id": "de1234",
   "bbox": [172.811, 1.043, 172.854, 1.069],
@@ -15,12 +21,6 @@
     ]
   },
   "properties": {
-    "schemas": {
-      "de": [
-        "https://vecorel.github.io/specification/v0.1.0/schema.yaml",
-        "https://vecorel.github.io/administrative-division-extension/v0.1.0/schema.yaml"
-      ]
-    },
     "admin:country_code": "DE",
     "admin:subdivision_code": "NW",
     "collection": "de",

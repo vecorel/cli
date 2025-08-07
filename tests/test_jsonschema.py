@@ -48,9 +48,10 @@ def test_valid_featurecollection():
 def test_valid_feature():
     result = check(
         {
+            "schemas": schemas,
             "id": "1",
             "type": "Feature",
-            "properties": {"schemas": schemas, "collection": "test_collection"},
+            "properties": {"collection": "test_collection"},
             "geometry": point,
         }
     )
@@ -79,13 +80,15 @@ def test_no_duplicate_collection():
     )
 
 
-def test_no_schemas_in_root():
+def test_no_schemas_in_props():
     result = check(
         {
-            "schemas": schemas,
             "id": "1",
             "type": "Feature",
-            "properties": {"collection": "test_collection"},
+            "properties": {
+                "schemas": schemas,
+                "collection": "test_collection"
+            },
             "geometry": point,
         }
     )
@@ -96,8 +99,9 @@ def test_no_schemas_in_root():
 def test_no_id_in_props():
     result = check(
         {
+            "schemas": schemas,
             "type": "Feature",
-            "properties": {"schemas": schemas, "id": "1", "collection": "test_collection"},
+            "properties": {"id": "1", "collection": "test_collection"},
             "geometry": point,
         }
     )
@@ -108,10 +112,10 @@ def test_no_id_in_props():
 def test_invalid_prop_in_prop():
     result = check(
         {
+            "schemas": schemas,
             "id": "1",
             "type": "Feature",
             "properties": {
-                "schemas": schemas,
                 "collection": "test_collection",
                 "determination_datetime": 123,
             },
@@ -125,9 +129,10 @@ def test_invalid_prop_in_prop():
 def test_invalid_prop_in_root():
     result = check(
         {
+            "schemas": schemas,
             "id": "",
             "type": "Feature",
-            "properties": {"schemas": schemas, "collection": "test_collection"},
+            "properties": {"collection": "test_collection"},
             "geometry": point,
         }
     )

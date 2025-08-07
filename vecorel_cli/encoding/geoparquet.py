@@ -147,7 +147,7 @@ class GeoParquet(BaseEncoding):
         self.file.parent.mkdir(parents=True, exist_ok=True)
 
         if dehydrate:
-            data = self.dehydrate_to_collection(data, properties=properties)
+            data = self.dehydrate_to_collection(data, properties=properties, schema_map=schema_map)
 
         if properties is None:
             properties = list(data.columns)
@@ -286,7 +286,7 @@ class GeoParquet(BaseEncoding):
         gdf = _arrow_to_geopandas(table)
 
         if hydrate:
-            gdf = self.hydrate_from_collection(gdf)
+            gdf = self.hydrate_from_collection(gdf, schema_map=schema_map)
 
         return gdf
 

@@ -1,6 +1,8 @@
 # fmt: off
 from typing import Optional
 
+from ..encoding.geojson import GeoJSON
+
 
 def check_properties(schema: dict) -> dict:
     return {
@@ -23,6 +25,12 @@ def check_features(schema: dict) -> dict:
     }
 
 
+def not_required(items: set[str]) -> dict:
+    if len(items) == 0:
+        return {}
+    return {"not": {"required": list(items)}}
+
+
 # Sets have an unpredictable order, so we convert to a list and sort them
 # so that the output is deterministic / consistent.
 def toSortedList(items: set) -> list:
@@ -36,7 +44,6 @@ def jsonschema_template(
     collection: dict[str, bool],
     schema_id: Optional[str] = None,
 ):
-    geojson_properties = set(["id", "bbox", "geometry"])
     properties = set(property_schemas.keys())
 
     only_collection = set()
@@ -44,6 +51,8 @@ def jsonschema_template(
     for key, value in collection.items():
         chosen_set = only_collection if value else only_properties
         chosen_set.add(key)
+
+    top_level_feature = GeoJSON.feature_properties | only_collection
 
     # The properties that are defined in fiboa, but are also GeoJSON top-level properties
     schema = {
@@ -82,26 +91,26 @@ def jsonschema_template(
                 "properties": {
                     "properties": {
                         "type": "object",
-                        "not": {"required": toSortedList(geojson_properties)},
                         "properties": {
-                            key: property_schemas[key] for key in toSortedList(properties - geojson_properties)
-                        }
+                            key: property_schemas[key] for key in toSortedList(properties - top_level_feature) if key in property_schemas
+                        },
+                        **not_required(toSortedList(only_collection))
                     },
                     **{
-                        key: property_schemas[key] for key in toSortedList(geojson_properties)
+                        key: property_schemas[key] for key in toSortedList(top_level_feature) if key in property_schemas
                     }
                 }
             },
             "feature_requirements": {
                 "type": "object",
-                "required": toSortedList(required & geojson_properties),
-                "not": {"required": toSortedList(properties - geojson_properties)},
+                "required": toSortedList(required & top_level_feature),
                 "properties": {
                     "properties": {
                         "type": "object",
-                        "required": toSortedList(required - geojson_properties)
+                        "required": toSortedList(required - top_level_feature)
                     }
-                }
+                },
+                **not_required(toSortedList(only_properties - GeoJSON.feature_properties))
             },
             "featurecollection_schemas": check_features({"$ref": "#/$defs/feature_schemas"}),
             "featurecollection_requirements": {
@@ -116,13 +125,13 @@ def jsonschema_template(
                             {"required": [key]},
                             check_features(check_properties({"required": [key]}))
                         ]
-                    } for key in toSortedList(required - geojson_properties - only_collection - only_properties)
+                    } for key in toSortedList(required - top_level_feature - only_properties)
                 ],
                 **check_features({
                     # Check that the features don't contain any properties
-                    "not": {"required": toSortedList((properties & only_properties) - (geojson_properties | only_collection))},
+                    **not_required(toSortedList((properties & only_properties) - top_level_feature)),
                     # Require any properties in the features that can only be used in the properties
-                    **check_properties({"required": toSortedList((required & only_properties) - (geojson_properties | only_collection))})
+                    **check_properties({"required": toSortedList((required & only_properties) - top_level_feature)})
                 })
             },
             "featurecollection_uniqueness": {

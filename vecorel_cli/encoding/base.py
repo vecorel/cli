@@ -12,7 +12,6 @@ from ..vecorel.util import format_filesize
 
 class BaseEncoding(LoggerMixin):
     ext = []
-    non_collection_properties = ["id", "geometry", "bbox", "schemas", "schemas:custom"]
 
     def __init__(self, file: Union[Path, str]):
         self.file = Path(file)
@@ -93,15 +92,16 @@ class BaseEncoding(LoggerMixin):
         """
         raise NotImplementedError("Not supported by encoding")
 
-    def hydrate_from_collection(self, data: GeoDataFrame) -> GeoDataFrame:
+    def hydrate_from_collection(self, data: GeoDataFrame, schema_map: SchemaMapping = {}) -> GeoDataFrame:
         """
         Merge the collection metadata into the GeoDataFrame.
         """
         collection = self.get_collection()
+        collection_only = collection.get_collection_only_properties(schema_map=schema_map)
         keys = list(collection.keys())
         for key in keys:
             value = collection[key]
-            if key in BaseEncoding.non_collection_properties:
+            if key in collection_only:
                 continue
             if key not in data.columns:
                 data[key] = value
@@ -110,7 +110,7 @@ class BaseEncoding(LoggerMixin):
         return data
 
     def dehydrate_to_collection(
-        self, data: GeoDataFrame, properties: Optional[list[str]] = None
+        self, data: GeoDataFrame, properties: Optional[list[str]] = None, schema_map: SchemaMapping = {}
     ) -> GeoDataFrame:
         """
         Extract the collection metadata from the GeoDataFrame.
@@ -122,15 +122,20 @@ class BaseEncoding(LoggerMixin):
         if len(data) <= 1:
             return data
 
+        context = collection.get_collection_context(schema_map=schema_map)
         for key in data.columns:
-            if key in BaseEncoding.non_collection_properties:
+            where = context.get(key, None)
+            if where is not None:
+                # Skip properties that should always be in the feature or collection
                 continue
             if properties and key not in properties:
                 continue
 
-            if data[key].nunique(dropna=False) == 1:
-                collection[key] = data[key].iloc[0]
-                if key != "collection":
-                    del data[key]
+            # todo: This only works for scalar values, how to handle dicts, etc?
+            try:
+                if data[key].nunique(dropna=False) == 1:
+                    collection[key] = data[key].iloc[0]
+            except TypeError:
+                pass
 
         return data

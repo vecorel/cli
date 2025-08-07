@@ -16,11 +16,10 @@ from ..vecorel.typing import FeatureCollection, SchemaMapping
 from ..vecorel.util import load_file, to_iso8601
 from .base import BaseEncoding
 
-FEATURE_PROPS = ["type", "id", "geometry", "bbox", "properties"]
-FEATURE_COLLECTION_PROPS = ["type", "features"]
-
 
 class GeoJSON(BaseEncoding):
+    feature_properties = {"type", "id", "geometry", "bbox", "properties"}
+    feature_collection_properties = {"type", "features"}
     datatypes_schema_uri = (
         "https://vecorel.github.io/specification/v{version}/geojson/datatypes.json"
     )
@@ -68,7 +67,7 @@ class GeoJSON(BaseEncoding):
         self.file.parent.mkdir(parents=True, exist_ok=True)
 
         if dehydrate:
-            data = self.dehydrate_to_collection(data, properties=properties)
+            data = self.dehydrate_to_collection(data, properties=properties, schema_map=schema_map)
 
         # We need to write GeoJSON in EPSG:4326
         data.to_crs(epsg=4326, inplace=True)
@@ -107,10 +106,11 @@ class GeoJSON(BaseEncoding):
 
         # Let's get all collection metadata into the feature itself
         collection = self.get_collection()
+        collection_only = collection.get_collection_only_properties()
         for key, value in collection.items():
-            if key not in BaseEncoding.non_collection_properties:
+            if key not in collection_only:
                 data["properties"][key] = value
-            elif key not in FEATURE_PROPS:
+            elif key not in GeoJSON.feature_properties:
                 data[key] = value
 
         # Remove properties that are not in the properties list
@@ -135,7 +135,7 @@ class GeoJSON(BaseEncoding):
             gdf = self._stream_json(num=num, properties=properties, schema_map=schema_map)
 
         if hydrate:
-            gdf = self.hydrate_from_collection(gdf)
+            gdf = self.hydrate_from_collection(gdf, schema_map=schema_map)
 
         return gdf
 
@@ -150,51 +150,49 @@ class GeoJSON(BaseEncoding):
         if obj["type"] != "FeatureCollection" and obj["type"] != "Feature":
             raise ValueError("JSON file must contain a FeatureCollection or Feature")
 
+        is_feature = obj["type"] == "Feature"
+
         # Extract collection metadata (i.e. non-GeoJSON properties) from the GeoJSON object.
         collection = Collection()
-        if obj["type"] == "FeatureCollection":
-            for key, value in obj.items():
-                if key in FEATURE_COLLECTION_PROPS:
-                    continue
-                else:
-                    collection[key] = value
-        elif obj["type"] == "Feature":
-            props = obj.get("properties", {})
-            schemas = Schemas(props.get("schemas", {}))
-            cschema = schemas.get(props.get("collection"))
-            if cschema:
-                # todo: should be pass the schema map and custom schemas?
-                resolved = cschema.merge_schemas(schema_map=schema_map)
-                collection_props = resolved.get("collection", {})
-                for key, value in collection_props.items():
-                    if value and key not in FEATURE_PROPS and key in props:
-                        collection[key] = props.get(key)
-                        if not hydrate:
-                            del props[key]
+        geojson_props = GeoJSON.feature_properties if is_feature else GeoJSON.feature_collection_properties
+        for key, value in obj.items():
+            if key not in geojson_props:
+                collection[key] = value
 
-        if obj["type"] == "Feature":
+        # Wrap a single Feature into a FeatureCollection
+        if is_feature:
             obj = {"type": "FeatureCollection", "features": [obj]}
 
+        # Restrict to number of features requested
         if num is not None:
             obj["features"] = obj["features"][:num]
 
-        if hydrate:
-            obj, collection = self._hydrate_featurecollection(obj, collection)
+        # Move the collection properties to the Features in the FeatureCollection.
+        # Not needed for Features according to the specification.
+        if hydrate and not is_feature:
+            obj, collection = self._hydrate_featurecollection(obj, collection, schema_map=schema_map)
 
         self.set_collection(collection)
 
         return obj
 
     def _hydrate_featurecollection(
-        self, data: FeatureCollection, collection: Collection
+        self, data: FeatureCollection, collection: Collection, schema_map: SchemaMapping = {}
     ) -> tuple[FeatureCollection, Collection]:
-        for feature in data["features"]:
-            feature.update(collection)
+        collection_only = collection.get_collection_only_properties(schema_map=schema_map)
 
-        new_collection = {
-            "schemas": collection.get("schemas", {}),
-            "schemas:custom": collection.get("schemas:custom", {}),
-        }
+        # Split the collection metadata into two parts:
+        # 1. Properties that should be added to each Feature
+        # 2. Properties that should remain in the collection metadata
+        merge_to_features = Collection()
+        new_collection = Collection()
+        for key, value in collection.items():
+            c = new_collection if key in collection_only else merge_to_features
+            c[key] = value
+
+        # Add the remaining collection metadata to each feature
+        for feature in data["features"]:
+            feature.update(merge_to_features)
 
         return data, new_collection
 

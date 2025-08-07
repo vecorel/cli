@@ -51,13 +51,16 @@ def test_describe_geoparquet(capsys, test):
         assert "6467974" in out
         assert "6467975" in out
 
-
-def test_describe_geojson(capsys):
+@pytest.mark.parametrize("test", [
+    ("tests/data-files/inspire.json", ["6467974", "schemas:custom:"]),
+    ("tests/data-files/inspire2.json", ["6467975", "No collection metadata found"]),
+])
+def test_describe_geojson(capsys, test):
     # todo: use fixture
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
 
-    path = "tests/data-files/inspire.json"
+    path, matches = test
     describe = DescribeFile(path)
     describe.describe()
 
@@ -67,8 +70,8 @@ def test_describe_geojson(capsys):
     assert "Version: 0.1.0" in out
     assert "https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml" in out
     assert "File format is not columnar" in out
-    assert "No collection metadata found" in out
-    assert "6467974" in out
+    for match in matches:
+        assert match in out
 
 
 def test_describe_invalid_file():

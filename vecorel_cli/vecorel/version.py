@@ -3,6 +3,7 @@ from semantic_version import SimpleSpec, Version
 vecorel_version = "0.1.0"
 supported_vecorel_versions = ">=0.1.0,<0.2.0"
 supported_sdl_versions = ">=0.2.0,<0.3.0"
+sdl_uri = "https://vecorel.github.io/sdl/v0.2.0/schema.json"
 
 
 def is_supported(version, raise_exception=False) -> bool:

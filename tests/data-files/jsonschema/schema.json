@@ -49,9 +49,7 @@
           "type": "object",
           "not": {
             "required": [
-              "bbox",
-              "geometry",
-              "id"
+              "schemas"
             ]
           },
           "properties": {
@@ -85,23 +83,6 @@
               "type": "number",
               "maximum": 125000,
               "exclusiveMinimum": 0
-            },
-            "schemas": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "format": "uri",
-                  "pattern": "^https?://"
-                },
-                "contains": {
-                  "type": "string",
-                  "enum": [
-                    "https://vecorel.github.io/specification/v0.1.0/schema.yaml"
-                  ]
-                }
-              }
             }
           }
         },
@@ -123,6 +104,23 @@
         "id": {
           "type": "string",
           "minLength": 1
+        },
+        "schemas": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            },
+            "contains": {
+              "type": "string",
+              "enum": [
+                "https://vecorel.github.io/specification/v0.1.0/schema.yaml"
+              ]
+            }
+          }
         }
       }
     },
@@ -130,24 +128,20 @@
       "type": "object",
       "required": [
         "geometry",
-        "id"
+        "id",
+        "schemas"
       ],
       "not": {
         "required": [
           "area",
-          "collection",
-          "determination_datetime",
-          "determination_method",
-          "perimeter",
-          "schemas"
+          "perimeter"
         ]
       },
       "properties": {
         "properties": {
           "type": "object",
           "required": [
-            "collection",
-            "schemas"
+            "collection"
           ]
         }
       }
