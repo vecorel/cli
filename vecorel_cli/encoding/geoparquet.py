@@ -22,6 +22,7 @@ from .base import BaseEncoding
 class GeoParquet(BaseEncoding):
     schema_uri = "https://geoparquet.org/releases/v{version}/schema.json"
     ext = [".parquet", ".geoparquet"]
+    media_type = "application/vnd.apache.parquet"
     row_group_size = 25000
 
     def __init__(self, file: Union[Path, str]):
@@ -189,7 +190,7 @@ class GeoParquet(BaseEncoding):
                 self.warning(f"{column}: Can't convert to {dtype}: {e}")
 
         _columns = list(data.columns)
-        duplicates = set([x for x in _columns if _columns.count(x) > 1])
+        duplicates = {x for x in _columns if _columns.count(x) > 1}
         if len(duplicates):
             raise ValueError(f"Columns are defined multiple times: {duplicates}")
 

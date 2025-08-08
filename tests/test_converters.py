@@ -1,18 +1,39 @@
+import pytest
+
 from vecorel_cli.converters import Converters
 from vecorel_cli.registry import Registry
 
-Registry.ignored_datasets = []
+
+@pytest.fixture(autouse=True)
+def registry_reset():
+    ignored = Registry.ignored_datasets
+    src_package = Registry.src_package
+    yield
+    Registry.ignore_datasets = ignored
+    Registry.src_package = src_package
 
 
 def test_list_ids():
+    Registry.ignored_datasets = []
     c = Converters()
     result = c.list_ids()
     assert isinstance(result, list)
     assert len(result) == 1
-    assert result[0] == "template"
+    assert "template" in result
+
+
+def test_list_ids_other_module():
+    Registry.src_package = "tests"
+    c = Converters()
+    result = c.list_ids()
+    assert isinstance(result, list)
+    assert len(result) >= 2
+    assert "data_access" in result
+    assert "example" in result
 
 
 def test_list_all():
+    Registry.ignored_datasets = []
     c = Converters()
     result = c.list_all()
     assert isinstance(result, dict)
@@ -26,6 +47,7 @@ def test_list_all():
 
 
 def test_load():
+    Registry.ignored_datasets = []
     c = Converters()
     converter = c.load("template")
     assert converter is not None
@@ -38,7 +60,7 @@ def test_load_invalid():
     try:
         c.load("non_existent")
     except ValueError as e:
-        assert str(e) == "Module for converter 'non_existent' not found"
+        assert str(e) == "Converter 'non_existent' not found"
     else:
         assert False, "Expected ValueError was not raised"
 

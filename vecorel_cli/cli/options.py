@@ -14,6 +14,15 @@ def CRS(default_value):
     )
 
 
+JSON_INDENT = click.option(
+    "--indent",
+    "-i",
+    type=click.IntRange(min=0, max=8),
+    help="Indentation for JSON files. Defaults to no indentation.",
+    default=None,
+)
+
+
 GEOPARQUET_COMPRESSION = click.option(
     "--compression",
     "-pc",
@@ -83,3 +92,13 @@ def VECOREL_TARGET(required=True, folder=False):
         required=required,
         default=None,
     )
+
+
+VECOREL_TARGET_CONSOLE = click.option(
+    "target",
+    "--out",
+    "-o",
+    type=click.Path(exists=False, dir_okay=False, resolve_path=True),
+    help="Path to write the file to. If not provided, prints the data to the console.",
+    default=None,
+)

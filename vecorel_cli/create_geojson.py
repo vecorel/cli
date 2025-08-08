@@ -4,7 +4,7 @@ from typing import Optional, Union
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import PROPERTIES, VECOREL_FILE_ARG, VECOREL_TARGET
+from .cli.options import JSON_INDENT, PROPERTIES, VECOREL_FILE_ARG, VECOREL_TARGET
 from .encoding.auto import create_encoding
 from .encoding.geojson import GeoJSON
 
@@ -37,13 +37,7 @@ class CreateGeoJson(BaseCommand):
                 help="Number of features to export. Defaults to all.",
                 default=None,
             ),
-            "indent": click.option(
-                "--indent",
-                "-i",
-                type=click.IntRange(min=0, max=8),
-                help="Indentation for JSON files. Defaults to no indentation.",
-                default=None,
-            ),
+            "indent": JSON_INDENT,
         }
 
     @runnable

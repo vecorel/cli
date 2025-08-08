@@ -5,7 +5,8 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
-from .conversion.baseconverter import BaseConverter
+from .cli.util import display_pandas_unrestricted
+from .conversion.base import BaseConverter
 from .registry import Registry
 
 
@@ -60,9 +61,7 @@ class Converters(BaseCommand):
         df = pd.DataFrame.from_dict(converters, orient="index", columns=keys)
         df.rename(columns=columns, inplace=True)
 
-        pd.set_option("display.max_columns", None)
-        pd.set_option("display.max_rows", None)
-        pd.set_option("display.max_colwidth", None if verbose else self.default_max_colwidth)
+        display_pandas_unrestricted(None if verbose else self.default_max_colwidth)
 
         if not df.empty:
             self.info(df)
@@ -71,7 +70,7 @@ class Converters(BaseCommand):
 
     def get_module(self, name=None):
         name = f".datasets.{name}" if name else ".datasets"
-        return importlib.import_module(name, package=Registry.package)
+        return importlib.import_module(name, package=Registry.src_package)
 
     def get_path(self) -> str:
         module = self.get_module()
@@ -88,7 +87,7 @@ class Converters(BaseCommand):
         try:
             module = self.get_module(name)
         except ModuleNotFoundError:
-            raise ValueError(f"Module for converter '{name}' not found")
+            raise ValueError(f"Converter '{name}' not found")
 
         try:
             clazz = next(

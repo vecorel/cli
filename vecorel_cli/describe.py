@@ -2,10 +2,10 @@ from pathlib import Path
 from typing import Optional, Union
 
 import click
-import pandas as pd
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import VECOREL_FILE_ARG
+from .cli.util import display_pandas_unrestricted
 from .encoding.auto import create_encoding
 from .vecorel.schemas import CollectionSchemas
 
@@ -71,19 +71,19 @@ class DescribeFile(BaseCommand):
         if not properties:
             properties = None
 
-        self.success("== FILE SUMMARY ==", style="bold")
+        self.success("FILE SUMMARY", style="underline")
         self.summarize()
 
-        self.success("== VERSIONS & EXTENSIONS ==", start="\n", style="bold")
+        self.success("VERSIONS & EXTENSIONS", start="\n", style="underline")
         self.schemas()
 
-        self.success("== COLUMNS ==", start="\n", style="bold")
+        self.success("COLUMNS", start="\n", style="underline")
         self.columns()
 
-        self.success("== COLLECTION DATA ==", start="\n", style="bold")
+        self.success("COLLECTION DATA", start="\n", style="underline")
         self.collection(verbose=verbose)
 
-        self.success("== PER-GEOMETRY DATA ==", start="\n", style="bold")
+        self.success("PER-GEOMETRY DATA", start="\n", style="underline")
         self.data(num, properties=properties)
 
     def summarize(self):
@@ -137,8 +137,7 @@ class DescribeFile(BaseCommand):
     def data(self, num: int = 10, properties: Optional[list[str]] = None):
         if num > 0:
             # Make it so that everything is shown, don't output "..." if there are too many columns or rows
-            pd.set_option("display.max_columns", None)
-            pd.set_option("display.max_rows", None)
+            display_pandas_unrestricted()
             # Load data
             gdf = self.encoding.read(num=num, properties=properties)
             # Print to console

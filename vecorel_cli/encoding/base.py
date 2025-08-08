@@ -12,6 +12,7 @@ from ..vecorel.util import format_filesize
 
 class BaseEncoding(LoggerMixin):
     ext = []
+    media_type = "application/octet-stream"
 
     def __init__(self, file: Union[Path, str]):
         self.file = Path(file)

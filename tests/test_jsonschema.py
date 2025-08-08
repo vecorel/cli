@@ -22,7 +22,7 @@ def check(obj):
 
 def test_conversion():
     cmd = CreateJsonSchema()
-    created_json_schema = cmd.create_from_files(
+    created_json_schema = cmd.create_from_file(
         schema_uri=vecorel_schema_uri,
         datatypes_uri=datatypes_uri,
         schema_id=schema_id,

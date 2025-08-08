@@ -17,14 +17,22 @@ tests = [
     ("tests/data-files/mixed.json", True),
     ("tests/data-files/mixed.parquet", True),
     # multiple collections, invalid files
-    ("tests/data-files/mixed-invalid.json", [
-        Exception("'DEE' is too long"),
-        Exception("'DEE' does not match '^[A-Z]{2}$'"),
-    ]),
-    ("tests/data-files/mixed-invalid.parquet", [
-        Exception("admin:country_code: String 'DEE' is longer than the maximum length of 2."),
-        Exception("admin:country_code: String 'DEE' does not match the required pattern: ^[A-Z]{2}$."),
-    ]),
+    (
+        "tests/data-files/mixed-invalid.json",
+        [
+            Exception("'DEE' is too long"),
+            Exception("'DEE' does not match '^[A-Z]{2}$'"),
+        ],
+    ),
+    (
+        "tests/data-files/mixed-invalid.parquet",
+        [
+            Exception("admin:country_code: String 'DEE' is longer than the maximum length of 2."),
+            Exception(
+                "admin:country_code: String 'DEE' does not match the required pattern: ^[A-Z]{2}$."
+            ),
+        ],
+    ),
 ]
 
 
@@ -49,7 +57,7 @@ def test_validate(test):
                 if isinstance(expect, ValidationError):
                     assert message == expect.message
                 elif isinstance(expect, FileNotFoundError):
-                    pass # ignore exact message for FileNotFoundError
+                    pass  # ignore exact message for FileNotFoundError
                 elif isinstance(expect, Exception):
                     assert message == str(expect)
             else:

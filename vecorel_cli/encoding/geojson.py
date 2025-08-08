@@ -23,6 +23,7 @@ class GeoJSON(BaseEncoding):
         "https://vecorel.github.io/specification/v{version}/geojson/datatypes.json"
     )
     ext = [".json", ".geojson"]
+    media_type = "application/geo+json"
     crs = "EPSG:4326"
 
     def __init__(self, file: Union[Path, str]):

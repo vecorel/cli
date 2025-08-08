@@ -85,7 +85,8 @@ class ValidateData(BaseCommand):
     ) -> dict[str, Validator]:
         results = {}
         for file in files:
-            filepath = str(file.normalize())
+            file = Path(file)
+            filepath = str(file.resolve())
             try:
                 results[filepath] = self.validate(file, num=num, schema_map=schema_map)
             except Exception as e:

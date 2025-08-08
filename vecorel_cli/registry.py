@@ -3,21 +3,21 @@ import importlib.metadata
 
 class Registry:
     """
-    The displayable title of the CLI.
+    The public package name of the library (e.g. on pypi).
     """
 
+    name: str = "vecorel-cli"
+
+    """
+    The displayable title of the CLI.
+    """
     cli_title: str = "Vecorel CLI"
 
     """
-    The version number of the CLI.
-    """
-    cli_version: str = importlib.metadata.version("vecorel-cli")
-
-    """
-    The package name of the CLI.
+    The internal package name of the CLI.
     This is the name of the folder in which the source files are located.
     """
-    package: str = "vecorel_cli"
+    src_package: str = "vecorel_cli"
 
     # todo: in fiboa CLI add "area", "perimeter", "determination_datetime", "determination_method"
     core_properties = [
@@ -31,6 +31,13 @@ class Registry:
     ignored_datasets = [
         "template.py",
     ]
+
+    @staticmethod
+    def get_version():
+        """
+        Returns the version of the library/CLI.
+        """
+        return importlib.metadata.version(Registry.name)
 
     @staticmethod
     def get_encodings():
@@ -67,6 +74,7 @@ class Registry:
         from .create_geojson import CreateGeoJson
         from .create_geoparquet import CreateGeoParquet
         from .create_jsonschema import CreateJsonSchema
+        from .create_stac import CreateStacCollection
         from .describe import DescribeFile
         from .improve import ImproveData
         from .merge import MergeDatasets
@@ -80,6 +88,7 @@ class Registry:
             CreateGeoJson,
             CreateGeoParquet,
             CreateJsonSchema,
+            CreateStacCollection,
             DescribeFile,
             ImproveData,
             MergeDatasets,

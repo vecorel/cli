@@ -1,0 +1,102 @@
+{
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/processing/v1.1.0/schema.json",
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json"
+  ],
+  "type": "Collection",
+  "id": "de_sh",
+  "title": "Field boundaries for Schleswig-Holstein (SH), Germany",
+  "description": "A field block (German: \"Feldblock\") is a contiguous agricultural area surrounded by permanent boundaries, which is cultivated by one or more farmers with one or more crops, is fully or partially set aside or is fully or partially taken out of production.",
+  "license": "other",
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          7.850744089655693,
+          54.17900586097172,
+          8.373607503101216,
+          54.953541347716865
+        ]
+      ]
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2024-01-01T00:00:00Z",
+          "2024-01-01T00:00:00Z"
+        ]
+      ]
+    }
+  },
+  "assets": {
+    "data": {
+      "roles": [
+        "data"
+      ],
+      "href": "file://C:/Dev/vecorel-cli/tests/data-files/stac/de-sh.parquet",
+      "processing:software": {
+        "vecorel-cli": "0.1.0"
+      },
+      "type": "application/vnd.apache.parquet",
+      "table:columns": [
+        {
+          "name": "hbn",
+          "type": "string"
+        },
+        {
+          "name": "admin:subdivision_code",
+          "type": "string"
+        },
+        {
+          "name": "geometry",
+          "type": "binary"
+        },
+        {
+          "name": "determination_datetime",
+          "type": "timestamp[ms, tz=UTC]"
+        },
+        {
+          "name": "admin:country_code",
+          "type": "string"
+        },
+        {
+          "name": "collection",
+          "type": "string"
+        },
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "area",
+          "type": "float"
+        },
+        {
+          "name": "bbox",
+          "type": "struct<xmin: double, ymin: double, xmax: double, ymax: double>"
+        }
+      ],
+      "table:primary_geometry": "geometry",
+      "table:row_count": 100
+    }
+  },
+  "links": [
+    {
+      "href": "https://www.govdata.de/dl-de/zero-2-0",
+      "title": "Data licence Germany - Zero - Version 2.0",
+      "type": "text/html",
+      "rel": "license"
+    }
+  ],
+  "providers": [
+    {
+      "name": "Land Schleswig-Holstein",
+      "roles": [
+        "producer",
+        "licensor"
+      ],
+      "url": "https://sh-mis.gdi-sh.de/catalog/#/datasets/iso/21f67269-780f-4f3c-8f66-03dde27acfe7"
+    }
+  ]
+}

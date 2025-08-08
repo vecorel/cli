@@ -1,11 +1,11 @@
 import copy
-import json
 from pathlib import Path
 from typing import Optional, Union
 
 import click
 
 from .basecommand import BaseCommand, runnable
+from .cli.options import JSON_INDENT, VECOREL_TARGET_CONSOLE
 from .cli.util import valid_file
 from .encoding.geojson import GeoJSON
 from .jsonschema.template import jsonschema_template
@@ -43,13 +43,7 @@ class CreateJsonSchema(BaseCommand):
                 show_default=True,
                 default=GeoJSON.get_datatypes_uri(vecorel_version),
             ),
-            "out": click.option(
-                "--out",
-                "-o",
-                type=click.Path(exists=False),
-                help="Path to write the file to. If not provided, prints the schema to the console.",
-                default=None,
-            ),
+            "target": VECOREL_TARGET_CONSOLE,
             "id": click.option(
                 "--id",
                 "-i",
@@ -58,26 +52,30 @@ class CreateJsonSchema(BaseCommand):
                 help="The JSON Schema $id to use for the schema. If not provided, the $id will be omitted.",
                 default=None,
             ),
+            "indent": JSON_INDENT,
         }
 
     @runnable
-    def create_from_files(
+    def create_cli(
         self,
         schema_uri: str,
         datatypes_uri: str,
-        out: Optional[Union[str, Path]] = None,
+        target: Optional[Union[str, Path]] = None,
         schema_id: Optional[str] = None,
-    ) -> Union[Path, dict]:
-        out = Path(out) if out else None
+        indent: Optional[int] = None,
+    ) -> Union[Path, str]:
+        jsonschema = self.create_from_file(schema_uri, datatypes_uri, schema_id=schema_id)
+        return self._json_dump_cli(jsonschema, target, indent)
+
+    def create_from_file(
+        self,
+        schema_uri: str,
+        datatypes_uri: str,
+        schema_id: Optional[str] = None,
+    ) -> dict:
         schema = load_file(schema_uri)
         datatypes = GeoJSON.load_datatypes(datatypes_uri)
-        jsonschema = self.create_from_dict(schema, datatypes, schema_id)
-        if out:
-            with open(out, "w", encoding="utf-8") as f:
-                json.dump(jsonschema, f, indent=2)
-            return out
-        else:
-            return jsonschema
+        return self.create_from_dict(schema, datatypes, schema_id)
 
     def create_from_dict(self, schema: dict, datatypes: dict, schema_id=None):
         required = schema.get("required", [])

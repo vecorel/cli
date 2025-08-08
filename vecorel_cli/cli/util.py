@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 
 import click
+import pandas as pd
 
 from ..const import SUPPORTED_PROTOCOLS
 from ..registry import Registry
@@ -140,3 +142,9 @@ def valid_schemas_for_cli(value: tuple[str]) -> dict[str, Path]:
         map_[part[0]] = p
 
     return map_
+
+
+def display_pandas_unrestricted(max_colwidth: Optional[int] = 50):
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.max_rows", None)
+    pd.set_option("display.max_colwidth", max_colwidth)

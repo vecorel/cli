@@ -4,14 +4,13 @@ import hashlib
 import inspect
 import json
 import os
-import re
 import sys
 import zipfile
 from copy import copy
 from glob import glob
 from io import StringIO
 from tempfile import TemporaryDirectory
-from typing import Optional
+from typing import Optional, Union
 
 import flatdict
 import geopandas as gpd
@@ -20,33 +19,36 @@ import pandas as pd
 import py7zr
 import rarfile
 from fsspec.implementations.local import LocalFileSystem
-from shapely.geometry import box
 
-from ..const import STAC_TABLE_EXTENSION
+from ..cli.logger import LoggerMixin
+from ..cli.util import display_pandas_unrestricted
 from ..encoding.geoparquet import GeoParquet
-from ..vecorel.util import get_fs, name_from_uri, stream_file, to_iso8601
+from ..vecorel.collection import Collection
+from ..vecorel.schemas import Schemas
+from ..vecorel.util import get_fs, name_from_uri, stream_file
 from ..vecorel.version import vecorel_version
 
 
-class BaseConverter:
+class BaseConverter(LoggerMixin):
     command = None
 
     bbox: Optional[tuple[float]] = None
-    id: str = None
-    short_name: str = None
-    title: str = None
-    license: str | dict[str, str] = None
-    attribution: str = None
-    description: str = None
-    providers: list[dict] = []
+    id: str = ""
+    short_name: str = ""
+    title: str = ""
+    license: Optional[Union[str, dict[str, str]]] = None
+    attribution: Optional[str] = None
+    description: str = ""
+    provider: Optional[str] = None
 
-    sources: Optional[dict[str, str] | str] = None
-    source_variants: Optional[dict[dict[str, str] | str]] = None
-    variant: str = None
-    open_options = {}
-    avoid_range_request = False
-    years: Optional[dict[dict[int, str] | str]] = None
-    year: str = None
+    sources: Optional[Union[str, dict[str, str]]] = None
+    source_variants: Optional[Union[dict[dict[str, str]], str]] = None
+    data_access: str = ""
+    variant: Optional[str] = None
+    open_options: dict = {}
+    avoid_range_request: bool = False
+    years: Optional[Union[dict[dict[int, str]], str]] = None
+    year: Optional[str] = None
 
     columns: dict[str, str] = {}
     column_additions: dict[str, str] = {}
@@ -55,20 +57,16 @@ class BaseConverter:
     missing_schemas: dict[str, str] = {}
     extensions: set[str] = set()
 
-    index_as_id = False
+    index_as_id: bool = False
 
-    def __init__(self, command, **kwargs):
-        self.command = command  # type: ConvertData
+    def __init__(self, *args, **kwargs):
+        super().__init__()
 
         # In BaseConverter and mixins we use class-based members as instance based-members
         # Every instance should be allowed to modify its member attributes, so here we make a copy of dicts/lists
         for key, item in inspect.getmembers(self):
             if not key.startswith("_") and isinstance(item, (list, dict, set)):
                 setattr(self, key, copy(item))
-
-    def log(self, text: str, status="info"):
-        if self.command is not None:
-            self.command.log(text, status)
 
     def migrate(self, gdf) -> gpd.GeoDataFrame:
         return gdf
@@ -270,88 +268,20 @@ class BaseConverter:
         title = self.title.strip()
         return f"{title} ({self.year})" if self.year else title
 
-    def create_collection(self, gdf, source_coop_url):
-        """
-        Creates a collection for the field boundary datasets.
-        """
-        bbox = self.bbox
-        if bbox is None:
-            bbox = list(
-                gpd.GeoSeries([box(*gdf.total_bounds)], crs=gdf.crs).to_crs(epsg=4326).total_bounds
-            )
-
-        collection = {
-            "fiboa_version": vecorel_version,
-            "fiboa_extensions": list(self.extensions),
-            "type": "Collection",
-            "id": self.id.strip(),
-            "title": self.get_title(),
-            "description": self.description.strip(),
-            "license": "proprietary",
-            "providers": self.providers,
-            "extent": {
-                "spatial": {"bbox": [bbox]},
-            },
-            "links": [],
-        }
-
-        if "determination_datetime" in gdf.columns:
-            dates = pd.to_datetime(gdf["determination_datetime"])
-            min_time = to_iso8601(dates.min())
-            max_time = to_iso8601(dates.max())
-
-            collection["extent"]["temporal"] = {"interval": [[min_time, max_time]]}
-            # Without temporal extent it's not valid STAC
-            collection["stac_version"] = "1.0.0"
-
-        # Add Vecorel CLI to providers
-        collection["providers"].append(
+    def create_collection(self, cid) -> Collection:
+        schema_uris = [Schemas.get_core_uri(vecorel_version)]
+        schema_uris.extend(self.extensions)
+        collection = Collection(
             {
-                "name": "Vecorel CLI",
-                "roles": ["processor"],
-                "url": "https://pypi.org/project/vecorel-cli",
+                "schemas": {cid: schema_uris},
+                "title": self.get_title(),
+                "description": self.description.strip(),
+                "license": self.license,
+                "provider": self.provider,
+                "attribution": self.attribution,
             }
         )
-
-        # Add source coop to providers if applicable
-        if source_coop_url is not None:
-            collection["providers"].append(
-                {"name": "Source Cooperative", "roles": ["host"], "url": source_coop_url}
-            )
-
-        # Update attribution
-        if self.attribution is not None:
-            collection["attribution"] = self.attribution
-
-        # Update license
-        if isinstance(self.license, dict):
-            collection["links"].append(self.license)
-        elif isinstance(self.license, str):
-            if self.license.lower() == "dl-de/by-2-0":
-                collection["links"].append(
-                    {
-                        "href": "https://www.govdata.de/dl-de/by-2-0",
-                        "title": "Data licence Germany - attribution - Version 2.0",
-                        "type": "text/html",
-                        "rel": "license",
-                    }
-                )
-            elif self.license.lower() == "dl-de/zero-2-0":
-                collection["links"].append(
-                    {
-                        "href": "https://www.govdata.de/dl-de/zero-2-0",
-                        "title": "Data licence Germany - Zero - Version 2.0",
-                        "type": "text/html",
-                        "rel": "license",
-                    }
-                )
-            elif re.match(r"^[\w\.-]+$", self.license):
-                collection["license"] = self.license
-            else:
-                self.warning(f"Invalid license identifier: {self.license}")
-        else:
-            self.warning("License information missing")
-
+        collection.set_custom_schemas(self.missing_schemas)
         return collection
 
     def convert(
@@ -359,12 +289,9 @@ class BaseConverter:
         output_file,
         cache=None,
         input_files=None,
-        source_coop_url=None,
-        store_collection=False,
         year=None,
         compression=None,
         geoparquet_version=None,
-        mapping_file=None,
         original_geometries=False,
         **kwargs,
     ) -> str:
@@ -373,6 +300,7 @@ class BaseConverter:
         """
         Converts an external datasets to Vecorel.
         """
+        cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")
 
@@ -395,13 +323,11 @@ class BaseConverter:
             request_args["block_size"] = 0
         paths = self.download_files(urls, cache, **request_args)
 
-        kwargs.update(self.open_options)
-        gdf = self.read_data(paths, **kwargs)
+        gdf = self.read_data(paths, **self.open_options)
 
         self.info("GeoDataFrame created from source(s):")
         # Make it so that everything is shown, don't output ... if there are too many columns or rows
-        pd.set_option("display.max_columns", None)
-        pd.set_option("display.max_rows", None)
+        display_pandas_unrestricted()
 
         hash_before = self._hash_df(gdf.head())
         self.info(gdf.head())
@@ -423,6 +349,10 @@ class BaseConverter:
             for key, value in self.column_additions.items():
                 gdf[key] = value
                 columns[key] = key
+
+            # Add collection ID
+            columns["collection"] = "collection"
+            gdf["collection"] = cid
 
         # 4. Run column migrations
         if self.column_migrations:
@@ -482,60 +412,21 @@ class BaseConverter:
         self.info("GeoDataFrame fully migrated:")
         self.info(gdf.head())
 
-        collection = self.create_collection(gdf, source_coop_url=source_coop_url)
-
-        self.info("Creating GeoParquet file: " + output_file)
+        self.info("Creating GeoParquet file: " + str(output_file))
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
-        pq.set_collection(collection)
-        pq.set_custom_schemas(self.missing_schemas)
+        pq.set_collection(self.create_collection(cid))
         pq.write(
             gdf,
             properties=columns,
             compression=compression,
             geoparquet_version=geoparquet_version,
         )
-        # if store_collection:
-        #     external_collection = self._add_asset_to_collection(
-        #         collection, output_file, rows=len(gdf), columns=pq_fields
-        #     )
-        #     collection_file = os.path.join(os.path.dirname(output_file), "collection.json")
-        #     self.info("Creating Collection file: " + collection_file)
-        #     with open(collection_file, "w") as f:
-        #         json.dump(external_collection, f, indent=2)
 
         return output_file
 
     def __call__(self, *args, **kwargs):
         self.convert(*args, **kwargs)
-
-    def _add_asset_to_collection(self, collection, output_file, rows=None, columns=None):
-        c = collection.copy()
-        if "assets" not in c or not isinstance(c["assets"], dict):
-            c["assets"] = {}
-        if "stac_extensions" not in c or not isinstance(c["stac_extensions"], list):
-            c["stac_extensions"] = []
-
-        c["stac_extensions"].append(STAC_TABLE_EXTENSION)
-
-        table_columns = []
-        for column in columns:
-            table_columns.append({"name": column.name, "type": str(column.type)})
-
-        asset = {
-            "href": os.path.basename(output_file),
-            "title": "Field Boundaries",
-            "type": "application/vnd.apache.parquet",
-            "roles": ["data"],
-            "table:columns": table_columns,
-            "table:primary_geometry": "geometry",
-        }
-        if rows is not None:
-            asset["table:row_count"] = rows
-
-        c["assets"]["data"] = asset
-
-        return c
 
     def _hash_df(self, df):
         # dataframe is unhashable, this is a simple way to create a dafaframe-hash

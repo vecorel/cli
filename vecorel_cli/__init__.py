@@ -4,7 +4,7 @@ from .registry import Registry
 
 
 @click.group()
-@click.version_option(version=Registry.cli_version, prog_name=Registry.cli_title)
+@click.version_option(version=Registry.get_version(), prog_name=Registry.cli_title)
 def vecorel_cli():
     pass
 

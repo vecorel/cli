@@ -1,4 +1,5 @@
 import inspect
+import json
 import sys
 from pathlib import Path
 from typing import Union
@@ -35,7 +36,7 @@ class BaseCommand(LoggerMixin):
     def run(self, *args, **kwargs):
         # Print header
         self.info(
-            f"{Registry.cli_title} {Registry.cli_version} - {self.cmd_title}",
+            f"{Registry.cli_title} {Registry.get_version()} - {self.cmd_title}",
             end="\n\n",
             style="bold",
         )
@@ -70,3 +71,12 @@ class BaseCommand(LoggerMixin):
 
         # Return result
         return result
+
+    def _json_dump_cli(self, obj, target=None, indent=None):
+        target = Path(target) if target else None
+        if target:
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(obj, f, indent=indent)
+            return target
+        else:
+            return json.dumps(obj, indent=indent)

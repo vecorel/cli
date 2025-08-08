@@ -4,7 +4,7 @@
 # The name of the file will be the name of the converter in the cli.
 # If you name it 'de_abc' you'll be able to run `vec convert de_abc` in the cli.
 
-from ..conversion.baseconverter import BaseConverter
+from ..conversion.base import BaseConverter
 
 # You can remove attributes that you don't need.
 # Also, please remove all comments that you didn't add yourself from the template.
@@ -50,12 +50,10 @@ class Converter(BaseConverter):
     # Description of the collection. Can be multiline and include CommonMark.
     description = """Describe the dataset here."""
 
-    # A list of providers that contributed to the data.
-    # This should be an array of Provider Objects:
-    # https://github.com/radiantearth/stac-spec/blob/master/collection-spec/collection-spec.md#provider-object
-    providers = [
-        {"name": "ABC Corp", "url": "https://abc.example", "roles": ["producer", "licensor"]}
-    ]
+    # The provider of the data.
+    # A string that contains the provider name and optionally a URL.
+    # Either "Name" or "Name <URL>".
+    provider = "ABC Corp <https://abc.example>"
 
     # Attribution (e.g. copyright or citation statement as requested by provider) as a string.
     # The attribution is usually shown on the map, in the lower right corner.
@@ -64,9 +62,8 @@ class Converter(BaseConverter):
 
     # License of the data, either
     # 1. a SPDX license identifier (including "dl-de/by-2-0" / "dl-de/zero-2-0"), or
+    # 2. a string with license name and URL, e.g. "My License <https://my.com/license>"
     license = "CC-BY-4.0"
-    # 2. a STAC Link Object with relation type "license"
-    # license = {"title": "CC-BY-4.0", "href": "https://creativecommons.org/licenses/by/4.0/", "type": "text/html", "rel": "license"}
 
     # Map original column names to Vecorel property names
     # You also need to list any column that you may have added in the MIGRATION function (see below).

@@ -108,6 +108,7 @@ exclude = [
     "build",
     "dist",
     "site-packages",
+    "tests/datasets/invalid_*.py",
 ]
 
 line-length = 100
@@ -146,7 +147,7 @@ branch = true
 show_missing = true
 skip_covered = false
 precision = 2
-fail_under = 60
+fail_under = 64
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
