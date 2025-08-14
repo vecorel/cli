@@ -37,7 +37,6 @@ class GeoJSONValidator(Validator):
         jsonschemas = {}
         datatypes = {}
         for cid, cschema in schemas.items():
-            # todo
             version = cschema.get_core_version()
             if version not in datatypes:
                 datatypes[version] = GeoJSON.load_datatypes(GeoJSON.get_datatypes_uri(version))

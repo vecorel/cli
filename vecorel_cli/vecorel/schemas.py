@@ -4,7 +4,7 @@ import copy
 import re
 from typing import TYPE_CHECKING, Optional, Union
 
-from ..vecorel.typing import SchemaMapping
+from ..vecorel.typing import RawSchemas, SchemaMapping
 from ..vecorel.util import load_file
 from .version import is_sdl_supported, sdl_uri
 
@@ -206,9 +206,6 @@ class CollectionSchemas(set):
             validator=validator,
         ).values()
         return VecorelSchema.merge_all(*resolved, custom_schemas)
-
-
-type RawSchemas = dict[str, list[str]]
 
 
 class Schemas(dict):
