@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import click
+from yarl import URL
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import VECOREL_FILE_ARG
@@ -50,14 +51,18 @@ class DescribeFile(BaseCommand):
 
         return callback
 
-    def __init__(self, filepath: Union[Path, str]):
-        self.filepath = Path(filepath)
-        self.cmd_title = f"Describe {self.filepath.resolve()}"
+    def __init__(self, filepath: Union[Path, URL, str]):
+        if isinstance(filepath, str):
+            filepath = Path(filepath)
+        if isinstance(filepath, Path):
+            filepath = filepath.resolve()
 
-        if not self.filepath.exists():
-            raise FileNotFoundError(f"File '{self.filepath}' does not exist")
-
+        self.filepath = filepath
+        self.cmd_title = f"Describe {self.filepath}"
         self.encoding = create_encoding(self.filepath)
+
+        if not self.encoding.exists():
+            raise FileNotFoundError(f"'{self.filepath}' is not available")
 
     @runnable
     def describe(

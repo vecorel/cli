@@ -16,7 +16,6 @@ tests = [
     # non-existing encoding
     ("invalid.txt", None),
     ("invalid", None),
-    (None, None),
 ]
 
 

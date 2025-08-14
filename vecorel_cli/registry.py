@@ -55,7 +55,7 @@ class Registry:
     @staticmethod
     def get_vecorel_extensions():
         """
-        Returns the list of Vecorel extensions.
+        Returns the list of Vecorel extensions, each with a leading dot.
         These are the file extensions that are supported by the CLI.
         """
         extensions = []

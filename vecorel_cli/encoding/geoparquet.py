@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Optional, Union
+from yarl import URL
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -25,7 +26,7 @@ class GeoParquet(BaseEncoding):
     media_type = "application/vnd.apache.parquet"
     row_group_size = 25000
 
-    def __init__(self, file: Union[Path, str]):
+    def __init__(self, file: Union[Path, URL, str]):
         super().__init__(file)
         self.pq_metadata = None
         self.pq_schema = None
@@ -51,7 +52,7 @@ class GeoParquet(BaseEncoding):
         version = self.get_geoparquet_version()
         if version is None:
             return None
-        return load_file(GeoParquet.schema_uri.format(version=version))
+        return load_file(URL(GeoParquet.schema_uri.format(version=version)))
 
     def get_format(self) -> str:
         geo = self._parse_metadata(b"geo")
@@ -62,7 +63,10 @@ class GeoParquet(BaseEncoding):
             return f"GeoParquet, version {version}"
 
     def _load_collection(self) -> dict:
-        return self._parse_metadata(b"collection")
+        collection = None
+        if self.fs.exists(self.uri):
+            collection = self._parse_metadata(b"collection")
+        return collection if collection is not None else {}
 
     def get_validator(self) -> Optional[Validator]:
         from ..validation.geoparquet import GeoParquetValidator
@@ -145,7 +149,7 @@ class GeoParquet(BaseEncoding):
         if geoparquet_version not in GEOPARQUET_VERSIONS:
             geoparquet_version = GEOPARQUET_DEFAULT_VERSION
 
-        self.file.parent.mkdir(parents=True, exist_ok=True)
+        self.uri.parent.mkdir(parents=True, exist_ok=True)
 
         if dehydrate:
             data = self.dehydrate_to_collection(data, properties=properties, schema_map=schema_map)
@@ -241,7 +245,7 @@ class GeoParquet(BaseEncoding):
         # Write the data to the Parquet file
         to_parquet(
             data,
-            self.file,
+            self.uri,
             schema=pq_schema,
             index=False,
             coerce_timestamps="ms",
@@ -287,7 +291,7 @@ class GeoParquet(BaseEncoding):
         return gdf
 
     def _get_pyarrow_file(self) -> NativeFile:
-        filepath = str(self.file)
+        filepath = str(self.uri)
         fs = get_fs(filepath)
         pyarrow_fs = PyFileSystem(FSSpecHandler(fs))
         return pyarrow_fs.open_input_file(filepath)

@@ -40,8 +40,10 @@ class ValidateData(BaseCommand):
         """
         Validates Vecorel files.
         """
+        if not isinstance(source, list):
+            raise ValueError("Source must be a list.")
         if len(source) == 0:
-            raise ValueError("No files to validate")
+            raise ValueError("No source files provided")
         if num < 0:
             num = None
 

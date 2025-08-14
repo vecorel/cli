@@ -39,6 +39,7 @@ class BaseCommand(LoggerMixin):
             f"{Registry.cli_title} {Registry.get_version()} - {self.cmd_title}",
             end="\n\n",
             style="bold",
+            color="cyan",
         )
 
         # Detect method to run

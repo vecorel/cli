@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Optional, Union
 
+from yarl import URL
+
 from .basecommand import BaseCommand, runnable
 from .cli.options import (
     GEOPARQUET_COMPRESSION,
@@ -36,7 +38,7 @@ class CreateGeoParquet(BaseCommand):
     @runnable
     def create(
         self,
-        source: list[Union[Path, str]],
+        source: list[Union[Path, URL, str]],
         target: Union[Path, str],
         properties: Optional[Union[tuple[str], list[str]]] = None,
         compression: Optional[str] = None,
@@ -44,7 +46,9 @@ class CreateGeoParquet(BaseCommand):
         schema_map: SchemaMapping = {},
     ) -> Path:
         if not isinstance(source, list):
-            raise ValueError("Source must be a list of file paths.")
+            raise ValueError("Source must be a list.")
+        if len(source) == 0:
+            raise ValueError("No source files provided")
         if isinstance(target, str):
             target = Path(target)
         if not properties:

@@ -8,8 +8,8 @@ def test_init_paths(tmp_folder):
     fpath = str(tmp_folder / "test.parquet")
     ppath = Path(fpath)
 
-    assert GeoParquet(fpath).file == ppath
-    assert GeoParquet(ppath).file == ppath
+    assert GeoParquet(fpath).uri == ppath
+    assert GeoParquet(ppath).uri == ppath
 
 
 def test_get_format():

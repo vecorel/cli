@@ -9,14 +9,20 @@ import yaml
 from fsspec import AbstractFileSystem
 from fsspec.implementations.http import HTTPFileSystem
 from fsspec.implementations.local import LocalFileSystem
+from yarl import URL
+
+from ..const import SUPPORTED_PROTOCOLS
 
 file_cache = {}
 
 
-def load_file(uri: Union[Path, str]) -> dict:
+def load_file(uri: Union[Path, URL, str]) -> dict:
     """Load files from various sources"""
     if isinstance(uri, Path):
         uri = str(uri.absolute())
+    if isinstance(uri, URL):
+        uri = str(uri)
+
     if uri in file_cache:
         return file_cache[uri]
 
@@ -44,10 +50,12 @@ def stream_file(fs, src_uri, dst_file, chunk_size=10 * 1024 * 1024):
             dst_file.write(chunk)
 
 
-def get_fs(url_or_path: str, **kwargs) -> AbstractFileSystem:
+def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
     """Choose fsspec filesystem by sniffing input url"""
     if isinstance(url_or_path, Path):
         url_or_path = str(url_or_path.absolute())
+    elif isinstance(url_or_path, URL):
+        url_or_path = str(url_or_path)
     parsed = urlparse(url_or_path)
 
     if parsed.scheme in ("http", "https"):
@@ -73,6 +81,15 @@ def name_from_uri(url):
         except ValueError:
             pass
     return os.path.basename(url)
+
+
+def is_url(url: str) -> bool:
+    """Check if a URL is valid."""
+    try:
+        result = urlparse(url)
+        return all([result.scheme in SUPPORTED_PROTOCOLS, result.netloc])
+    except ValueError:
+        return False
 
 
 def to_iso8601(dt):

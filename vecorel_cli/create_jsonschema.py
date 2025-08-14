@@ -3,10 +3,11 @@ from pathlib import Path
 from typing import Optional, Union
 
 import click
+from yarl import URL
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import JSON_INDENT, VECOREL_TARGET_CONSOLE
-from .cli.util import valid_file
+from .cli.path_url import PathOrURL
 from .encoding.geojson import GeoJSON
 from .jsonschema.template import jsonschema_template
 from .vecorel.schemas import Schemas
@@ -27,8 +28,7 @@ class CreateJsonSchema(BaseCommand):
                 "--schema",
                 "-s",
                 "schema_uri",
-                type=click.STRING,
-                callback=valid_file,
+                type=PathOrURL(extensions=[".json"]),
                 help=f"Vecorel schema to create the JSON Schema for. Can be a local file or a URL. If not provided, loads the schema for Vecorel version {vecorel_version}.",
                 show_default=True,
                 default=Schemas.get_core_uri(vecorel_version),
@@ -37,8 +37,7 @@ class CreateJsonSchema(BaseCommand):
                 "--datatypes",
                 "-d",
                 "datatypes_uri",
-                type=click.STRING,
-                callback=valid_file,
+                type=PathOrURL(extensions=[".json"]),
                 help=f"Schema for the Vecorel GeoJSON datatypes. Can be a local file or a URL. If not provided, loads the GeoJSON datatypes for Vecorel version {vecorel_version}.",
                 show_default=True,
                 default=GeoJSON.get_datatypes_uri(vecorel_version),
@@ -58,8 +57,8 @@ class CreateJsonSchema(BaseCommand):
     @runnable
     def create_cli(
         self,
-        schema_uri: str,
-        datatypes_uri: str,
+        schema_uri: Union[Path, URL, str],
+        datatypes_uri: Union[Path, URL, str],
         target: Optional[Union[str, Path]] = None,
         schema_id: Optional[str] = None,
         indent: Optional[int] = None,

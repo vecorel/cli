@@ -8,6 +8,7 @@ import pandas as pd
 from geopandas import GeoDataFrame
 from pandas import DataFrame
 from shapely.geometry import shape
+from yarl import URL
 
 from ..validation.base import Validator
 from ..vecorel.collection import Collection
@@ -26,11 +27,11 @@ class GeoJSON(BaseEncoding):
     media_type = "application/geo+json"
     crs = "EPSG:4326"
 
-    def __init__(self, file: Union[Path, str]):
+    def __init__(self, file: Union[Path, URL, str]):
         super().__init__(file)
 
     @staticmethod
-    def load_datatypes(uri: str) -> dict:
+    def load_datatypes(uri: Union[Path, URL, str]) -> dict:
         response = load_file(uri)
         return response.get("$defs", {})
 
@@ -42,7 +43,8 @@ class GeoJSON(BaseEncoding):
         return "GeoJSON"
 
     def _load_collection(self) -> dict:
-        self.read(num=0)
+        if self.fs.exists(self.uri):
+            self.read(num=0)
         return self.collection
 
     def get_validator(self) -> Optional[Validator]:
@@ -64,7 +66,7 @@ class GeoJSON(BaseEncoding):
         dehydrate: bool = True,
         indent: Optional[int] = None,
     ) -> bool:
-        self.file.parent.mkdir(parents=True, exist_ok=True)
+        self.uri.parent.mkdir(parents=True, exist_ok=True)
 
         if dehydrate:
             data = self.dehydrate_to_collection(data, properties=properties, schema_map=schema_map)
@@ -83,7 +85,7 @@ class GeoJSON(BaseEncoding):
         collection["type"] = "FeatureCollection"
         collection["features"] = features
 
-        self._write_json(collection, self.file, indent=indent)
+        self._write_json(collection, self.uri, indent=indent)
 
     # indent: int, optional, default None
     #     If set, the JSON will be pretty-printed with the given indentation level.
@@ -98,7 +100,7 @@ class GeoJSON(BaseEncoding):
 
         The dict must be reprojected to EPSG:4326.
         """
-        self.file.parent.mkdir(parents=True, exist_ok=True)
+        self.uri.parent.mkdir(parents=True, exist_ok=True)
 
         # If the input is originating from a __geo_interface__ object,
         # it may not be in the correct format.
@@ -118,7 +120,7 @@ class GeoJSON(BaseEncoding):
             if properties is not None and key not in properties:
                 data["properties"].pop(key)
 
-        self._write_json(data, self.file, indent=indent)
+        self._write_json(data, self.uri, indent=indent)
 
     def read(
         self,
@@ -147,7 +149,7 @@ class GeoJSON(BaseEncoding):
         enforce_featurecollection: bool = False,
     ) -> Union[FeatureCollection, Feature]:
         # num only applies to FeatureCollections
-        with open(self.file, "r") as f:
+        with open(self.uri, "r") as f:
             obj = json.load(f)
 
         if not isinstance(obj, dict):
@@ -228,7 +230,7 @@ class GeoJSON(BaseEncoding):
         schema_map: SchemaMapping = {},
         properties: Optional[list[str]] = None,
     ) -> GeoDataFrame:
-        with open(self.file, "r") as f:
+        with open(self.uri, "r") as f:
             stream = json_stream.load(f)
             data = {
                 "id": [],

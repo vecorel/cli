@@ -8,10 +8,12 @@ import referencing
 from jsonschema.exceptions import ValidationError
 from jsonschema.protocols import Validator
 from jsonschema.validators import Draft7Validator, Draft202012Validator
+from yarl import URL
 
 from .basecommand import BaseCommand, runnable
-from .cli.util import get_files, valid_file
+from .cli.path_url import PathOrURL
 from .vecorel.util import load_file
+from .vecorel.version import sdl_uri
 
 
 class ValidateSchema(BaseCommand):
@@ -24,15 +26,17 @@ class ValidateSchema(BaseCommand):
         return {
             "files": click.argument(
                 "files",
+                type=PathOrURL(multiple=True, extensions=[".yaml", ".yml"]),
                 nargs=-1,
-                callback=lambda ctx, param, value: get_files(value, ["yaml", "yml"]),
+                callback=PathOrURL.flatten_tuples,
             ),
             "metaschema": click.option(
                 "--metaschema",
                 "-m",
-                callback=valid_file,
+                type=PathOrURL(extensions=[".json"]),
                 help="Vecorel SDL metaschema to validate against.",
-                default=None,
+                show_default=True,
+                default=sdl_uri,
             ),
         }
 
@@ -51,11 +55,12 @@ class ValidateSchema(BaseCommand):
             self.validator = self.create_validator(metaschema)
 
     @runnable
-    def validate_cli(self, files: list[Union[Path, str]]) -> bool:
-        results = self.validate_files(files)
-        if len(results) == 0:
+    def validate_cli(self, files: list[Union[Path, URL, str]]) -> bool:
+        if len(files) == 0:
             self.error("No files to validate")
             return False
+
+        results = self.validate_files(files)
 
         invalid_count = 0
         for filepath, errors in results.items():
@@ -69,17 +74,19 @@ class ValidateSchema(BaseCommand):
 
         return invalid_count == 0
 
-    def validate_files(self, files: list[Union[Path, str]]) -> dict:
+    def validate_files(self, files: list[Union[Path, URL, str]]) -> dict:
         mapping = {}
         for file in files:
-            file = Path(file)
+            if isinstance(file, str):
+                file = Path(file)
             errors = self.validate_file(file)
-            filepath = str(file.resolve().absolute())
-            mapping[filepath] = errors
+            if isinstance(file, Path):
+                filepath = file.resolve()
+            mapping[str(filepath)] = errors
 
         return mapping
 
-    def validate_file(self, filepath: Union[Path, str]) -> list[ValidationError]:
+    def validate_file(self, filepath: Union[Path, URL, str]) -> list[ValidationError]:
         schema = load_file(filepath)
         return self.validate(schema)
 

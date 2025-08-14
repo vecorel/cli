@@ -10,8 +10,8 @@ def test_init_paths(tmp_folder):
     fpath = str(tmp_folder / "test.json")
     ppath = Path(fpath)
 
-    assert GeoJSON(fpath).file == ppath
-    assert GeoJSON(ppath).file == ppath
+    assert GeoJSON(fpath).uri == ppath
+    assert GeoJSON(ppath).uri == ppath
 
 
 def test_get_datatypes_uri():

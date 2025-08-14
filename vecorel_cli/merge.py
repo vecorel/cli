@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Union
 
 import click
+from yarl import URL
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import (
@@ -56,14 +57,16 @@ class MergeDatasets(BaseCommand):
     @runnable
     def merge(
         self,
-        source: list[Union[Path, str]],
+        source: list[Union[Path, URL, str]],
         target: Union[Path, str],
         crs=None,
         includes=[],
         excludes=[],
     ):
         if not isinstance(source, list):
-            raise ValueError("Source must be a list of file paths.")
+            raise ValueError("Source must be a list.")
+        if len(source) == 0:
+            raise ValueError("No source files provided")
         encodings = [create_encoding(s) for s in source]
         if isinstance(target, str):
             target = Path(target)

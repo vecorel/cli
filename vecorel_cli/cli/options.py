@@ -1,7 +1,9 @@
 import click
 
 from ..const import COMPRESSION_METHODS, GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
-from .util import valid_schemas_for_cli, valid_vecorel_file, valid_vecorel_files
+from ..registry import Registry
+from .path_url import PathOrURL
+from .util import valid_schemas_for_cli
 
 
 def CRS(default_value):
@@ -62,16 +64,15 @@ PROPERTIES = click.option(
 
 VECOREL_FILES_ARG = click.argument(
     "source",
-    type=click.Path(exists=True, dir_okay=False, resolve_path=True),
+    type=PathOrURL(multiple=True, extensions=Registry.get_vecorel_extensions()),
     nargs=-1,
-    callback=valid_vecorel_files,
+    callback=PathOrURL.flatten_tuples,
 )
 
 VECOREL_FILE_ARG = click.argument(
     "source",
-    type=click.Path(exists=True, dir_okay=False, resolve_path=True),
+    type=PathOrURL(extensions=Registry.get_vecorel_extensions()),
     nargs=1,
-    callback=valid_vecorel_file,
 )
 
 

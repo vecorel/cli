@@ -100,7 +100,7 @@ class LoggerMixin:
                 if depth > 0:
                     output += "\n"
                 for key, value in value.items():
-                    output += f"{prefix}<yellow>{key}</>: "
+                    output += f"{prefix}<cyan>{key}</>: "
                     output += self._format_data(
                         value, depth=depth + 1, max_depth=max_depth, strlen=strlen
                     )

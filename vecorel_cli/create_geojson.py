@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import click
+from yarl import URL
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import JSON_INDENT, PROPERTIES, VECOREL_FILE_ARG, VECOREL_TARGET
@@ -43,7 +44,7 @@ class CreateGeoJson(BaseCommand):
     @runnable
     def create(
         self,
-        source: Union[Path, str],
+        source: Union[Path, URL, str],
         target: Union[Path, str],
         properties: Optional[Union[tuple[str], list[str]]] = None,
         split: bool = False,

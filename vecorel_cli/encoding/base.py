@@ -1,21 +1,26 @@
 from pathlib import Path
 from typing import Optional, Union
 
+from fsspec import AbstractFileSystem
 from geopandas import GeoDataFrame
+from yarl import URL
 
 from ..cli.logger import LoggerMixin
 from ..validation.base import Validator
 from ..vecorel.collection import Collection
 from ..vecorel.typing import SchemaMapping
-from ..vecorel.util import format_filesize
+from ..vecorel.util import format_filesize, get_fs
 
 
 class BaseEncoding(LoggerMixin):
     ext = []
     media_type = "application/octet-stream"
 
-    def __init__(self, file: Union[Path, str]):
-        self.file = Path(file)
+    def __init__(self, uri: Union[Path, URL, str]):
+        if isinstance(uri, str):
+            uri = Path(uri)
+        self.uri: Union[Path, URL] = uri
+        self.fs: AbstractFileSystem = get_fs(uri)
         self.collection: Optional[Collection] = None
 
     def get_format(self) -> str:
@@ -27,7 +32,7 @@ class BaseEncoding(LoggerMixin):
         """
         return {
             "Format": self.get_format(),
-            "Size": format_filesize(self.file.stat().st_size),
+            "Size": format_filesize(self.fs.size(self.uri)),
             "Compression": self.get_compression() or "None",
         }
 
@@ -39,10 +44,7 @@ class BaseEncoding(LoggerMixin):
         Get the collection metadata.
         """
         if self.collection is None:
-            if self.file.exists():
-                self.collection = Collection(self._load_collection())
-            else:
-                self.collection = Collection()
+            self.collection = Collection(self._load_collection())
         return self.collection
 
     def set_collection(self, collection: Union[Collection, dict]):
@@ -62,6 +64,9 @@ class BaseEncoding(LoggerMixin):
         Get the compression method used in the file.
         """
         return None
+
+    def exists(self) -> bool:
+        return self.fs.exists(self.uri)
 
     def get_metadata(self) -> dict:
         return {}

@@ -33,7 +33,7 @@ class RenameExtension(BaseCommand):
             "folder": click.argument(
                 "folder",
                 nargs=1,
-                type=click.Path(exists=True, file_okay=False, resolve_path=True),
+                type=click.Path(exists=True, file_okay=False, resolve_path=True, path_type=Path),
             ),
             "title": click.option(
                 "--title",

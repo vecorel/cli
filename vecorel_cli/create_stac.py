@@ -6,6 +6,7 @@ import click
 import pandas as pd
 from geopandas import GeoDataFrame, GeoSeries
 from shapely.geometry import box
+from yarl import URL
 
 from .basecommand import BaseCommand, runnable
 from .cli.options import JSON_INDENT, VECOREL_FILE_ARG, VECOREL_TARGET_CONSOLE
@@ -48,23 +49,22 @@ class CreateStacCollection(BaseCommand):
     @runnable
     def create_cli(
         self,
-        source: Union[Path, str],
+        source: Union[Path, URL, str],
         target: Optional[Union[str, Path]] = None,
         temporal_property: Optional[str] = None,
         indent: Optional[int] = None,
     ) -> Union[Path, str]:
-        if isinstance(source, str) and Path(source).exists():
-            source = Path(source)
         stac = self.create_from_file(source, data_url=source, temporal_property=temporal_property)
         return self._json_dump_cli(stac, target, indent)
 
     def create_from_file(
         self,
-        source: Union[Path, str],
+        source: Union[Path, URL, str],
         data_url: str,
         temporal_property: Optional[str] = None,
     ):
-        # Source: Path => local file, str => remote URL
+        if isinstance(source, str):
+            source = Path(source)
 
         # Read source data
         source_encoding = create_encoding(source)
@@ -101,7 +101,7 @@ class CreateStacCollection(BaseCommand):
         self,
         collection: Collection,
         gdf: GeoDataFrame,
-        data_url: Union[Path, str],
+        data_url: Union[Path, URL, str],
         media_type: Optional[str] = None,
         temporal_property: Optional[str] = None,
     ) -> dict:
@@ -128,7 +128,7 @@ class CreateStacCollection(BaseCommand):
         if isinstance(data_url, Path):
             href = "file://" + str(data_url.resolve()).replace("\\", "/")
         else:
-            href = data_url
+            href = str(data_url)
         stac = {
             "stac_version": "1.1.0",
             "stac_extensions": [
