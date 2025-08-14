@@ -222,7 +222,7 @@ pixi run pre-commit-run
 The following high-level description gives an idea how to implement a converter in Vecorel CLI:
 
 1. Create a new file in `vecorel_cli/datasets` based on the `template.py`
-2. Implement the `convert()` function / test it / run it
+2. Fill in the required variables / test it / run it
 3. Add missing dependencies into the appropriate feature group in `pixi.toml` (or `setup.py` for pip users)
 4. Add the converter to the list above
 5. Create a PR to submit your converter for review

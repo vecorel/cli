@@ -99,7 +99,7 @@ class Converters(BaseCommand):
             )
             return clazz(self)
         except StopIteration:
-            raise ValueError(
+            raise ImportError(
                 f"No valid converter class for '{name}' found. Class must inherit from {base_class.__name__})."
             )
 

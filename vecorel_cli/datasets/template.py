@@ -29,12 +29,12 @@ class Converter(BaseConverter):
     #   "https://vecorel.example/north_america.zip": ["us.gpkg", "canaga.gpkg"]
     # }
 
-    # 4. if multiple years are available, you can replace sources by years.
+    # 4. if multiple variants (e.g. years) are available, you can replace sources by the variants.
     # The dict-key can be used on the cli command line, the value will be used as 'sources'
     #
-    # years = {
-    #    2023: "https://vecorel.example/file_2023.xyz"
-    #    2024: "https://vecorel.example/file_2023.xyz"
+    # variants = {
+    #    "2023": "https://vecorel.example/file_2023.xyz"
+    #    "2024": "https://vecorel.example/file_2024.xyz"
     # }
 
     # Override filter function for the layer in the file(s) to read.

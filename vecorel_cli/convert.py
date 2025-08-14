@@ -27,10 +27,10 @@ class ConvertData(BaseCommand):
                 multiple=True,
                 default=None,
             ),
-            "year": click.option(
-                "--year",
-                type=click.INT,
-                help="Choose a specific year to read data from. Default is the latest available year.",
+            "variant": click.option(
+                "--variant",
+                type=click.STRING,
+                help="Choose a specific variant to read data from, e.g. a specific year.",
             ),
             "cache": click.option(
                 "--cache",
@@ -82,7 +82,7 @@ class ConvertData(BaseCommand):
         self,
         target,
         input_files=None,
-        year=None,
+        variant=None,
         cache=None,
         compression=None,
         geoparquet_version=None,
@@ -100,7 +100,7 @@ class ConvertData(BaseCommand):
         self.converter.convert(
             target,
             input_files=input_files,
-            year=year,
+            variant=variant,
             cache=cache,
             compression=compression,
             geoparquet_version=geoparquet_version,

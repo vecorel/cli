@@ -5,6 +5,7 @@ import inspect
 import json
 import os
 import sys
+import tarfile
 import zipfile
 from copy import copy
 from glob import glob
@@ -36,19 +37,17 @@ class BaseConverter(LoggerMixin):
     id: str = ""
     short_name: str = ""
     title: str = ""
-    license: Optional[Union[str, dict[str, str]]] = None
+    license: Optional[str] = None
     attribution: Optional[str] = None
     description: str = ""
     provider: Optional[str] = None
 
     sources: Optional[Union[str, dict[str, str]]] = None
-    source_variants: Optional[Union[dict[dict[str, str]], str]] = None
     data_access: str = ""
-    variant: Optional[str] = None
     open_options: dict = {}
     avoid_range_request: bool = False
-    years: Optional[Union[dict[dict[int, str]], str]] = None
-    year: Optional[str] = None
+    variants: dict[str, str] = {}
+    variant: Optional[str] = None
 
     columns: dict[str, str] = {}
     column_additions: dict[str, str] = {}
@@ -146,6 +145,9 @@ class BaseConverter(LoggerMixin):
                 elif rarfile.is_rarfile(cache_file):
                     with rarfile.RarFile(cache_file, "r") as w:
                         w.extractall(zip_folder)
+                elif tarfile.is_tarfile(cache_file):
+                    with tarfile.open(cache_file, "r") as w:
+                        w.extractall(zip_folder)
                 else:
                     raise ValueError(
                         f"Only ZIP and 7Z files are supported for extraction, fails for: {cache_file}"
@@ -161,15 +163,15 @@ class BaseConverter(LoggerMixin):
 
     def get_urls(self):
         urls = self.sources
-        if not urls and self.years:
-            opts = ", ".join([str(s) for s in self.years.keys()])
-            if self.year is None:
-                self.year = next(iter(self.years))
-                self.warning(f"Choosing first available year {self.year} from {opts}")
-            if self.year in self.years:
-                urls = self.years[self.year]
+        if not urls and self.variants:
+            opts = ", ".join([str(s) for s in self.variants.keys()])
+            if self.variant is None:
+                self.variant = next(iter(self.variants))
+                self.warning(f"Choosing first available variant {self.variant} from {opts}")
+            if self.variant in self.variants:
+                urls = self.variants[self.variant]
             else:
-                raise ValueError(f"Unknown year '{self.year}', choose from {opts}")
+                raise ValueError(f"Unknown variant '{self.variant}', choose from {opts}")
         return urls
 
     def get_data(self, paths, **kwargs):
@@ -266,7 +268,7 @@ class BaseConverter(LoggerMixin):
 
     def get_title(self):
         title = self.title.strip()
-        return f"{title} ({self.year})" if self.year else title
+        return f"{title} ({self.variant})" if self.variant else title
 
     def create_collection(self, cid) -> Collection:
         schema_uris = [Schemas.get_core_uri(vecorel_version)]
@@ -289,14 +291,14 @@ class BaseConverter(LoggerMixin):
         output_file,
         cache=None,
         input_files=None,
-        year=None,
+        variant=None,
         compression=None,
         geoparquet_version=None,
         original_geometries=False,
         **kwargs,
     ) -> str:
         columns = self.columns.copy()
-        self.year = year
+        self.variant = variant
         """
         Converts an external datasets to Vecorel.
         """
