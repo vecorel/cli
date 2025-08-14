@@ -112,7 +112,7 @@ def get_geopandas_dtype(type, required=False, schema={}, return_category=False):
     elif type == "date" or type == "date-time":
         return lambda series: pd.to_datetime(series)
     elif type == "geometry":
-        return (None,)  # not a column, don't convert geometry
+        return lambda series: series  # don't convert geometry
     elif type == "bounding-box":
         return "object"
     else:

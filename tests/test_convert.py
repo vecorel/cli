@@ -24,7 +24,6 @@ test_path = Path("tests/data-files/convert")
 
 
 @pytest.mark.parametrize("choice", ["example"])
-@pytest.mark.skip(reason="Validation still fails")
 def test_converter(tmp_folder, choice):
     dest = tmp_folder / "converted.parquet"
     converter = ConvertData(choice)

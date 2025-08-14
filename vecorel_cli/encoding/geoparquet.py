@@ -163,73 +163,67 @@ class GeoParquet(BaseEncoding):
 
         # Load the data schema
         collection = self.get_collection()
+        schemas_per_collection = collection.get_schemas()
+        has_multiple_collections = len(schemas_per_collection) > 1
         schemas = collection.merge_schemas(schema_map)
-        has_multiple_collections = len(schemas) > 1
 
-        # Update the GeoDataFrame with the correct types etc.
+        # Update the GeoDataFrame with the correct types and create the parquet schema
         props = schemas.get("properties", {})
         required_props = schemas.get("required", [])
+        pq_fields = []
         for column in properties:
-            if column not in props:
-                continue
-            schema = props[column]
-            dtype = schema.get("type")
-            if dtype == "geometry":
-                continue
-
             required = column in required_props and not has_multiple_collections
+            schema = props.get(column, {})
+            dtype = schema.get("type")
+
+            # Convert the data types in the GeoDataFrame
             gp_type = get_geopandas_dtype(dtype, required, schema)
-            try:
-                if gp_type is None:
-                    self.warning(f"{column}: No type conversion available for {dtype}")
-                elif callable(gp_type):
-                    data[column] = gp_type(data[column])
-                else:
-                    data[column] = data[column].astype(gp_type, copy=False)
-            except Exception as e:
-                self.warning(f"{column}: Can't convert to {dtype}: {e}")
+            if gp_type is None:
+                self.warning(f"{column}: No type conversion available for {dtype}")
+            else:
+                try:
+                    if callable(gp_type):
+                        data[column] = gp_type(data[column])
+                    else:
+                        data[column] = data[column].astype(gp_type, copy=False)
+                except Exception as e:
+                    self.warning(f"{column}: Can't convert to {dtype}: {e}")
+
+            # Create the Parquet schema
+            field = None
+            if dtype is not None:
+                try:
+                    field = get_pyarrow_field(column, schema=schema, required=required)
+                except Exception as e:
+                    self.warning(f"{column}: Skipped - {e}")
+            else:
+                pd_type = str(data[column].dtype)  # pandas data type
+                try:
+                    pa_type = get_pyarrow_type_for_geopandas(pd_type)  # pyarrow data type
+                    if pa_type is not None:
+                        self.warning(
+                            f"{column}: No schema defined, converting {pd_type} to nullable {pa_type}",
+                        )
+                        field = get_pyarrow_field(column, pa_type=pa_type)
+                    else:
+                        self.warning(
+                            f"{column}: Skipped - pandas type can't be converted to pyarrow type",
+                        )
+                        continue
+                except Exception as e:
+                    self.warning(f"{column}: Skipped - {e}")
+                    continue
+
+            if field is None:
+                self.warning(f"{column}: Skipped - invalid data type")
+                continue
+            else:
+                pq_fields.append(field)
 
         _columns = list(data.columns)
         duplicates = {x for x in _columns if _columns.count(x) > 1}
         if len(duplicates):
             raise ValueError(f"Columns are defined multiple times: {duplicates}")
-
-        # Define the fields for the schema
-        pq_fields = []
-        for name in properties:
-            required_props = schemas.get("required", [])
-            props = schemas.get("properties", {})
-            required = name in required_props and not has_multiple_collections
-            field = None
-            if name in props:
-                prop_schema = props[name]
-                try:
-                    field = get_pyarrow_field(name, schema=prop_schema, required=required)
-                except Exception as e:
-                    self.warning(f"{name}: Skipped - {e}")
-            else:
-                pd_type = str(data[name].dtype)  # pandas data type
-                try:
-                    pa_type = get_pyarrow_type_for_geopandas(pd_type)  # pyarrow data type
-                    if pa_type is not None:
-                        self.warning(
-                            f"{name}: No schema defined, converting {pd_type} to nullable {pa_type}",
-                        )
-                        field = get_pyarrow_field(name, pa_type=pa_type)
-                    else:
-                        self.warning(
-                            f"{name}: Skipped - pandas type can't be converted to pyarrow type",
-                        )
-                        continue
-                except Exception as e:
-                    self.warning(f"{name}: Skipped - {e}")
-                    continue
-
-            if field is None:
-                self.warning(f"{name}: Skipped - invalid data type")
-                continue
-            else:
-                pq_fields.append(field)
 
         # Define the schema for the Parquet file
         pq_schema = pa.schema(pq_fields)
