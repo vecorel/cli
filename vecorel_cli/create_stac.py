@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from typing import Optional, Union
+from datetime import datetime
 
 import click
 import pandas as pd
@@ -53,16 +54,19 @@ class CreateStacCollection(BaseCommand):
         target: Optional[Union[str, Path]] = None,
         temporal_property: Optional[str] = None,
         indent: Optional[int] = None,
-    ) -> Union[Path, str]:
+    ) -> Union[Path, str, bool]:
         stac = self.create_from_file(source, data_url=source, temporal_property=temporal_property)
-        return self._json_dump_cli(stac, target, indent)
+        if stac:
+            return self._json_dump_cli(stac, target, indent)
+        else:
+            return False
 
     def create_from_file(
         self,
         source: Union[Path, URL, str],
         data_url: str,
         temporal_property: Optional[str] = None,
-    ):
+    ) -> dict:
         if isinstance(source, str):
             source = Path(source)
 
@@ -86,7 +90,8 @@ class CreateStacCollection(BaseCommand):
         properties = source_encoding.get_properties()
         table_columns = []
         for column, types in properties.items():
-            types.remove("null")
+            if "null" in types:
+                types.remove("null")
             table_columns.append({"name": column, "type": types[0]})
 
         stac["stac_extensions"].append(self.table_extension)
@@ -109,11 +114,11 @@ class CreateStacCollection(BaseCommand):
         Creates a collection for the field boundary datasets.
         """
         if len(gdf) == 0:
-            return self.error("No data available.")
+            raise Exception("No data available.")
 
         id = collection.get("collection")
         if id is None:
-            return self.error("Collection is not found in collection.")
+            raise Exception("Collection ID not found in collection. Can only create STAC for files containing a single collection.")
 
         title = collection.get("title", id)
         if title is None:
@@ -121,7 +126,7 @@ class CreateStacCollection(BaseCommand):
 
         description = collection.get("description", "").strip()
         if len(description) == 0:
-            return self.error("Description is not found in collection.")
+            raise Exception("Description is not found in collection.")
 
         bbox = list(GeoSeries([box(*gdf.total_bounds)], crs=gdf.crs).to_crs(epsg=4326).total_bounds)
 
@@ -205,11 +210,17 @@ class CreateStacCollection(BaseCommand):
             stac["providers"][0]["url"] = provider_url
 
         # Add temporal extent
+        temporal_extent = None
         if temporal_property in gdf.columns:
             dates = pd.to_datetime(gdf[temporal_property])
             min_time = to_iso8601(dates.min())
             max_time = to_iso8601(dates.max())
-            stac["extent"]["temporal"]["interval"][0] = [min_time, max_time]
+            temporal_extent = [min_time, max_time]
+        elif temporal_property in collection:
+            time = to_iso8601(datetime.fromisoformat(collection[temporal_property]))
+            temporal_extent = [time, time]
+        if temporal_extent is not None:
+            stac["extent"]["temporal"]["interval"][0] = temporal_extent
 
         return stac
 

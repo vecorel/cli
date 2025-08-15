@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.0] - 2025-08-15
+
+- Migrate from vecorel.github.io to vecorel.org
+- Add internal `py-package` parameter to the `convert` command
+- Bugfixes
+
 ## [v0.1.0] - 2025-08-15
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.1.0...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.0...main>
+[v0.2.0]: <https://github.com/vecorel/cli/compare/v0.1.0...v0.2.0>
 [v0.1.0]: <https://github.com/vecorel/cli/compare/v0.1.0>

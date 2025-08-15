@@ -134,7 +134,8 @@ class BaseEncoding(LoggerMixin):
             return data
 
         context = collection.get_collection_context(schema_map=schema_map)
-        for key in data.columns:
+        columns = data.columns.copy()
+        for key in columns:
             where = context.get(key, None)
             if where is not None:
                 # Skip properties that should always be in the feature or collection
@@ -146,6 +147,8 @@ class BaseEncoding(LoggerMixin):
             try:
                 if data[key].nunique(dropna=False) == 1:
                     collection[key] = data[key].iloc[0]
+                    if key != "collection":
+                        del data[key]
             except TypeError:
                 pass
 

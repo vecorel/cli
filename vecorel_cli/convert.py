@@ -1,9 +1,10 @@
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION, VECOREL_TARGET
+from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION, PY_PACKAGE, VECOREL_TARGET
 from .cli.util import parse_converter_input_files
 from .converters import Converters
+from .registry import Registry
 
 
 class ConvertData(BaseCommand):
@@ -12,10 +13,26 @@ class ConvertData(BaseCommand):
     cmd_final_report = True
 
     @staticmethod
-    def get_cli_args():
+    def check_datasets(ctx, param, value):
+        package = ctx.params.get("py_package")
+        if package:
+            Registry.src_package = package
+
         c = Converters()
+        ids = c.list_ids()
+        if value not in ids:
+            available = "None" if len(ids) == 0 else ", ".join(ids)
+            raise click.BadParameter(f"Converter '{value}' not found in '{Registry.src_package}'. Available converters: {available}")
+
+    @staticmethod
+    def get_cli_args():
         return {
-            "dataset": click.argument("dataset", nargs=1, type=click.Choice(c.list_ids())),
+            "dataset": click.argument(
+                "dataset",
+                nargs=1,
+                type=click.STRING,
+                callback=ConvertData.check_datasets,
+            ),
             "target": VECOREL_TARGET(),
             "input": click.option(
                 "input_files",
@@ -56,18 +73,23 @@ class ConvertData(BaseCommand):
                 help="Keep the source geometries as provided, i.e. this option disables that geomtries are made valid and converted to Polygons.",
                 default=False,
             ),
+            "py-package": PY_PACKAGE,
         }
 
     @staticmethod
     def get_cli_callback(cmd):
         def callback(dataset, *args, **kwargs):
-            return ConvertData(dataset).run(*args, **kwargs)
+            py_package = kwargs.pop("py_package", None)
+            return ConvertData(dataset, py_package).run(*args, **kwargs)
 
         return callback
 
-    def __init__(self, dataset: str):
+    def __init__(self, dataset: str, py_package: str = None):
         self.cmd_title = f"Convert {dataset}"
         self.dataset = dataset
+
+        if py_package:
+            Registry.src_package = py_package
 
         converters = Converters()
         if converters.is_converter(self.dataset):

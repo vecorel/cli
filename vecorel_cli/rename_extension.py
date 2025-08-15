@@ -89,6 +89,7 @@ class RenameExtension(BaseCommand):
         self.full_prefix: str = f"{self.prefix}:" if len(self.prefix) > 0 else ""
 
         self.url_map: dict[str, str] = {
+            f"vecorel.org/{self.template_repo}": f"{self.org}.github.io/{self.repo}",
             f"{self.template_org}.github.io/{self.template_repo}": f"{self.org}.github.io/{self.repo}",
             f"github.com/{self.template_org}/{self.template_repo}": f"github.com/{self.org}/{self.repo}",
         }

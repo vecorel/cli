@@ -5,6 +5,7 @@ import click
 import pandas as pd
 
 from .basecommand import BaseCommand, runnable
+from .cli.options import PY_PACKAGE
 from .cli.util import display_pandas_unrestricted
 from .conversion.base import BaseConverter
 from .registry import Registry
@@ -43,13 +44,17 @@ class Converters(BaseCommand):
                 help="Do not shorten the content of the columns",
                 default=False,
             ),
+            "py-package": PY_PACKAGE,
         }
 
     @runnable
-    def converters(self, providers=False, sources=False, verbose=False, **kwargs):
+    def converters(self, providers=False, sources=False, verbose=False, py_package=None, **kwargs):
         """
         Lists all available converters through the CLI.
         """
+        if py_package:
+            Registry.src_package = py_package
+
         columns = {"short_name": "Short Title", "license": "License"}
         if providers:
             columns["providers"] = "Provider(s)"

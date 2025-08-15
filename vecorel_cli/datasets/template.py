@@ -78,7 +78,7 @@ class Converter(BaseConverter):
     column_additions = {}
 
     # A set of implemented extension identifiers
-    extensions = {"https://vecorel.github.io/administrative-division-extension/v0.1.0/schema.yaml"}
+    extensions = {"https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"}
 
     # Functions to migrate data in columns to match the Vecorel specification.
     # Example: You have a column area_m in square meters and want to convert

@@ -26,7 +26,7 @@ def test_get_collection_exists():
     assert isinstance(collection, dict)
     fields = list(collection.keys())
     fields.sort()
-    assert fields == ["collection", "determination_datetime", "schemas"]
+    assert fields == ["collection", "determination_datetime", "schemas", "schemas:custom"]
     assert "inspire" in collection["schemas"]
 
 

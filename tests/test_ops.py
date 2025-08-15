@@ -9,7 +9,7 @@ def test_merge_collections():
         {
             "schemas": {"c1": ["https://example.com/schema1.yaml"]},
             "schemas:custom": {
-                "$schema": "https://vecorel.github.io/sdl/v0.2.0/schema.json",
+                "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
                 "properties": {
                     "determination_datetime": {"type": "date-time"},
                 },
@@ -20,7 +20,7 @@ def test_merge_collections():
         {
             "schemas": {"c2": ["https://example.com/schema2.yaml"]},
             "schemas:custom": {
-                "$schema": "https://vecorel.github.io/sdl/v0.2.0/schema.json",
+                "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
                 "required": ["inspire:id"],
                 "collection": {"inspire:id": False},
                 "properties": {
@@ -46,7 +46,7 @@ def test_merge_collections():
     assert "schemas:custom" in merged_collection
     assert merged_collection.get_custom_schemas() == VecorelSchema(
         {
-            "$schema": "https://vecorel.github.io/sdl/v0.2.0/schema.json",
+            "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
             "required": ["inspire:id"],
             "collection": {"inspire:id": False},
             "properties": {

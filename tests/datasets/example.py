@@ -1,3 +1,5 @@
+import pandas as pd
+
 from vecorel_cli.conversion.admin import AdminConverterMixin
 from vecorel_cli.conversion.base import BaseConverter
 
@@ -17,6 +19,10 @@ class Converter(AdminConverterMixin, BaseConverter):
         "FLIK": ["id"],
         "Flaeche": "area",
         "HBN": "hbn",
+    }
+    column_migrations = {
+        # Format is: D.M.YYYY
+        "fachguelti": lambda col: pd.to_datetime(col, format="%d.%m.%Y"),
     }
     missing_schemas = {
         "properties": {

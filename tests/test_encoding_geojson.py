@@ -16,7 +16,7 @@ def test_init_paths(tmp_folder):
 
 def test_get_datatypes_uri():
     uri = GeoJSON.get_datatypes_uri("1.0.0")
-    expected = "https://vecorel.github.io/specification/v1.0.0/geojson/datatypes.json"
+    expected = "https://vecorel.org/specification/v1.0.0/geojson/datatypes.json"
     assert uri == expected
 
 

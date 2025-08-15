@@ -21,7 +21,7 @@ class GeoJSON(BaseEncoding):
     feature_properties = {"type", "id", "geometry", "bbox", "properties"}
     feature_collection_properties = {"type", "features"}
     datatypes_schema_uri = (
-        "https://vecorel.github.io/specification/v{version}/geojson/datatypes.json"
+        "https://vecorel.org/specification/v{version}/geojson/datatypes.json"
     )
     ext = [".json", ".geojson"]
     media_type = "application/geo+json"

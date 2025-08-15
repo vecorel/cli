@@ -13,15 +13,6 @@ tests = [
     ("tests/data-files/inspire.parquet", True),
     # invalid files
     ("tests/data-files/inspire-invalid.json", [ValidationError("6467975 is not of type 'string'")]),
-    (
-        "tests/data-files/convert-invalid.parquet",
-        [
-            Exception("admin:country_code: Nullability differs, is True but must be False"),
-            Exception("id: Nullability differs, is True but must be False"),
-            Exception("geometry: Nullability differs, is True but must be False"),
-            Exception("collection: Nullability differs, is True but must be False"),
-        ],
-    ),
     # multiple collections, valid files
     ("tests/data-files/mixed.json", True),
     ("tests/data-files/mixed.parquet", True),

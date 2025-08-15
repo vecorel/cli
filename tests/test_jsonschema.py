@@ -10,7 +10,7 @@ datatypes_uri = GeoJSON.get_datatypes_uri(vecorel_version)
 datatypes = GeoJSON.load_datatypes(datatypes_uri)
 schema_id = "https://example.com/schema.json"
 point = {"type": "Point", "coordinates": [0, 0]}
-schemas = {"test_collection": ["https://vecorel.github.io/specification/v0.1.0/schema.yaml"]}
+schemas = {"test_collection": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]}
 
 
 def check(obj):

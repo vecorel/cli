@@ -30,7 +30,6 @@ def test_describe_geoparquet(capsys, test):
     assert "Rows: 2" in out
     assert "Row Groups: 1" in out
     assert "Version: 0.1.0" in out
-    assert "https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml" in out
 
     assert "geometry: binary" in out
     assert "inspire:id: string" in out

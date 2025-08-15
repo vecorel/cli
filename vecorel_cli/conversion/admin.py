@@ -1,7 +1,7 @@
 import re
 
 ADMIN_EXTENSION_URL = (
-    "https://vecorel.github.io/administrative-division-extension/v0.1.0/schema.yaml"
+    "https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"
 )
 
 

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class VecorelSchema(dict):
-    sdl_pattern = r"https://vecorel.github.io/sdl/v([^/]+)/schema.json"
+    sdl_pattern = r"https://vecorel.org/sdl/v([^/]+)/schema.json"
     sdl_schema = sdl_uri
 
     @staticmethod
@@ -47,7 +47,7 @@ class VecorelSchema(dict):
                 data = load_file(actual_location)
                 loaded[uri] = VecorelSchema(data, identifier=uri)
             except Exception as e:
-                message = f"Extension {uri} can't be loaded. {e}"
+                message = f"Schema {uri} can't be loaded. {e}"
                 if validator:
                     validator.error(message)
                 else:
@@ -209,8 +209,8 @@ class CollectionSchemas(set):
 
 
 class Schemas(dict):
-    spec_pattern = r"https://vecorel.github.io/specification/v([^/]+)/schema.yaml"
-    spec_schema = "https://vecorel.github.io/specification/v{version}/schema.yaml"
+    spec_pattern = r"https://vecorel.org/specification/v([^/]+)/schema.yaml"
+    spec_schema = "https://vecorel.org/specification/v{version}/schema.yaml"
 
     @staticmethod
     def get_core_uri(version: str) -> str:

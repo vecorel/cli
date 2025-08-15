@@ -26,7 +26,7 @@ def test_rename_extension(cloned_repo):
     RenameExtension(
         title="Test",
         repo="test-extension",
-        org="vecorel",
+        org="fiboa",
         prefix="test",
     ).rename(folder)
 
@@ -37,7 +37,7 @@ def test_rename_extension(cloned_repo):
     assert "# Test Extension Specification" in readme
     assert "- **Title:** Test" in readme
     assert (
-        "- **Identifier:** <https://vecorel.github.io/test-extension/v0.1.0/schema.yaml>" in readme
+        "- **Identifier:** <https://fiboa.github.io/test-extension/v0.1.0/schema.yaml>" in readme
     )
     assert "- **Property Name Prefix:** test" in readme
     assert "| test:field2 | int32  | Describe the field... |" in readme
@@ -51,7 +51,7 @@ def test_rename_extension(cloned_repo):
     assert "test:field2" in readme
 
     schema_map = {
-        "https://vecorel.github.io/test-extension/v0.1.0/schema.yaml": schema_path.absolute()
+        "https://fiboa.github.io/test-extension/v0.1.0/schema.yaml": schema_path.absolute()
     }
     examples = [
         folder / "examples" / "geojson" / "example.json",

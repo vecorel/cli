@@ -121,7 +121,7 @@ Check `vec describe --help` for more details.
 
 Merges multiple Vecorel datasets to a combined Vecorel dataset:
 
-- `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -e https://vecorel.github.io/hcat-extension/v0.1.0/schema.yaml -i ec:hcat_name -i ec:hcat_code -i ec:translated_name`
+- `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -e https://vecorel.org/hcat-extension/v0.1.0/schema.yaml -i ec:hcat_name -i ec:hcat_code -i ec:translated_name`
 
 Check `vec merge --help` for more details.
 
@@ -129,7 +129,7 @@ Check `vec merge --help` for more details.
 
 To create a JSON Schema for a Vecorel Schema YAML file, you can for example run:
 
-- `vec jsonschema example.json --id=https://vecorel.github.io/specification/v0.1.0/geojson/schema.json -o schema.json`
+- `vec jsonschema example.json --id=https://vecorel.org/specification/v0.1.0/geojson/schema.json -o schema.json`
 
 Check `vec jsonschema --help` for more details.
 

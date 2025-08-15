@@ -62,6 +62,15 @@ PROPERTIES = click.option(
     default=None,
 )
 
+PY_PACKAGE = click.option(
+    "--py-package",
+    type=click.STRING,
+    help="The Python package to read the converter from",
+    show_default=True,
+    default=Registry.src_package,
+    hidden=True, # experimental, keep it hidden for now
+)
+
 VECOREL_FILES_ARG = click.argument(
     "source",
     type=PathOrURL(multiple=True, extensions=Registry.get_vecorel_extensions()),

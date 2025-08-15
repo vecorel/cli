@@ -36,41 +36,25 @@
       ],
       "href": "file://C:/Dev/vecorel-cli/tests/data-files/stac/de-sh.parquet",
       "processing:software": {
-        "vecorel-cli": "0.1.0"
+        "vecorel-cli": "0.2.0"
       },
       "type": "application/vnd.apache.parquet",
       "table:columns": [
         {
-          "name": "hbn",
-          "type": "string"
-        },
-        {
-          "name": "admin:subdivision_code",
-          "type": "string"
+          "name": "area",
+          "type": "float"
         },
         {
           "name": "geometry",
           "type": "binary"
         },
         {
-          "name": "determination_datetime",
-          "type": "timestamp[ms, tz=UTC]"
-        },
-        {
-          "name": "admin:country_code",
-          "type": "string"
-        },
-        {
-          "name": "collection",
-          "type": "string"
-        },
-        {
           "name": "id",
           "type": "string"
         },
         {
-          "name": "area",
-          "type": "float"
+          "name": "hbn",
+          "type": "string"
         },
         {
           "name": "bbox",

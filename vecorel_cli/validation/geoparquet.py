@@ -43,17 +43,18 @@ class GeoParquetValidator(Validator):
         )
 
         # Check that all required fields are present
-        properties = self.encoding.get_properties()
+        columns = data.columns
         required_props = schema.get("required", [])
         collection_props = schema.get("collection", {})
         for key in required_props:
-            if key not in properties and not collection_props.get(key, False):
+            if key not in columns and not collection_props.get(key, False):
                 self.error(f"{key}: Required field is missing")
 
         # Validate whether the Parquet schema complies with the property schemas
         geo = self.encoding.get_geoparquet_metadata()
         property_schemas = schema.get("properties", {})
         parquet_schema = self.encoding.get_parquet_schema().to_arrow_schema()
+        properties = self.encoding.get_properties()
         for key in properties:
             # Ignore fields without a schema
             if key not in property_schemas:
