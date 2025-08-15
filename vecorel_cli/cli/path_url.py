@@ -1,10 +1,12 @@
-import click
 import pathlib
 
-from ..vecorel.util import is_url, get_fs
+import click
 from yarl import URL
 
-IGNORE_FILES = ["collection.json", "catalog.json"] # likely STAC
+from ..vecorel.util import get_fs, is_url
+
+IGNORE_FILES = ["collection.json", "catalog.json"]  # likely STAC
+
 
 class PathOrURL(click.ParamType):
     name = "path_or_url"
@@ -39,7 +41,9 @@ class PathOrURL(click.ParamType):
             if fs.exists(value):
                 return URL(value)
             else:
-                self.fail(f"URL '{value}' is does not exist or is currently unavailable.", param, ctx)
+                self.fail(
+                    f"URL '{value}' is does not exist or is currently unavailable.", param, ctx
+                )
 
         # Otherwise, validate as a local path
         filepath = self.path_type.convert(value, param, ctx)
@@ -57,7 +61,7 @@ class PathOrURL(click.ParamType):
             self.fail(
                 f"File '{filepath}' must have one of the following extensions: {', '.join(self.extensions)}",
                 param,
-                ctx
+                ctx,
             )
         return filepath
 

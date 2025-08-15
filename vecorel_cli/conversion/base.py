@@ -134,7 +134,7 @@ class BaseConverter(LoggerMixin):
                             zip_file.extractall(zip_folder)
                     except NotImplementedError as e:
                         if str(e) != "That compression method is not supported":
-                            raise
+                            raise e
                         import zipfile_deflate64
 
                         with zipfile_deflate64.ZipFile(cache_file, "r") as zip_file:

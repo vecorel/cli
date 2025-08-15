@@ -18,7 +18,7 @@ class GeoParquetValidator(Validator):
 
         # Load data
         try:
-            data = self.encoding.read(num=num, hydrate=True)
+            data = self.encoding.read(num=num, schema_map=schema_map, hydrate=True)
         except Exception as e:
             return self.error(e)
 

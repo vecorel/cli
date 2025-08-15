@@ -86,8 +86,8 @@ class Converters(BaseCommand):
         base_class = self.get_base_class()
         try:
             module = self.get_module(name)
-        except ModuleNotFoundError:
-            raise ValueError(f"Converter '{name}' not found")
+        except ModuleNotFoundError as e:
+            raise ValueError(f"Converter '{name}' not found") from e
 
         try:
             clazz = next(

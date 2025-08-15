@@ -51,7 +51,7 @@ class VecorelSchema(dict):
                 if validator:
                     validator.error(message)
                 else:
-                    raise ValueError(message)
+                    raise ValueError(message) from e
 
         return loaded
 

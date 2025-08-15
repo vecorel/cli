@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 from typing import Optional, Union
-from yarl import URL
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -9,6 +8,7 @@ from geopandas import GeoDataFrame
 from geopandas.io.arrow import _arrow_to_geopandas
 from pyarrow import NativeFile
 from pyarrow.fs import FSSpecHandler, PyFileSystem
+from yarl import URL
 
 from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..encoding.geojson import VecorelJSONEncoder
@@ -181,17 +181,18 @@ class GeoParquet(BaseEncoding):
             dtype = schema.get("type")
 
             # Convert the data types in the GeoDataFrame
-            gp_type = get_geopandas_dtype(dtype, required, schema)
-            if gp_type is None:
-                self.warning(f"{column}: No type conversion available for {dtype}")
-            else:
-                try:
-                    if callable(gp_type):
-                        data[column] = gp_type(data[column])
-                    else:
-                        data[column] = data[column].astype(gp_type, copy=False)
-                except Exception as e:
-                    self.warning(f"{column}: Can't convert to {dtype}: {e}")
+            if dtype is not None:
+                gp_type = get_geopandas_dtype(dtype, required, schema)
+                if gp_type is None:
+                    self.warning(f"{column}: No type conversion available for {dtype}")
+                else:
+                    try:
+                        if callable(gp_type):
+                            data[column] = gp_type(data[column])
+                        else:
+                            data[column] = data[column].astype(gp_type, copy=False)
+                    except Exception as e:
+                        self.warning(f"{column}: Can't convert to {dtype}: {e}")
 
             # Create the Parquet schema
             field = None

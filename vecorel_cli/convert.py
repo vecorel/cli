@@ -75,7 +75,7 @@ class ConvertData(BaseCommand):
         try:
             self.converter = converters.load(self.dataset)
         except (ImportError, NameError, OSError, RuntimeError, SyntaxError) as e:
-            raise Exception(f"Converter for '{self.dataset}' not available or faulty: {e}")
+            raise Exception(f"Converter for '{self.dataset}' not available or faulty: {e}") from e
 
     @runnable
     def convert(
