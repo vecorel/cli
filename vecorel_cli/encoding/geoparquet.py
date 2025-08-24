@@ -142,13 +142,13 @@ class GeoParquet(BaseEncoding):
         dehydrate: bool = True,
         compression: Optional[str] = None,
         geoparquet_version: Optional[str] = None,
+        **kwargs,  # capture unknown arguments
     ) -> bool:
         if compression is None:
             compression = "brotli"
 
         if geoparquet_version not in GEOPARQUET_VERSIONS:
             geoparquet_version = GEOPARQUET_DEFAULT_VERSION
-
         self.uri.parent.mkdir(parents=True, exist_ok=True)
 
         if dehydrate:

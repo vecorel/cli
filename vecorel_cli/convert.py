@@ -22,7 +22,9 @@ class ConvertData(BaseCommand):
         ids = c.list_ids()
         if value not in ids:
             available = "None" if len(ids) == 0 else ", ".join(ids)
-            raise click.BadParameter(f"Converter '{value}' not found in '{Registry.src_package}'. Available converters: {available}")
+            raise click.BadParameter(
+                f"Converter '{value}' not found in '{Registry.src_package}'. Available converters: {available}"
+            )
 
     @staticmethod
     def get_cli_args():

@@ -20,7 +20,7 @@ JSON_INDENT = click.option(
     "--indent",
     "-i",
     type=click.IntRange(min=0, max=8),
-    help="Indentation for JSON files. Defaults to no indentation.",
+    help="GeoJSON only: Indentation for JSON files. Defaults to no indentation.",
     default=None,
 )
 
@@ -68,7 +68,7 @@ PY_PACKAGE = click.option(
     help="The Python package to read the converter from",
     show_default=True,
     default=Registry.src_package,
-    hidden=True, # experimental, keep it hidden for now
+    hidden=True,  # experimental, keep it hidden for now
 )
 
 VECOREL_FILES_ARG = click.argument(

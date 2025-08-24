@@ -1,8 +1,6 @@
 import re
 
-ADMIN_EXTENSION_URL = (
-    "https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"
-)
+from ..vecorel.extensions import ADMIN_DIVISION
 
 
 class AdminConverterMixin:
@@ -22,7 +20,7 @@ class AdminConverterMixin:
             f"Country code should be 2 uppercase letters, not {self.admin_country_code}"
         )
 
-        self.extensions.add(ADMIN_EXTENSION_URL)
+        self.extensions.add(ADMIN_DIVISION)
         self.column_additions["admin:country_code"] = self.admin_country_code
         self.columns["admin:country_code"] = "admin:country_code"
 

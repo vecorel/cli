@@ -8,6 +8,7 @@ from .cli.options import (
     CRS,
     GEOPARQUET_COMPRESSION,
     GEOPARQUET_VERSION,
+    JSON_INDENT,
     VECOREL_FILE_ARG,
     VECOREL_TARGET,
 )
@@ -15,6 +16,7 @@ from .cli.util import parse_map
 from .encoding.auto import create_encoding
 from .registry import Registry
 from .vecorel.collection import Collection
+from .vecorel.extensions import GEOMETRY_METRICS
 
 
 class ImproveData(BaseCommand):
@@ -43,7 +45,7 @@ class ImproveData(BaseCommand):
                 "-sz",
                 is_flag=True,
                 type=click.BOOL,
-                help="Computes missing sizes (area, perimeter)",
+                help="Computes missing geometrical sizes (area, perimeter)",
                 default=False,
             ),
             "fix-geometries": click.option(
@@ -65,12 +67,16 @@ class ImproveData(BaseCommand):
             "crs": CRS(None),
             "compression": GEOPARQUET_COMPRESSION,
             "geoparquet_version": GEOPARQUET_VERSION,
+            "indent": JSON_INDENT,
         }
 
     @runnable
     def improve_file(
-        self, source, target=None, compression=None, geoparquet_version=None, **kwargs
+        self, source, target=None, compression=None, geoparquet_version=None, indent=None, **kwargs
     ):
+        if not target:
+            target = source
+
         input_encoding = create_encoding(source)
         geodata = input_encoding.read()
         collection = input_encoding.get_collection()
@@ -83,6 +89,7 @@ class ImproveData(BaseCommand):
             geodata,
             compression=compression,
             geoparquet_version=geoparquet_version,
+            indent=indent,
         )
         return target
 
@@ -119,7 +126,7 @@ class ImproveData(BaseCommand):
 
         # Add sizes
         if add_sizes:
-            gdf = self.add_sizes(gdf)
+            gdf, collection = self.add_sizes(gdf, collection)
             self.info("Computed sizes")
 
         return gdf, collection
@@ -168,15 +175,16 @@ class ImproveData(BaseCommand):
 
         return gdf, collection
 
-    # todo: move to fiboa CLI?
-    def add_sizes(self, gdf: GeoDataFrame) -> GeoDataFrame:
+    def add_sizes(
+        self, gdf: GeoDataFrame, collection: Collection
+    ) -> tuple[GeoDataFrame, Collection]:
         """
         Add area and perimeter columns to the GeoDataFrame.
 
         This method works in-place and modifies the original GeoDataFrame.
         """
         # Add the area and perimeter columns
-        for name in ["area", "perimeter"]:
+        for name in ["metrics:area", "metrics:perimeter"]:
             if name not in gdf.columns:
                 # Create column if not present
                 gdf[name] = None
@@ -189,7 +197,11 @@ class ImproveData(BaseCommand):
 
         # todo: add extension schema for the area and perimeter property
         # Compute the missing area and perimeter values
-        gdf["area"] = gdf_m["area"].astype("float").fillna(gdf_m.geometry.area * 0.0001)
-        gdf["perimeter"] = gdf_m["perimeter"].astype("float").fillna(gdf_m.geometry.length)
+        gdf["metrics:area"] = gdf_m["metrics:area"].astype("float").fillna(gdf_m.geometry.area)
+        gdf["metrics:perimeter"] = (
+            gdf_m["metrics:perimeter"].astype("float").fillna(gdf_m.geometry.length)
+        )
 
-        return gdf
+        collection.add_schema(GEOMETRY_METRICS)
+
+        return gdf, collection

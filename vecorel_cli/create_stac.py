@@ -1,7 +1,7 @@
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
-from datetime import datetime
 
 import click
 import pandas as pd
@@ -118,7 +118,9 @@ class CreateStacCollection(BaseCommand):
 
         id = collection.get("collection")
         if id is None:
-            raise Exception("Collection ID not found in collection. Can only create STAC for files containing a single collection.")
+            raise Exception(
+                "Collection ID not found in collection. Can only create STAC for files containing a single collection."
+            )
 
         title = collection.get("title", id)
         if title is None:

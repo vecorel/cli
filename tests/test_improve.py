@@ -2,6 +2,7 @@ import pytest
 
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.improve import ImproveData
+from vecorel_cli.vecorel.extensions import GEOMETRY_METRICS
 
 # todo: add test for fix-geometries and explode-geometries
 
@@ -32,13 +33,18 @@ def test_improve_add_sizes(tmp_parquet_file):
     improve.improve_file(source, tmp_parquet_file, add_sizes=True)
 
     gp = GeoParquet(tmp_parquet_file)
+
     props = gp.get_properties()
-    assert "area" in props
-    assert "perimeter" in props
+    assert "metrics:area" in props
+    assert "metrics:perimeter" in props
 
     data = gp.read()
-    assert all(data["area"] > 0)
-    assert all(data["perimeter"] > 0)
+    assert all(data["metrics:area"] > 0)
+    assert all(data["metrics:perimeter"] > 0)
+
+    schemas = gp.get_collection().get_schemas()
+    assert "inspire" in schemas
+    assert GEOMETRY_METRICS in schemas["inspire"]
 
 
 def test_improve_crs(tmp_parquet_file):

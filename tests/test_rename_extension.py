@@ -36,9 +36,7 @@ def test_rename_extension(cloned_repo):
     readme = readme_path.read_text()
     assert "# Test Extension Specification" in readme
     assert "- **Title:** Test" in readme
-    assert (
-        "- **Identifier:** <https://fiboa.github.io/test-extension/v0.1.0/schema.yaml>" in readme
-    )
+    assert "- **Identifier:** <https://fiboa.github.io/test-extension/v0.1.0/schema.yaml>" in readme
     assert "- **Property Name Prefix:** test" in readme
     assert "| test:field2 | int32  | Describe the field... |" in readme
     assert "template" not in readme

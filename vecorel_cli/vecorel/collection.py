@@ -78,3 +78,15 @@ class Collection(dict):
         props.append("schemas:custom")
 
         return props
+
+    def add_schema(self, schema_uri: str):
+        schemas = self.get("schemas", {})
+        for schema in schemas.values():
+            if schema_uri in schema:
+                continue
+            schema.append(schema_uri)
+
+    def remove_schema(self, schema_uri: str):
+        schemas = self.get_schemas()
+        for schema in schemas.values():
+            schema.remove(schema_uri)

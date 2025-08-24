@@ -5,6 +5,7 @@
 # If you name it 'de_abc' you'll be able to run `vec convert de_abc` in the cli.
 
 from ..conversion.base import BaseConverter
+from ..vecorel.extensions import ADMIN_DIVISION
 
 # You can remove attributes that you don't need.
 # Also, please remove all comments that you didn't add yourself from the template.
@@ -78,7 +79,7 @@ class Converter(BaseConverter):
     column_additions = {}
 
     # A set of implemented extension identifiers
-    extensions = {"https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"}
+    extensions = {ADMIN_DIVISION}
 
     # Functions to migrate data in columns to match the Vecorel specification.
     # Example: You have a column area_m in square meters and want to convert

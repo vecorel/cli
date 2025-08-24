@@ -20,9 +20,7 @@ from .base import BaseEncoding
 class GeoJSON(BaseEncoding):
     feature_properties = {"type", "id", "geometry", "bbox", "properties"}
     feature_collection_properties = {"type", "features"}
-    datatypes_schema_uri = (
-        "https://vecorel.org/specification/v{version}/geojson/datatypes.json"
-    )
+    datatypes_schema_uri = "https://vecorel.org/specification/v{version}/geojson/datatypes.json"
     ext = [".json", ".geojson"]
     media_type = "application/geo+json"
     crs = "EPSG:4326"
@@ -65,6 +63,7 @@ class GeoJSON(BaseEncoding):
         schema_map: SchemaMapping = {},
         dehydrate: bool = True,
         indent: Optional[int] = None,
+        **kwargs,  # capture unknown arguments
     ) -> bool:
         self.uri.parent.mkdir(parents=True, exist_ok=True)
 

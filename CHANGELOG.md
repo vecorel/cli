@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Updated to use the Geometry Metrics Extension
+- Fixed various hardcoded vecorel instances in rename-extension
+
 ## [v0.2.0] - 2025-08-15
 
 - Migrate from vecorel.github.io to vecorel.org

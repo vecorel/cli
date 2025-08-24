@@ -26,6 +26,7 @@ class RenameExtension(BaseCommand):
     template_prefix: str = "template"
     template_org: str = "vecorel"
     template_repo: str = "extension-template"
+    template_domain: str = "vecorel.org"
 
     @staticmethod
     def get_cli_args():
@@ -55,7 +56,7 @@ class RenameExtension(BaseCommand):
                 type=click.STRING,
                 help="Slug of the organization, e.g. for `https://github.com/vecorel/xyz-extension` it would be `vecorel`",
                 show_default=True,
-                default="vecorel",
+                default=RenameExtension.template_org,
             ),
             "prefix": click.option(
                 "--prefix",
@@ -83,16 +84,19 @@ class RenameExtension(BaseCommand):
         self.title: str = title or self.template_title
 
         self.org: str = org or self.template_org
+        self.gh_host: str = self._get_gh_host(self.org)
         self.repo: str = repo or self.template_repo
 
         self.prefix: str = prefix if prefix is not None else self.template_prefix
         self.full_prefix: str = f"{self.prefix}:" if len(self.prefix) > 0 else ""
 
         self.url_map: dict[str, str] = {
-            f"vecorel.org/{self.template_repo}": f"{self.org}.github.io/{self.repo}",
-            f"{self.template_org}.github.io/{self.template_repo}": f"{self.org}.github.io/{self.repo}",
+            f"{self.template_domain}/{self.template_repo}": f"{self.gh_host}/{self.repo}",
             f"github.com/{self.template_org}/{self.template_repo}": f"github.com/{self.org}/{self.repo}",
         }
+
+    def _get_gh_host(self, org):
+        return f"{org}.github.io" if org != self.template_org else self.template_domain
 
     def _get_urls(self):
         search = list(self.url_map.keys())
@@ -167,7 +171,7 @@ class RenameExtension(BaseCommand):
 
         search, replace = self._get_urls()
         schema_url = self._replace_in_str(
-            f"https://{self.template_org}.github.io/{self.template_repo}/v0.1.0/schema.yaml",
+            f"https://{self.template_domain}/{self.template_repo}/v0.1.0/schema.yaml",
             search,
             replace,
         )
