@@ -205,7 +205,7 @@ def get_pyarrow_type_for_geopandas(dtype):
         return getattr(pa, dtype)()
     elif dtype == "object":
         return pa.string()  # todo
-    elif dtype == "datetime64":
+    elif dtype.startswith("datetime64"):
         return pa.timestamp("ms", tz="UTC")
     else:
         return None
