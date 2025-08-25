@@ -16,6 +16,7 @@ class Converters(BaseCommand):
     cmd_title = "List of Converters"
     cmd_help = "Lists all available data converters."
     default_max_colwidth = 35
+    base_class = BaseConverter
 
     @staticmethod
     def get_cli_args():
@@ -81,14 +82,11 @@ class Converters(BaseCommand):
         module = self.get_module()
         return module.__path__[0]
 
-    def get_base_class(self):
-        return BaseConverter
-
     def get_class(self, name):
         if not self.is_converter(f"{name}.py"):
             raise ValueError(f"Converter with id '{name}' is not an allowed converter filename.")
 
-        base_class = self.get_base_class()
+        base_class = self.base_class
         try:
             module = self.get_module(name)
         except ModuleNotFoundError as e:

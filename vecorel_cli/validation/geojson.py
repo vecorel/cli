@@ -10,6 +10,9 @@ class GeoJSONValidator(Validator):
     def __init__(self, encoding: GeoJSON):
         super().__init__(encoding, mixed_versions=True)
 
+    def _create_jsonschema_command(self) -> CreateJsonSchema:
+        return CreateJsonSchema()
+
     def _validate(self, num: Optional[int] = None, schema_map: SchemaMapping = {}):
         """
         Validate GeoJSON data against the schema.
@@ -33,7 +36,7 @@ class GeoJSONValidator(Validator):
         self.validate_schemas(schemas)
 
         # Validate GeoJSON metadata (per collection)
-        jsonschema_instance = CreateJsonSchema()
+        jsonschema_instance = self._create_jsonschema_command()
         jsonschemas = {}
         datatypes = {}
         for cid, cschema in schemas.items():

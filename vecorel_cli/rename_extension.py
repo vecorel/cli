@@ -159,6 +159,9 @@ class RenameExtension(BaseCommand):
         replace += [self.full_prefix]
         return self._replace_in_file(filepath, search, replace)
 
+    def _create_geoparquet_command(self) -> CreateGeoParquet:
+        return CreateGeoParquet()
+
     def rename_geoparquet_example(self, folder: Path, geojson_paths: list[str] = []) -> bool:
         filepath = Path(folder, self.geoparquet_example_path)
         schemapath = Path(folder, self.schema_path)
@@ -176,7 +179,7 @@ class RenameExtension(BaseCommand):
             replace,
         )
         schema_map: SchemaMapping = {schema_url: schemapath.absolute()}
-        gp = CreateGeoParquet()
+        gp = self._create_geoparquet_command()
         gp.create(geojson_paths, filepath, schema_map=schema_map)
         self.success(f"Updated {filepath}")
         return True

@@ -73,14 +73,14 @@ PY_PACKAGE = click.option(
 
 VECOREL_FILES_ARG = click.argument(
     "source",
-    type=PathOrURL(multiple=True, extensions=Registry.get_vecorel_extensions()),
+    type=PathOrURL(multiple=True, extensions=Registry.get_file_extensions()),
     nargs=-1,
     callback=PathOrURL.flatten_tuples,
 )
 
 VECOREL_FILE_ARG = click.argument(
     "source",
-    type=PathOrURL(extensions=Registry.get_vecorel_extensions()),
+    type=PathOrURL(extensions=Registry.get_file_extensions()),
     nargs=1,
 )
 

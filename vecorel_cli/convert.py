@@ -11,6 +11,7 @@ class ConvertData(BaseCommand):
     cmd_name = "convert"
     cmd_help = f"Converts existing non-{Registry.project} datasets to {Registry.project}."
     cmd_final_report = True
+    converters = Converters()
 
     @staticmethod
     def check_datasets(ctx, param, value):
@@ -18,8 +19,7 @@ class ConvertData(BaseCommand):
         if package:
             Registry.src_package = package
 
-        c = Converters()
-        ids = c.list_ids()
+        ids = ConvertData.converters.list_ids()
         if value not in ids:
             available = "None" if len(ids) == 0 else ", ".join(ids)
             raise click.BadParameter(
@@ -95,11 +95,10 @@ class ConvertData(BaseCommand):
         if py_package:
             Registry.src_package = py_package
 
-        converters = Converters()
-        if converters.is_converter(self.dataset):
+        if ConvertData.converters.is_converter(self.dataset):
             raise Exception(f"'{self.dataset}' is not a converter")
         try:
-            self.converter = converters.load(self.dataset)
+            self.converter = ConvertData.converters.load(self.dataset)
         except (ImportError, NameError, OSError, RuntimeError, SyntaxError) as e:
             raise Exception(f"Converter for '{self.dataset}' not available or faulty: {e}") from e
 

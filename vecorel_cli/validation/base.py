@@ -80,9 +80,12 @@ class Validator:
 
             last_core_version = version
 
+    def _create_validate_schema_command(self, schema) -> ValidateSchema:
+        return ValidateSchema(schema)
+
     def validate_json_schema(self, obj, schema):
         if isinstance(obj, (bytearray, bytes, str)):
             obj = json.loads(obj)
 
-        validator = ValidateSchema(schema)
+        validator = self._create_validate_schema_command(schema)
         return validator.validate(obj)

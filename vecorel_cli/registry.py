@@ -24,8 +24,8 @@ class VecorelRegistry:
     """
     src_package: str = "vecorel_cli"
 
-    # todo: in fiboa CLI add "area", "perimeter", "determination_datetime", "determination_method"
-    core_properties = [
+    # The core properties of the specification
+    core_properties: list[str] = [
         "id",
         "geometry",
         "collection",
@@ -33,17 +33,20 @@ class VecorelRegistry:
 
     # The filenames for datasets (converters) that should be ignored by the CLI.
     # Always ignores files with a starting "." or "__"
-    ignored_datasets = [
+    ignored_datasets: list[str] = [
         "template.py",
     ]
 
-    def get_version(self):
+    # All registered commands
+    commands: dict = {}
+
+    def get_version(self) -> str:
         """
         Returns the version of the library/CLI.
         """
         return importlib.metadata.version(self.name)
 
-    def get_encodings(self):
+    def get_encodings(self) -> list:
         """
         Returns the list of supported encodings.
         """
@@ -55,7 +58,7 @@ class VecorelRegistry:
             GeoParquet,
         ]
 
-    def get_vecorel_extensions(self):
+    def get_file_extensions(self) -> list[str]:
         """
         Returns the list of Vecorel extensions, each with a leading dot.
         These are the file extensions that are supported by the CLI.
@@ -66,10 +69,17 @@ class VecorelRegistry:
 
         return extensions
 
-    def get_commands(self):
-        """
-        The commands that are made available by the CLI.
-        """
+    def remove_command(self, command):
+        from .basecommand import BaseCommand
+
+        if isinstance(command, BaseCommand):
+            command_name = command.cmd_name
+        self.commands.pop(command_name, None)
+
+    def set_command(self, command):
+        self.commands[command.cmd_name] = command
+
+    def register_commands(self):
         from .convert import ConvertData
         from .converters import Converters
         from .create_geojson import CreateGeoJson
@@ -83,7 +93,7 @@ class VecorelRegistry:
         from .validate import ValidateData
         from .validate_schema import ValidateSchema
 
-        return [
+        commands = [
             ConvertData,
             Converters,
             CreateGeoJson,
@@ -97,6 +107,17 @@ class VecorelRegistry:
             ValidateData,
             ValidateSchema,
         ]
+
+        for command in commands:
+            self.set_command(command)
+
+    def get_commands(self):
+        """
+        The commands that are made available by the CLI.
+        """
+        if len(self.commands) == 0:
+            self.register_commands()
+        return self.commands
 
 
 class RegistryMeta(type):

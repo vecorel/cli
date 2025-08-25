@@ -7,12 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-- Restructure the CLI for avoiding the import race condition
-- Make the commands easier to rebrand
+- Make the whole library easier to rebrand and reuse
+- Separate CLI creation from `__init__.py` files to avoid import race coditions
 - Add return value to `ConvertData.check_datasets`
-- Fix geopandas `datetime64` conversion issue
-- `CollectionSchemas`: Make some methods reusable
-- Separate CLI creation from `__init__.py` files
+- Fix geopandas `datetime64` data type conversion issue
 
 ## [v0.2.1] - 2025-08-25
 

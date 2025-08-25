@@ -9,7 +9,7 @@ def setup_cli():
         pass
 
     commands = Registry.get_commands()
-    for command in commands:
+    for command in commands.values():
         click_cmd = command.get_cli_command(command)
         click_args = command.get_cli_args().values()
         for arg in click_args:
