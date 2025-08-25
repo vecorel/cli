@@ -25,6 +25,8 @@ class ConvertData(BaseCommand):
             raise click.BadParameter(
                 f"Converter '{value}' not found in '{Registry.src_package}'. Available converters: {available}"
             )
+        else:
+            return value
 
     @staticmethod
     def get_cli_args():

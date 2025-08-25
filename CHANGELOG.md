@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Restructure the CLI for avoiding the import race condition
+- Make the commands easier to rebrand
+- Add return value to `ConvertData.check_datasets`
+
 ## [v0.2.1] - 2025-08-25
 
 - Updated to use the Geometry Metrics Extension
