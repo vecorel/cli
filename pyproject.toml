@@ -43,7 +43,7 @@ dependencies = [
 ]
 
 [project.scripts]
-vec = "vecorel_cli:vecorel_cli"
+vec = "vecorel_cli.cli.setup:run"
 
 [project.urls]
 "Homepage" = "https://github.com/vecorel/cli"
