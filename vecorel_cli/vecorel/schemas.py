@@ -140,6 +140,27 @@ class VecorelSchema(dict):
 
 
 class CollectionSchemas(set):
+    @staticmethod
+    def parse_version(schema_uri: str, pattern: str):
+        match = re.match(pattern, schema_uri)
+        return match.group(1) if match else None
+
+    @staticmethod
+    def parse_schemas(schemas: list[str], spec_pattern: re.Pattern) -> tuple[str, str, list[str]]:
+        uri = None
+        version = None
+        extensions = []
+        for schema in schemas:
+            potential_version = CollectionSchemas.parse_version(schema, spec_pattern)
+            if potential_version is None:
+                extensions.append(schema)
+            else:
+                uri = schema
+                version = potential_version
+
+        extensions.sort()
+        return version, uri, extensions
+
     def __init__(
         self, schemas: Union[list[str], set[str], "CollectionSchemas"] = [], collection=None
     ):
@@ -154,19 +175,7 @@ class CollectionSchemas(set):
         return len(self) == 0
 
     def get(self) -> tuple[str, str, list[str]]:
-        uri = None
-        version = None
-        extensions = []
-        for schema in self:
-            potential_version = self._parse_version(schema)
-            if potential_version is None:
-                extensions.append(schema)
-            else:
-                uri = schema
-                version = potential_version
-
-        extensions.sort()
-        return version, uri, extensions
+        return CollectionSchemas.parse_schemas(self, Schemas.spec_pattern)
 
     def get_core_version(self) -> str:
         version, uri, extensions = self.get()
@@ -179,10 +188,6 @@ class CollectionSchemas(set):
     def get_extensions(self) -> list[str]:
         version, uri, extensions = self.get()
         return extensions
-
-    def _parse_version(self, schema_uri: str):
-        match = re.match(Schemas.spec_pattern, schema_uri)
-        return match.group(1) if match else None
 
     def resolve_schemas(
         self,
