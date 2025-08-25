@@ -20,7 +20,7 @@ from .vecorel.util import to_iso8601
 class CreateStacCollection(BaseCommand):
     cmd_name = "create-stac-collection"
     cmd_title = "Create STAC Collection"
-    cmd_help = "Creates a STAC Collection for Vecorel files."
+    cmd_help = f"Creates a STAC Collection for {Registry.project} files."
     cmd_final_report = True
 
     processing_extension = "https://stac-extensions.github.io/processing/v1.1.0/schema.json"

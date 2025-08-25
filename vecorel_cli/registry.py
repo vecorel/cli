@@ -9,6 +9,11 @@ class VecorelRegistry:
     name: str = "vecorel-cli"
 
     """
+    The displayable title of the project.
+    """
+    project: str = "Vecorel"
+
+    """
     The displayable title of the CLI.
     """
     cli_title: str = "Vecorel CLI"

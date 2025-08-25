@@ -8,12 +8,13 @@ from .basecommand import BaseCommand, runnable
 from .cli.options import VECOREL_FILE_ARG
 from .cli.util import display_pandas_unrestricted
 from .encoding.auto import create_encoding
+from .registry import Registry
 from .vecorel.schemas import CollectionSchemas
 
 
 class DescribeFile(BaseCommand):
     cmd_name = "describe"
-    cmd_help = "Inspects the content of a Vecorel GeoParquet file."
+    cmd_help = f"Inspects the content of a {Registry.project} GeoParquet file."
 
     @staticmethod
     def get_cli_args():

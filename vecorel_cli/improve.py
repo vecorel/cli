@@ -22,9 +22,7 @@ from .vecorel.extensions import GEOMETRY_METRICS
 class ImproveData(BaseCommand):
     cmd_name = "improve"
     cmd_title = "Improve datasets"
-    cmd_help = (
-        "'Improves' a Vecorel file (GeoParquet or GeoJSON) according to the given parameters."
-    )
+    cmd_help = f"'Improves' a {Registry.project} file (GeoParquet or GeoJSON) according to the given parameters."
     cmd_final_report = True
 
     @staticmethod

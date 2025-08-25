@@ -6,6 +6,7 @@ import click
 from .basecommand import BaseCommand, runnable
 from .cli.options import SCHEMA_MAP, VECOREL_FILES_ARG
 from .encoding.auto import create_encoding
+from .registry import Registry
 from .validation.base import Validator
 from .vecorel.typing import SchemaMapping
 
@@ -13,7 +14,7 @@ from .vecorel.typing import SchemaMapping
 class ValidateData(BaseCommand):
     cmd_name = "validate"
     cmd_title: str = "Validator"
-    cmd_help: str = "Validates a Vecorel data file."
+    cmd_help: str = f"Validates a {Registry.project} data file."
     cmd_final_report: bool = True
 
     @staticmethod
@@ -37,9 +38,6 @@ class ValidateData(BaseCommand):
         num: int = 100,
         schema_map: SchemaMapping = {},
     ):
-        """
-        Validates Vecorel files.
-        """
         if not isinstance(source, list):
             raise ValueError("Source must be a list.")
         if len(source) == 0:

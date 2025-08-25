@@ -9,7 +9,7 @@ from .registry import Registry
 
 class ConvertData(BaseCommand):
     cmd_name = "convert"
-    cmd_help = "Converts existing non-Vecorel datasets to Vecorel."
+    cmd_help = f"Converts existing non-{Registry.project} datasets to {Registry.project}."
     cmd_final_report = True
 
     @staticmethod

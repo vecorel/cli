@@ -49,7 +49,7 @@ SCHEMA_MAP = click.option(
     "-s",
     multiple=True,
     callback=lambda ctx, param, value: valid_schemas_for_cli(value),
-    help="Maps a Vecorel schema URL to a local file. First the URL, then the local file path. Separated with a comma. Example: https://example.com/schema.yaml,/path/to/schema.yaml",
+    help=f"Maps a {Registry.project} schema URL to a local file. First the URL, then the local file path. Separated with a comma. Example: https://example.com/schema.yaml,/path/to/schema.yaml",
 )
 
 PROPERTIES = click.option(
@@ -87,9 +87,9 @@ VECOREL_FILE_ARG = click.argument(
 
 def VECOREL_TARGET(required=True, folder=False):
     if folder:
-        help = "Folder to write the Vecorel file(s) to."
+        help = f"Folder to write the {Registry.project} file(s) to."
     else:
-        help = "File or folder to write the Vecorel file(s) to."
+        help = f"File or folder to write the {Registry.project} file(s) to."
     if not required:
         help += " If not provided, the source file will be overwritten."
 

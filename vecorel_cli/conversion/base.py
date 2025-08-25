@@ -299,9 +299,6 @@ class BaseConverter(LoggerMixin):
     ) -> str:
         columns = self.columns.copy()
         self.variant = variant
-        """
-        Converts an external datasets to Vecorel.
-        """
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")

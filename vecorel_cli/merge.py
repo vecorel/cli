@@ -18,8 +18,8 @@ from .vecorel.ops import merge as merge_
 class MergeDatasets(BaseCommand):
     cmd_name = "merge"
     cmd_title: str = "Merge Datasets"
-    cmd_help: str = """
-    Merges multiple Vecorel datasets to a combined Vecorel dataset.
+    cmd_help: str = f"""
+    Merges multiple {Registry.project} datasets to a combined {Registry.project} dataset.
 
     This simply appends the datasets to each other.
     It does not check for duplicates or other constraints.
