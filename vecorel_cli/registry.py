@@ -1,7 +1,7 @@
 import importlib.metadata
 
 
-class Registry:
+class VecorelRegistry:
     """
     The public package name of the library (e.g. on pypi).
     """
@@ -32,15 +32,13 @@ class Registry:
         "template.py",
     ]
 
-    @staticmethod
-    def get_version():
+    def get_version(self):
         """
         Returns the version of the library/CLI.
         """
-        return importlib.metadata.version(Registry.name)
+        return importlib.metadata.version(self.name)
 
-    @staticmethod
-    def get_encodings():
+    def get_encodings(self):
         """
         Returns the list of supported encodings.
         """
@@ -52,20 +50,18 @@ class Registry:
             GeoParquet,
         ]
 
-    @staticmethod
-    def get_vecorel_extensions():
+    def get_vecorel_extensions(self):
         """
         Returns the list of Vecorel extensions, each with a leading dot.
         These are the file extensions that are supported by the CLI.
         """
         extensions = []
-        for encoding in Registry.get_encodings():
+        for encoding in self.get_encodings():
             extensions += encoding.ext
 
         return extensions
 
-    @staticmethod
-    def get_commands():
+    def get_commands(self):
         """
         The commands that are made available by the CLI.
         """
@@ -96,3 +92,15 @@ class Registry:
             ValidateData,
             ValidateSchema,
         ]
+
+
+class RegistryMeta(type):
+    """Metaclass to forward class-level attribute access to the instance."""
+
+    def __getattr__(cls, name):
+        # Forward attribute access to the instance
+        return getattr(cls.instance, name)
+
+
+class Registry(metaclass=RegistryMeta):
+    instance = VecorelRegistry()

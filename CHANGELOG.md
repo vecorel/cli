@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.1] - 2025-08-25
+
 - Updated to use the Geometry Metrics Extension
 - Fixed various hardcoded vecorel instances in rename-extension
+- Fixed registry to be overridable by other CLI tools
 
 ## [v0.2.0] - 2025-08-15
 
@@ -20,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.0...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.1...main>
+[v0.2.1]: <https://github.com/vecorel/cli/compare/v0.2.0...v0.2.1>
 [v0.2.0]: <https://github.com/vecorel/cli/compare/v0.1.0...v0.2.0>
 [v0.1.0]: <https://github.com/vecorel/cli/compare/v0.1.0>
