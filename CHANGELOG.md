@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.2] - 2025-08-25
+
 - Make the whole library easier to rebrand and reuse
 - Separate CLI creation from `__init__.py` files to avoid import race coditions
 - Add return value to `ConvertData.check_datasets`
@@ -28,7 +30,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.1...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.2...main>
+[v0.2.2]: <https://github.com/vecorel/cli/compare/v0.2.1...v0.2.2>
 [v0.2.1]: <https://github.com/vecorel/cli/compare/v0.2.0...v0.2.1>
 [v0.2.0]: <https://github.com/vecorel/cli/compare/v0.1.0...v0.2.0>
 [v0.1.0]: <https://github.com/vecorel/cli/compare/v0.1.0>

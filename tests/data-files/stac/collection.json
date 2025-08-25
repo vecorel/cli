@@ -36,7 +36,7 @@
       ],
       "href": "file://C:/Dev/vecorel-cli/tests/data-files/stac/de-sh.parquet",
       "processing:software": {
-        "vecorel-cli": "0.2.1"
+        "vecorel-cli": "0.2.2"
       },
       "type": "application/vnd.apache.parquet",
       "table:columns": [
