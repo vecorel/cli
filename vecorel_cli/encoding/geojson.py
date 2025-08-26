@@ -336,5 +336,9 @@ class VecorelJSONEncoder(json.JSONEncoder):
             return obj.tolist()
         elif isinstance(obj, set):
             return list(obj)
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.bool):
+            return bool(obj)
         else:
             return super().default(obj)
