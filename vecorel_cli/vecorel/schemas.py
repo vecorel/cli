@@ -95,13 +95,105 @@ class VecorelSchema(dict):
         if self.get_sdl_version() != other.get_sdl_version():
             raise ValueError("Schemas have different SDL versions, can't merge.")
 
-        self._check_conflicts(other, "required")
-        self._check_conflicts(other, "collection")
-        self._check_conflicts(other, "properties")
+        # Merge required properties
+        self["required"] = list(set(self["required"]) | set(other.get("required", [])))
 
-        self["required"] += other.get("required", [])
-        self["collection"].update(other.get("collection", {}))
-        self["properties"].update(other.get("properties", {}))
+        # Merge collection details
+        other_collection = other.get("collection", {}).items()
+        for key, value in other_collection:
+            if key not in self["collection"]:
+                self["collection"][key] = value
+            else:
+                self_value = self["collection"][key]
+                if self_value != value:
+                    raise ValueError(
+                        f"Schema has conflicts in 'collection': Property '{key}' has values '{self_value}' and '{value}'."
+                    )
+                else:
+                    pass  # exists as is, no action needed
+
+        # Merge actual schemas for properties
+        self["properties"] = self._merge_properties(
+            self["properties"], other.get("properties", {}), "properties"
+        )
+
+    def _merge_properties(self, a: dict, b: dict, path: str = "") -> dict:
+        all_properties = set(a.keys()) | set(b.keys())
+        a = a.copy()
+        for key in all_properties:
+            if key in a:
+                if key in b:
+                    # merge schemas
+                    a[key] = self._merge_json_schema(a[key], b[key], f"{path}.{key}")
+                else:
+                    pass  # doesn't exist in other schema, keep as is
+            else:
+                # doesn't exist in this schema, just add it from the other schema
+                a[key] = b[key]
+        return a
+
+    def _merge_json_schema(self, a: dict, b: dict, path: str = "") -> dict:
+        """Merge two JSON schemas"""
+        if not isinstance(a, dict) or not isinstance(b, dict):
+            raise ValueError(
+                f"Conflict in '{path}': Cannot merge types '{type(a)}' and '{type(b)}'."
+            )
+
+        a = a.copy()
+        all_keys = set(a.keys()) | set(b.keys())
+        for key in all_keys:
+            if key == "additionalProperties":
+                # We need to handle additionalProperties separately as it has a default value
+                ap1 = a.get("additionalProperties", False)
+                ap2 = b.get("additionalProperties", False)
+                if isinstance(ap1, dict) and isinstance(ap2, dict):
+                    a[key] = self._merge_json_schema(ap1, ap2, f"{path}.additionalProperties")
+                elif a[key] is False or b[key] is False:
+                    a[key] = False
+                elif a[key] is True and isinstance(b[key], dict):
+                    a[key] = b[key]
+                else:
+                    pass  # a is good as is, no action needed
+            elif key not in b:
+                continue
+            elif key not in a:
+                a[key] = b[key]
+            else:
+                p = f"{path}.{key}"
+                match key:
+                    case "$schema":
+                        pass  # ignore for now. todo: Properly check versions
+                    case "required":
+                        a[key] = list(set(a[key]) | set(b[key]))
+                    case ("enum", "geometryTypes"):
+                        a[key] = list(set(a[key]) & set(b[key]))
+                    case ("items", "contains"):
+                        a[key] = self._merge_json_schema(a[key], b[key], p)
+                    case ("properties", "patternProperties"):
+                        a[key] = self._merge_properties(a[key], b[key], p)
+                    case ("minLength", "minimum", "exclusiveMinimum", "minItems", "minProperties"):
+                        a[key] = max(a[key], b[key])
+                    case ("maxLength", "maximum", "exclusiveMaximum", "maxItems", "maxProperties"):
+                        a[key] = min(a[key], b[key])
+                    case ("deprecated", "uniqueItems"):
+                        if b[key]:
+                            a[key] = True
+                    case _:  # description, type, format, pattern, default
+                        if a[key] == b[key]:
+                            a[key] = b[key]
+                        else:
+                            raise ValueError(f"Conflict in '{p}': '{a[key]}' != '{b[key]}'")
+
+        if "minimum" in a and "exclusiveMinimum" in a:
+            raise ValueError(
+                f"Conflict in '{path}': 'minimum' and 'exclusiveMinimum' cannot coexist"
+            )
+        if "maximum" in a and "exclusiveMaximum" in a:
+            raise ValueError(
+                f"Conflict in '{path}': 'maximum' and 'exclusiveMaximum' cannot coexist"
+            )
+
+        return a
 
     def _check_conflicts(self, other: "VecorelSchema", where: str):
         """Check if there are conflicts between two sets of properties"""
@@ -109,13 +201,15 @@ class VecorelSchema(dict):
         b = other.get(where)
         if a is None or b is None:
             return
-        if isinstance(a, dict):
-            a = a.keys()
-        if isinstance(b, dict):
-            b = b.keys()
-        inter = set(a).intersection(set(b))
-        if len(inter) > 0:
-            raise ValueError(f"Schema has a conflict: {inter} in '{where}'.")
+        if isinstance(a, dict) and isinstance(b, dict):
+            k1 = a.keys()
+            k2 = b.keys()
+            intersection = set(k1).intersection(set(k2))
+            for key in intersection:
+                if a[key] != b[key]:
+                    raise ValueError(
+                        f"Schema has conflicts: {', '.join(intersection)} in '{where}', e.g. for '{key}' values are '{a[key]}' and '{b[key]}'."
+                    )
 
     def pick(self, property_names: list[str], rename: dict[str, str] = {}) -> "VecorelSchema":
         """Pick and rename schemas for specific properties"""

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Better support for merging schemas
+
 ## [v0.2.2] - 2025-08-25
 
 - Make the whole library easier to rebrand and reuse
