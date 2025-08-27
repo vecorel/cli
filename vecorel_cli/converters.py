@@ -1,5 +1,6 @@
 import importlib
 import os
+from typing import Sequence
 
 import click
 import pandas as pd
@@ -111,7 +112,7 @@ class Converters(BaseCommand):
         ids = [f[:-3] for f in files if self.is_converter(f)]
         return ids
 
-    def list_all(self, keys=("short_name", "license")) -> dict:
+    def list_all(self, keys: Sequence[str] = ("short_name", "license")) -> dict:
         converters = {}
         for id in self.list_ids():
             obj = {}
