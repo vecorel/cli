@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [v0.2.3] - 2025-08-26
 
 - Better support for merging schemas
+- Small code improvements
 
 ## [v0.2.2] - 2025-08-25
 
