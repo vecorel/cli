@@ -243,27 +243,24 @@ class BaseConverter(LoggerMixin):
         return pd.concat(gdfs)
 
     def filter_rows(self, gdf):
-        if len(self.column_filters) > 0:
-            self.info("Applying filters")
-            for key, fn in self.column_filters.items():
-                if key in gdf.columns:
-                    result = fn(gdf[key])
-                    # If the result is a tuple, the second value is a flag to potentially invert the mask
-                    if isinstance(result, tuple):
-                        if result[1]:
-                            # Invert mask
-                            mask = ~result[0]
-                        else:
-                            # Use mask as is
-                            mask = result[0]
-                    else:
-                        # Just got a mask, proceed
-                        mask = result
+        if len(self.column_filters) == 0:
+            return gdf
 
-                    # Filter columns based on the mask
-                    gdf = gdf[mask]
+        self.info("Applying filters")
+        for key, fn in self.column_filters.items():
+            if key in gdf.columns:
+                result = fn(gdf[key])
+                if isinstance(result, tuple):
+                    # If the result is a tuple, the second value is a flag to potentially invert the mask
+                    mask = ~result[0] if result[1] else result[0]
                 else:
-                    self.warning(f"Column '{key}' not found in dataset, skipping filter")
+                    # Just got a mask, proceed
+                    mask = result
+
+                # Filter columns based on the mask
+                gdf = gdf[mask]
+            else:
+                self.warning(f"Column '{key}' not found in dataset, skipping filter")
         return gdf
 
     def get_title(self):
