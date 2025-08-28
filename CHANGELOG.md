@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix deprecation warning for `re.sub`
+
 ## [v0.2.4] - 2025-08-27
 
 - Encode numpy datatypes correctly when exporting to JSON

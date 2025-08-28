@@ -55,7 +55,7 @@ class LoggerMixin:
             message = str(message)
 
         # Escape special characters
-        message = re.sub(r"(<\w+>)", r"\\\1", message, 0, re.IGNORECASE)
+        message = re.sub(r"(<\w+>)", r"\\\1", message, count=0, flags=re.IGNORECASE)
 
         # Handle indentation (including multiple lines)
         message = self._indent_text(message, indent)
