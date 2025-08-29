@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- `create-stac-collection`: Don't set empty strings / only provide properties that have value
+
 ## [v0.2.6] - 2025-08-29
 
 - Move ValidateData.required_schemas to Registry.required_extensions and adapted ValidateData accordingly

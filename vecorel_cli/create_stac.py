@@ -195,9 +195,9 @@ class CreateStacCollection(BaseCommand):
             )
         else:
             license_name, license_url = self._parse_link_str(license)
-            if license_url is None:
+            if license_url is None and len(license_name) > 0:
                 stac["license"] = license_name
-            else:
+            elif license_url is not None:
                 stac["links"].append(
                     {
                         "href": license_url,
@@ -208,15 +208,16 @@ class CreateStacCollection(BaseCommand):
 
         # Add provider information
         provider = collection.get("provider", "").strip()
-        provider_name, provider_url = self._parse_link_str(provider)
-        stac["providers"] = [
-            {
-                "name": provider_name,
-                "roles": ["producer", "licensor"],
-            }
-        ]
-        if provider_url:
-            stac["providers"][0]["url"] = provider_url
+        if len(provider) > 0:
+            provider_name, provider_url = self._parse_link_str(provider)
+            stac["providers"] = [
+                {
+                    "name": provider_name,
+                    "roles": ["producer", "licensor"],
+                }
+            ]
+            if provider_url:
+                stac["providers"][0]["url"] = provider_url
 
         # Add temporal extent
         temporal_extent = None
