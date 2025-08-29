@@ -17,6 +17,7 @@ class BaseEncoding(LoggerMixin):
     media_type = "application/octet-stream"
 
     def __init__(self, uri: Union[Path, URL, str]):
+        super().__init__()
         if isinstance(uri, str):
             uri = Path(uri)
         self.uri: Union[Path, URL] = uri

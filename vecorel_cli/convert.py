@@ -89,6 +89,7 @@ class ConvertData(BaseCommand):
         return callback
 
     def __init__(self, dataset: str, py_package: str = None):
+        super().__init__()
         self.cmd_title = f"Convert {dataset}"
         self.dataset = dataset
 

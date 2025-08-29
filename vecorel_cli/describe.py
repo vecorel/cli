@@ -53,6 +53,7 @@ class DescribeFile(BaseCommand):
         return callback
 
     def __init__(self, filepath: Union[Path, URL, str]):
+        super().__init__()
         if isinstance(filepath, str):
             filepath = Path(filepath)
         if isinstance(filepath, Path):

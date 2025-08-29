@@ -81,6 +81,7 @@ class RenameExtension(BaseCommand):
         org: Optional[str] = None,
         prefix: str = None,
     ) -> str:
+        super().__init__()
         self.title: str = title or self.template_title
 
         self.org: str = org or self.template_org

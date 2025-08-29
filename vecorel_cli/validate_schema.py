@@ -48,6 +48,7 @@ class ValidateSchema(BaseCommand):
         return callback
 
     def __init__(self, metaschema: Optional[Union[Path, dict]] = None):
+        super().__init__()
         self.validator: Optional[Validator] = None
         if isinstance(metaschema, Path):
             metaschema = load_file(metaschema)
