@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING, Optional, Union
 
 from ..validate_schema import ValidateSchema
@@ -20,6 +21,7 @@ class Validator:
         self.errors = []
         self.warnings = []
         self.infos = []
+        self.required_schemas: list[Union[str, re.Pattern]] = []
 
     def info(self, message: str):
         self.infos.append(message)
@@ -41,6 +43,9 @@ class Validator:
 
         return len(self.errors) == 0
 
+    def set_required_schemas(self, patterns: list[Union[str, re.Pattern]]):
+        self.required_schemas = patterns
+
     def validate(self, num: Optional[int] = None, schema_map: SchemaMapping = {}) -> bool:
         self._validate(num=num, schema_map=schema_map)
         self.validated = True
@@ -56,13 +61,13 @@ class Validator:
         last_core_version = None
         for schema in groups.get_all():
             if schema.is_empty():
-                self.error(f"Collection {schema.collection}: No schemas provided")
+                self.error(f"Collection '{schema.collection}': No schemas provided")
                 continue
 
-            version = schema.get_core_version()
+            version, uri, extensions = schema.get()
             if version is None:
                 self.error(
-                    f"Collection {schema.collection}: Vecorel core schema not found in schemas, can't detect Vecorel version"
+                    f"Collection '{schema.collection}': Vecorel core schema not found in schemas, can't detect Vecorel version"
                 )
                 continue
 
@@ -79,6 +84,21 @@ class Validator:
             is_supported(version, raise_exception=True)
 
             last_core_version = version
+
+            # Check whether all required schemas are present, not needed in vecorel but other specs
+            if len(self.required_schemas) == 0:
+                return
+
+            for pattern in self.required_schemas:
+                found = False
+                for ext in extensions:
+                    if (isinstance(pattern, re.Pattern) and pattern.search(ext)) or pattern == ext:
+                        found = True
+                        break
+
+                if not found:
+                    p = pattern.pattern if isinstance(pattern, re.Pattern) else pattern
+                    self.error(f"Collection '{schema.collection}': Required schema {p} not found")
 
     def _create_validate_schema_command(self, schema) -> ValidateSchema:
         return ValidateSchema(schema)

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `create-stac-collection`:
   - Set temporal property parameter from none to the actual configured default
   - Support for GeoJSON input
-
+- Allow to set a list of required schemas for validation
 
 ## [v0.2.4] - 2025-08-27
 

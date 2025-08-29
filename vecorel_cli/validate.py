@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Optional, Union
 
@@ -16,6 +17,7 @@ class ValidateData(BaseCommand):
     cmd_title: str = "Validator"
     cmd_help: str = f"Validates a {Registry.project} data file."
     cmd_final_report: bool = True
+    required_schemas: list[Union[str, re.Pattern]] = []
 
     @staticmethod
     def get_cli_args():
@@ -30,6 +32,10 @@ class ValidateData(BaseCommand):
             ),
             "schema_map": SCHEMA_MAP,
         }
+
+    def __init__(self, required_schemas: list[Union[str, re.Pattern]] = []):
+        super().__init__()
+        self.required_schemas = required_schemas
 
     @runnable
     def validate_cli(
@@ -95,9 +101,13 @@ class ValidateData(BaseCommand):
         return results
 
     def validate(
-        self, file: Union[str, Path], num: Optional[int] = None, schema_map: SchemaMapping = {}
+        self,
+        file: Union[str, Path],
+        num: Optional[int] = None,
+        schema_map: SchemaMapping = {},
     ) -> Validator:
         encoding = create_encoding(file)
         validator = encoding.get_validator()
+        validator.set_required_schemas(self.required_schemas)
         validator.validate(num=num, schema_map=schema_map)
         return validator

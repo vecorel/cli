@@ -1,21 +1,30 @@
+import re
+
 import pytest
 from jsonschema.exceptions import ValidationError
 
 from vecorel_cli.validate import ValidateData
 
+inspire_str = "https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml"
+inspire_re = re.compile(r"https://fiboa.github.io/inspire-extension/v0.3.\d+/schema.yaml")
+
 tests = [
     # non-existing files
-    ("invalid.json", [FileNotFoundError()]),
-    ("invalid.parquet", [FileNotFoundError()]),
+    ("invalid.json", [FileNotFoundError()], []),
+    ("invalid.parquet", [FileNotFoundError()], []),
     # valid files
-    ("tests/data-files/admin.json", True),
-    ("tests/data-files/inspire.json", True),
-    ("tests/data-files/inspire.parquet", True),
+    ("tests/data-files/admin.json", True, []),
+    ("tests/data-files/inspire.json", True, []),
+    ("tests/data-files/inspire.parquet", True, []),
     # invalid files
-    ("tests/data-files/inspire-invalid.json", [ValidationError("6467975 is not of type 'string'")]),
+    (
+        "tests/data-files/inspire-invalid.json",
+        [ValidationError("6467975 is not of type 'string'")],
+        [],
+    ),
     # multiple collections, valid files
-    ("tests/data-files/mixed.json", True),
-    ("tests/data-files/mixed.parquet", True),
+    ("tests/data-files/mixed.json", True, []),
+    ("tests/data-files/mixed.parquet", True, []),
     # multiple collections, invalid files
     (
         "tests/data-files/mixed-invalid.json",
@@ -23,6 +32,7 @@ tests = [
             Exception("'DEE' is too long"),
             Exception("'DEE' does not match '^[A-Z]{2}$'"),
         ],
+        [],
     ),
     (
         "tests/data-files/mixed-invalid.parquet",
@@ -32,15 +42,45 @@ tests = [
                 "admin:country_code: String 'DEE' does not match the required pattern: ^[A-Z]{2}$."
             ),
         ],
+        [],
+    ),
+    # Test required_extensions
+    (
+        "tests/data-files/inspire.json",
+        True,
+        [inspire_str],
+    ),
+    (
+        "tests/data-files/inspire.json",
+        True,
+        [inspire_re],
+    ),
+    (
+        "tests/data-files/mixed.json",
+        [
+            Exception(
+                "Collection 'de': Required schema https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml not found"
+            )
+        ],
+        [inspire_str],
+    ),
+    (
+        "tests/data-files/mixed.json",
+        [
+            Exception(
+                r"Collection 'de': Required schema https://fiboa.github.io/inspire-extension/v0.3.\d+/schema.yaml not found"
+            )
+        ],
+        [inspire_re],
     ),
 ]
 
 
 @pytest.mark.parametrize("test", tests)
 def test_validate(test):
-    filepath, expected = test
+    filepath, expected, req_schemas = test
 
-    result = ValidateData().validate(filepath)
+    result = ValidateData(req_schemas).validate(filepath)
     if expected is True:
         assert result.errors == []
         assert result.is_valid()
