@@ -74,9 +74,14 @@ class CreateStacCollection(BaseCommand):
 
         # Read source data
         source_encoding = create_encoding(source)
-        properties = source_encoding.get_properties().keys()
-        required_properties = properties & {"geometry", temporal_property}
-        data = source_encoding.read(properties=list(required_properties))
+        properties = source_encoding.get_properties()
+        if properties is None:
+            data = source_encoding.read()
+        else:
+            property_names = properties.keys()
+            required_properties = property_names & {"geometry", temporal_property}
+            data = source_encoding.read(properties=list(required_properties))
+
         collection = source_encoding.get_collection()
 
         # Create STAC collection
@@ -89,18 +94,18 @@ class CreateStacCollection(BaseCommand):
         )
 
         # Add more asset details
-        properties = source_encoding.get_properties()
-        table_columns = []
-        for column, types in properties.items():
-            if "null" in types:
-                types.remove("null")
-            table_columns.append({"name": column, "type": types[0]})
+        if properties is not None:
+            table_columns = []
+            for column, types in properties.items():
+                if "null" in types:
+                    types.remove("null")
+                table_columns.append({"name": column, "type": types[0]})
 
-        stac["stac_extensions"].append(self.table_extension)
-        asset = stac["assets"]["data"]
-        asset["table:columns"] = table_columns
-        asset["table:primary_geometry"] = "geometry"
-        asset["table:row_count"] = len(data)
+            stac["stac_extensions"].append(self.table_extension)
+            asset = stac["assets"]["data"]
+            asset["table:columns"] = table_columns
+            asset["table:primary_geometry"] = "geometry"
+            asset["table:row_count"] = len(data)
 
         return stac
 

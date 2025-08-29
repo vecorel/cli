@@ -1,12 +1,18 @@
 from pathlib import Path
 
+import pytest
+
 from vecorel_cli.create_stac import CreateStacCollection
 from vecorel_cli.vecorel.util import load_file
 
+files = [("de-sh.parquet", "collection-parquet.json"), ("de-sh.json", "collection-json.json")]
 
-def test_create_stac_collection(tmp_folder: Path):
-    source = Path("tests/data-files/stac/de-sh.parquet")
-    expected_file = "tests/data-files/stac/collection.json"
+
+@pytest.mark.parametrize("file, expected_file", files)
+def test_create_stac_collection(tmp_folder: Path, file: str, expected_file: str):
+    base = Path("tests/data-files/stac/")
+    source = base / file
+    expected_file = base / expected_file
     out_file = tmp_folder / "collection.json"
 
     gj = CreateStacCollection()
