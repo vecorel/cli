@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-- `create-stac-collection`: Don't set empty strings / only provide properties that have value
+## [v0.2.7] - 2025-08-29
+
+- `create-stac-collection`:
+  - Don't set empty strings / only provide properties that have value
+  - Detect the collection id more robustly
 
 ## [v0.2.6] - 2025-08-29
 
@@ -54,7 +58,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.6...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.7...main>
+[v0.2.7]: <https://github.com/vecorel/cli/compare/v0.2.6...v0.2.7>
 [v0.2.6]: <https://github.com/vecorel/cli/compare/v0.2.5...v0.2.6>
 [v0.2.5]: <https://github.com/vecorel/cli/compare/v0.2.4...v0.2.5>
 [v0.2.4]: <https://github.com/vecorel/cli/compare/v0.2.3...v0.2.4>

@@ -6,7 +6,11 @@ from vecorel_cli.create_stac import CreateStacCollection
 from vecorel_cli.registry import Registry
 from vecorel_cli.vecorel.util import load_file
 
-files = [("de-sh.parquet", "collection-parquet.json"), ("de-sh.json", "collection-json.json")]
+files = [
+    ("de-sh.parquet", "collection-de-sh-parquet.json"),
+    ("de-sh.json", "collection-de-sh-json.json"),
+    ("fiboa.json", "collection-fiboa.json"),
+]
 
 
 @pytest.mark.parametrize("file, expected_file", files)

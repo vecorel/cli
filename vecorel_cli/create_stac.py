@@ -123,13 +123,17 @@ class CreateStacCollection(BaseCommand):
         if len(gdf) == 0:
             raise Exception("No data available.")
 
-        id = collection.get("collection")
-        if id is None:
+        schemas = collection.get_schemas()
+        if len(schemas) > 1:
             raise Exception(
-                "Collection ID not found in collection. Can only create STAC for files containing a single collection."
+                "Multiple collections found. Can only create STAC for files containing a single collection."
             )
 
-        title = collection.get("title", id)
+        cid = collection.get("collection", next(iter(schemas.keys())))
+        if not cid or len(cid) == 0:
+            raise Exception("Collection ID not found in collection.")
+
+        title = collection.get("title", cid)
         if title is None:
             self.warning("Title is not found in collection, using ID as title.")
 
@@ -149,7 +153,7 @@ class CreateStacCollection(BaseCommand):
                 self.processing_extension,
             ],
             "type": "Collection",
-            "id": id,
+            "id": cid,
             "title": title,
             "description": description,
             "license": "other",

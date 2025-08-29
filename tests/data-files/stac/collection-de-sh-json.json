@@ -12,27 +12,18 @@
     "spatial": {
       "bbox": [
         [
-          7.850744089655693,
-          54.17900586097172,
-          8.373607503101216,
+          7.850744089655693, 54.17900586097172, 8.373607503101216,
           54.953541347716865
         ]
       ]
     },
     "temporal": {
-      "interval": [
-        [
-          "2024-01-01T00:00:00Z",
-          "2024-01-01T00:00:00Z"
-        ]
-      ]
+      "interval": [["2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"]]
     }
   },
   "assets": {
     "data": {
-      "roles": [
-        "data"
-      ],
+      "roles": ["data"],
       "href": "file://C:/Dev/vecorel-cli/tests/data-files/stac/de-sh.json",
       "processing:software": {
         "vecorel-cli": "0.0.0"
@@ -51,10 +42,7 @@
   "providers": [
     {
       "name": "Land Schleswig-Holstein",
-      "roles": [
-        "producer",
-        "licensor"
-      ],
+      "roles": ["producer", "licensor"],
       "url": "https://sh-mis.gdi-sh.de/catalog/#/datasets/iso/21f67269-780f-4f3c-8f66-03dde27acfe7"
     }
   ]
