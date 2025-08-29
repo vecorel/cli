@@ -1,4 +1,5 @@
 import importlib.metadata
+import re
 
 
 class VecorelRegistry:
@@ -30,6 +31,9 @@ class VecorelRegistry:
         "geometry",
         "collection",
     ]
+
+    # Any schemas that are mandatory to have, except for the vecorel specification schema
+    required_extensions: list[str, re.Pattern] = []
 
     # The filenames for datasets (converters) that should be ignored by the CLI.
     # Always ignores files with a starting "." or "__"

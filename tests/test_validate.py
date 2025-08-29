@@ -3,6 +3,7 @@ import re
 import pytest
 from jsonschema.exceptions import ValidationError
 
+from vecorel_cli.registry import Registry
 from vecorel_cli.validate import ValidateData
 
 inspire_str = "https://fiboa.github.io/inspire-extension/v0.3.0/schema.yaml"
@@ -80,7 +81,10 @@ tests = [
 def test_validate(test):
     filepath, expected, req_schemas = test
 
-    result = ValidateData(req_schemas).validate(filepath)
+    Registry.required_extensions = req_schemas
+    result = ValidateData().validate(filepath)
+    Registry.required_extensions = []
+
     if expected is True:
         assert result.errors == []
         assert result.is_valid()
