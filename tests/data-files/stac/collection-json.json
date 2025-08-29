@@ -35,7 +35,7 @@
       ],
       "href": "file://C:/Dev/vecorel-cli/tests/data-files/stac/de-sh.json",
       "processing:software": {
-        "vecorel-cli": "0.2.4"
+        "vecorel-cli": "0.2.5"
       },
       "type": "application/geo+json"
     }
