@@ -6,7 +6,7 @@
   "type": "Collection",
   "id": "de_nrw",
   "title": "de_nrw",
-  "description": "Feldbl\u00c3\u00b6cke aus NRW",
+  "description": "Feldbloecke aus NRW",
   "license": "other",
   "extent": {
     "spatial": { "bbox": [[7.8752433, 51.7469574, 9.2813352, 51.9261403]] },
