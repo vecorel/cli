@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 - Fix deprecation warning for `re.sub`
+- Add `unrar` dependency
+- `create-stac-collection`: Set temporaly property if it is none to default
 
 ## [v0.2.4] - 2025-08-27
 

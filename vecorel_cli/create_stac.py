@@ -69,6 +69,8 @@ class CreateStacCollection(BaseCommand):
     ) -> dict:
         if isinstance(source, str):
             source = Path(source)
+        if temporal_property is None:
+            temporal_property = self.temporal_property
 
         # Read source data
         source_encoding = create_encoding(source)
