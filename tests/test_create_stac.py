@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from vecorel_cli.create_stac import CreateStacCollection
+from vecorel_cli.registry import Registry
 from vecorel_cli.vecorel.util import load_file
 
 files = [("de-sh.parquet", "collection-parquet.json"), ("de-sh.json", "collection-json.json")]
@@ -26,16 +27,27 @@ def test_create_stac_collection(tmp_folder: Path, file: str, expected_file: str)
     assert isinstance(created_file, dict), "Created file is not a valid JSON dict"
 
     # Cater for environment differences in paths
-    del expected["assets"]["data"]["href"]
     assert "assets" in created_file
     assert "data" in created_file["assets"]
     assert "href" in created_file["assets"]["data"]
     del created_file["assets"]["data"]["href"]
+    del expected["assets"]["data"]["href"]
     # Cater for floating point differences
-    del expected["extent"]["spatial"]["bbox"]
     assert "extent" in created_file
     assert "spatial" in created_file["extent"]
     assert "bbox" in created_file["extent"]["spatial"]
     del created_file["extent"]["spatial"]["bbox"]
+    del expected["extent"]["spatial"]["bbox"]
+    # Cater for differences in version numbers
+    assert "assets" in created_file
+    assert "data" in created_file["assets"]
+    assert "processing:software" in created_file["assets"]["data"]
+    assert "vecorel-cli" in created_file["assets"]["data"]["processing:software"]
+    assert (
+        created_file["assets"]["data"]["processing:software"]["vecorel-cli"]
+        == Registry.get_version()
+    )
+    del created_file["assets"]["data"]["processing:software"]["vecorel-cli"]
+    del expected["assets"]["data"]["processing:software"]["vecorel-cli"]
 
     assert created_file == expected
