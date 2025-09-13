@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [v0.2.7] - 2025-09-13
+## [v0.2.8] - 2025-09-13
 
 - Fix issue with schema requests due to changes in the "firewall" by ReadTheDocs that sits in front of the PROJJSON schema
 
@@ -62,7 +62,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.7...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.8...main>
+[v0.2.8]: <https://github.com/vecorel/cli/compare/v0.2.7...v0.2.8>
 [v0.2.7]: <https://github.com/vecorel/cli/compare/v0.2.6...v0.2.7>
 [v0.2.6]: <https://github.com/vecorel/cli/compare/v0.2.5...v0.2.6>
 [v0.2.5]: <https://github.com/vecorel/cli/compare/v0.2.4...v0.2.5>
