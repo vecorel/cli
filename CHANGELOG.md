@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.7] - 2025-09-13
+
+- Fix issue with schema requests due to changes in the "firewall" by ReadTheDocs that sits in front of the PROJJSON schema
+
 ## [v0.2.7] - 2025-08-29
 
 - `create-stac-collection`:

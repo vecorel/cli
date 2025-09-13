@@ -125,7 +125,11 @@ class ValidateSchema(BaseCommand):
 
     @staticmethod
     def retrieve_remote_schema(uri: str):
-        request = Request(uri)
+        request = Request(
+            uri,
+            # see https://github.com/OSGeo/PROJ/issues/4567
+            headers={"User-Agent": "vecorel-cli"},
+        )
         with urlopen(request) as response:
             return referencing.Resource.from_contents(
                 json.load(response),
