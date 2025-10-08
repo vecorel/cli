@@ -1,5 +1,5 @@
 # fmt: off
-from typing import Optional
+from typing import Optional, Union
 
 from ..encoding.geojson import GeoJSON
 
@@ -25,10 +25,12 @@ def check_features(schema: dict) -> dict:
     }
 
 
-def not_required(items: set[str]) -> dict:
+def not_required(items: Union[list[str], set[str]]) -> dict:
     if len(items) == 0:
         return {}
-    return {"not": {"required": list(items)}}
+    if isinstance(items, set):
+        items = list(items)
+    return {"not": {"required": items}}
 
 
 # Sets have an unpredictable order, so we convert to a list and sort them
@@ -43,6 +45,7 @@ def jsonschema_template(
     required: set[str],
     collection: dict[str, bool],
     schema_id: Optional[str] = None,
+    required_schemas: list[str] = [],
 ):
     properties = set(property_schemas.keys())
 
@@ -99,7 +102,10 @@ def jsonschema_template(
                     **{
                         key: property_schemas[key] for key in toSortedList(top_level_feature) if key in property_schemas
                     }
-                }
+                },
+                "allOf": [
+                    {"$ref": uri} for uri in required_schemas
+                ]
             },
             "feature_requirements": {
                 "type": "object",

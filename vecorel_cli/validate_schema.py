@@ -38,12 +38,18 @@ class ValidateSchema(BaseCommand):
                 show_default=True,
                 default=sdl_uri,
             ),
+            "check_required_schemas": click.option(
+                "--check-required-schemas",
+                "-r",
+                default=True,
+                help="Check that all required schemas exist.",
+            ),
         }
 
     @staticmethod
     def get_cli_callback(cmd):
-        def callback(files, metaschema):
-            return ValidateSchema(metaschema).run(files)
+        def callback(files, metaschema, check_required_schemas):
+            return ValidateSchema(metaschema).run(files, check_required_schemas)
 
         return callback
 
@@ -56,7 +62,11 @@ class ValidateSchema(BaseCommand):
             self.validator = self.create_validator(metaschema)
 
     @runnable
-    def validate_cli(self, files: list[Union[Path, URL, str]]) -> bool:
+    def validate_cli(
+        self,
+        files: list[Union[Path, URL, str]],
+        check_required_schemas: bool = True,
+    ) -> bool:
         if len(files) == 0:
             self.error("No files to validate")
             return False
@@ -75,21 +85,29 @@ class ValidateSchema(BaseCommand):
 
         return invalid_count == 0
 
-    def validate_files(self, files: list[Union[Path, URL, str]]) -> dict:
+    def validate_files(self, files: list[Union[Path, URL, str]], check_required_schemas: bool = True) -> dict:
         mapping = {}
         for file in files:
             if isinstance(file, str):
                 file = Path(file)
             errors = self.validate_file(file)
             if isinstance(file, Path):
-                filepath = file.resolve()
-            mapping[str(filepath)] = errors
+                file = file.resolve()
+            mapping[str(file)] = errors
 
         return mapping
 
-    def validate_file(self, filepath: Union[Path, URL, str]) -> list[ValidationError]:
+    def validate_file(self, filepath: Union[Path, URL, str], check_required_schemas: bool = True) -> list[ValidationError]:
         schema = load_file(filepath)
-        return self.validate(schema)
+        result = self.validate(schema)
+        req_schemas = schema.get("requiredSchemas")
+        if check_required_schemas and isinstance(req_schemas, list):
+            for req_schema in schema["requiredSchemas"]:
+                try:
+                    other_schema = validate_file(req_schema)
+                except Exception as e:
+                    result.append(ValidationError(f"Required schema '{req_schema}' could not be loaded: {e}"))
+        return result
 
     def validate(self, obj: dict) -> list[ValidationError]:
         if not isinstance(obj, dict):

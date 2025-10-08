@@ -68,8 +68,8 @@ class CreateJsonSchema(BaseCommand):
 
     def create_from_file(
         self,
-        schema_uri: str,
-        datatypes_uri: str,
+        schema_uri: Union[Path, URL, str],
+        datatypes_uri: Union[Path, URL, str],
         schema_id: Optional[str] = None,
     ) -> dict:
         schema = load_file(schema_uri)
@@ -78,12 +78,13 @@ class CreateJsonSchema(BaseCommand):
 
     def create_from_dict(self, schema: dict, datatypes: dict, schema_id=None):
         required = schema.get("required", [])
+        required_schemas = schema.get("requiredSchemas", [])
         collection = schema.get("collection", {})
         properties = schema.get("properties", {}).copy()
         for key, prop_schema in properties.items():
             properties[key] = self.convert_schema(prop_schema, datatypes)
 
-        return jsonschema_template(properties, set(required), collection, schema_id)
+        return jsonschema_template(properties, set(required), collection, schema_id, required_schemas)
 
     def convert_schema(self, prop_schema, datatypes, required=False):
         if not isinstance(prop_schema, dict) or "type" not in prop_schema:
