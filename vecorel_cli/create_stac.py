@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
@@ -14,7 +13,7 @@ from .cli.options import JSON_INDENT, VECOREL_FILE_ARG, VECOREL_TARGET_CONSOLE
 from .encoding.auto import create_encoding
 from .registry import Registry
 from .vecorel.collection import Collection
-from .vecorel.util import to_iso8601
+from .vecorel.util import parse_link_str, to_iso8601
 
 
 class CreateStacCollection(BaseCommand):
@@ -198,7 +197,7 @@ class CreateStacCollection(BaseCommand):
                 }
             )
         else:
-            license_name, license_url = self._parse_link_str(license)
+            license_name, license_url = parse_link_str(license)
             if license_url is None and len(license_name) > 0:
                 stac["license"] = license_name
             elif license_url is not None:
@@ -213,7 +212,7 @@ class CreateStacCollection(BaseCommand):
         # Add provider information
         provider = collection.get("provider", "").strip()
         if len(provider) > 0:
-            provider_name, provider_url = self._parse_link_str(provider)
+            provider_name, provider_url = parse_link_str(provider)
             stac["providers"] = [
                 {
                     "name": provider_name,
@@ -237,13 +236,3 @@ class CreateStacCollection(BaseCommand):
             stac["extent"]["temporal"]["interval"][0] = temporal_extent
 
         return stac
-
-    def _parse_link_str(self, link_str: str) -> tuple[str, Optional[str]]:
-        """
-        Parse a link string into a dictionary.
-        The string can be in the format "Name <URL>" or just "Name".
-        """
-        match = re.match(r"^(.*?)(?:\s*<(.+?)>)?$", link_str.strip())
-        if match:
-            return match.groups()
-        return link_str.strip(), None

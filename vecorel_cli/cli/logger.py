@@ -1,6 +1,7 @@
 import re
 import sys
 from logging import Logger
+from typing import Any, Optional
 
 from loguru import logger
 
@@ -13,7 +14,7 @@ def format_logs(record):
 
 class LoggerMixin:
     verbose: bool = False
-    logger: Logger = None
+    logger: Optional[Logger] = None
 
     def __init__(self):
         if LoggerMixin.logger is None:
@@ -89,7 +90,7 @@ class LoggerMixin:
         lines = text.splitlines()
         return indent + indent2.join(lines)
 
-    def _format_data(self, value: dict, depth=0, max_depth=1, strlen=50):
+    def _format_data(self, value: Any, depth=0, max_depth=1, strlen=50):
         if hasattr(value, "to_dict"):
             value = value.to_dict()
 

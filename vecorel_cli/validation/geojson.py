@@ -9,6 +9,7 @@ from .base import Validator
 class GeoJSONValidator(Validator):
     def __init__(self, encoding: GeoJSON):
         super().__init__(encoding, mixed_versions=True)
+        self.encoding: GeoJSON = encoding  # for correct type hinting
 
     def _create_jsonschema_command(self) -> CreateJsonSchema:
         return CreateJsonSchema()

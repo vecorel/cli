@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Converters: `column_filters` allows to inverse the mask
+- Various small bug fixes and type hint fixes
+
 ## [v0.2.8] - 2025-09-13
 
 - Fix issue with schema requests due to changes in the "firewall" by ReadTheDocs that sits in front of the PROJJSON schema

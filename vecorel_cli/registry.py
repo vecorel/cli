@@ -1,5 +1,6 @@
 import importlib.metadata
 import re
+from typing import Union
 
 
 class VecorelRegistry:
@@ -33,7 +34,7 @@ class VecorelRegistry:
     ]
 
     # Any schemas that are mandatory to have, except for the vecorel specification schema
-    required_extensions: list[str, re.Pattern] = []
+    required_extensions: list[Union[str, re.Pattern]] = []
 
     # The filenames for datasets (converters) that should be ignored by the CLI.
     # Always ignores files with a starting "." or "__"
@@ -78,6 +79,8 @@ class VecorelRegistry:
 
         if isinstance(command, BaseCommand):
             command_name = command.cmd_name
+        else:
+            command_name = command
         self.commands.pop(command_name, None)
 
     def set_command(self, command):

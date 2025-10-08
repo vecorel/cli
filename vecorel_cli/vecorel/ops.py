@@ -32,7 +32,7 @@ def merge(
         collections.append(item.get_collection())
 
     # Concatenate all GeoDataFrames to a single GeoDataFrame
-    merged = pd.concat(data, ignore_index=True)
+    merged = GeoDataFrame(pd.concat(data, ignore_index=True))
     # Remove empty columns
     merged.dropna(axis=1, how="all", inplace=True)
 
