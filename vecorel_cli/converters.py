@@ -10,6 +10,7 @@ from .cli.options import PY_PACKAGE
 from .cli.util import display_pandas_unrestricted
 from .conversion.base import BaseConverter
 from .registry import Registry
+from .vecorel.util import parse_link_str
 
 
 class Converters(BaseCommand):
@@ -59,7 +60,7 @@ class Converters(BaseCommand):
 
         columns = {"short_name": "Short Title", "license": "License"}
         if providers:
-            columns["providers"] = "Provider(s)"
+            columns["provider"] = "Provider"
         if sources:
             columns["sources"] = "Source(s)"
 
@@ -71,7 +72,7 @@ class Converters(BaseCommand):
         display_pandas_unrestricted(None if verbose else self.default_max_colwidth)
 
         if not df.empty:
-            self.info(df)
+            self.info(df.to_string())
         else:
             self.warning("No converters found.")
 
@@ -124,10 +125,8 @@ class Converters(BaseCommand):
 
                     if key == "sources" and isinstance(value, dict):
                         value = ", ".join(list(value.keys()))
-                    elif key == "license" and isinstance(value, dict):
-                        value = value["href"]
-                    elif key == "providers" and isinstance(value, list):
-                        value = ", ".join(list(map(lambda x: x["name"], value)))
+                    elif key in ["license", "provider"] and isinstance(value, str):
+                        value, _ = parse_link_str(value)
 
                     obj[key] = value
 
