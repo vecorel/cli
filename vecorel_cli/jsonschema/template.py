@@ -1,5 +1,5 @@
 # fmt: off
-from typing import Optional
+from typing import Optional, Union
 
 from ..encoding.geojson import GeoJSON
 
@@ -25,7 +25,7 @@ def check_features(schema: dict) -> dict:
     }
 
 
-def not_required(items: set[str]) -> dict:
+def not_required(items: Union[set[str], list[str]]) -> dict:
     if len(items) == 0:
         return {}
     return {"not": {"required": list(items)}}

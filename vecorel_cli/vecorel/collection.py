@@ -56,9 +56,9 @@ class Collection(dict):
         ).values()
         return VecorelSchema.merge_all(*resolved, custom_schemas)
 
-    def get_collection_context(self, schema_map: SchemaMapping = {}) -> list[str]:
+    def get_collection_context(self, schema_map: SchemaMapping = {}) -> dict[str, bool]:
         """
-        Get the properties that should only be present in the collection metadata.
+        Get the details whether properties should be in collections or not.
         """
         schema = self.merge_schemas(schema_map=schema_map)
         return schema.get("collection", {})
