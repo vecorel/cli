@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.9] - 2025-10-09
+
 - Converters: `column_filters` allows to inverse the mask
 - Fix use of license and provider in converter list
 - Various small bug fixes and type hint fixes
@@ -66,7 +68,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.8...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.9...main>
+[v0.2.9]: <https://github.com/vecorel/cli/compare/v0.2.8...v0.2.9>
 [v0.2.8]: <https://github.com/vecorel/cli/compare/v0.2.7...v0.2.8>
 [v0.2.7]: <https://github.com/vecorel/cli/compare/v0.2.6...v0.2.7>
 [v0.2.6]: <https://github.com/vecorel/cli/compare/v0.2.5...v0.2.6>
