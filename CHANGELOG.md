@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [v0.2.10] - 2025-10-09
 
 - XML tags in logs are properly escaped for loguru
+- Set the default temporal_property for STAC collection creation to `determination:datetime` instead of `determination_datetime`
 
 ## [v0.2.9] - 2025-10-09
 
