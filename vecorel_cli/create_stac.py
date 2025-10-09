@@ -54,7 +54,9 @@ class CreateStacCollection(BaseCommand):
         temporal_property: Optional[str] = None,
         indent: Optional[int] = None,
     ) -> Union[Path, str, bool]:
-        stac = self.create_from_file(source, data_url=str(source), temporal_property=temporal_property)
+        stac = self.create_from_file(
+            source, data_url=str(source), temporal_property=temporal_property
+        )
         if stac:
             return self._json_dump_cli(stac, target, indent)
         else:
