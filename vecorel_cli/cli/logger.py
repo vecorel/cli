@@ -55,9 +55,10 @@ class LoggerMixin:
         if not isinstance(message, str):
             message = str(message)
 
-        # Escape special characters
-        # Allow : . - to capture XML tags
-        message = re.sub(r"(</?[\w:.-]+>)", r"\\\1", message, count=0, flags=re.IGNORECASE)
+        # Escape XML/HTML tags etc. that look like loguru color directives
+        # The regexp is coming directly from the loguru source code, see
+        # https://github.com/Delgan/loguru/blob/master/loguru/_colorizer.py
+        message = re.sub(r"(</?(?:[fb]g\s)?[^<>\s]*>)", r"\\\1", message, count=0, flags=re.IGNORECASE)
 
         # Handle indentation (including multiple lines)
         message = self._indent_text(message, indent)

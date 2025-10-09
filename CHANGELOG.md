@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.11] - 2025-10-09
+
+- XML/HTML-like tags (with < and > characters) in logs are properly escaped for loguru
+
 ## [v0.2.10] - 2025-10-09
 
 - XML tags in logs are properly escaped for loguru
