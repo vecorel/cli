@@ -33,8 +33,11 @@ class VecorelRegistry:
         "collection",
     ]
 
-    # Any schemas that are mandatory to have, except for the vecorel specification schema
+    # Any schemas patterns that are mandatory to have, except for the vecorel specification schema
     required_extensions: list[Union[str, re.Pattern]] = []
+
+    # Any specific schemas URIs that are added by default when creating a new dataset
+    default_extensions: list[str] = []
 
     # The filenames for datasets (converters) that should be ignored by the CLI.
     # Always ignores files with a starting "." or "__"

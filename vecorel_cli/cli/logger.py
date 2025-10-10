@@ -1,7 +1,7 @@
 import re
 import sys
 from logging import Logger
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from loguru import logger
 
@@ -36,7 +36,7 @@ class LoggerMixin:
     def warning(self, message: str, **kwargs):
         self.log(message, "warning", **kwargs)
 
-    def error(self, message: str, **kwargs):
+    def error(self, message: Union[Exception, str], **kwargs):
         self.log(message, "error", **kwargs)
 
     def success(self, message: str, **kwargs):
@@ -58,7 +58,9 @@ class LoggerMixin:
         # Escape XML/HTML tags etc. that look like loguru color directives
         # The regexp is coming directly from the loguru source code, see
         # https://github.com/Delgan/loguru/blob/master/loguru/_colorizer.py
-        message = re.sub(r"(</?(?:[fb]g\s)?[^<>\s]*>)", r"\\\1", message, count=0, flags=re.IGNORECASE)
+        message = re.sub(
+            r"(</?(?:[fb]g\s)?[^<>\s]*>)", r"\\\1", message, count=0, flags=re.IGNORECASE
+        )
 
         # Handle indentation (including multiple lines)
         message = self._indent_text(message, indent)

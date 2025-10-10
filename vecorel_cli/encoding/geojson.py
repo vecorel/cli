@@ -14,6 +14,7 @@ from ..validation.base import Validator
 from ..vecorel.collection import Collection
 from ..vecorel.typing import Feature, FeatureCollection, SchemaMapping
 from ..vecorel.util import load_file, to_iso8601
+from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
 
 
@@ -34,16 +35,18 @@ class GeoJSON(BaseEncoding):
         return response.get("$defs", {})
 
     @staticmethod
-    def get_datatypes_uri(version: str) -> str:
+    def get_datatypes_uri(version: Optional[str] = None) -> str:
+        if version is None:
+            version = vecorel_version
         return GeoJSON.datatypes_schema_uri.format(version=version)
 
     def get_format(self) -> str:
         return "GeoJSON"
 
-    def _load_collection(self) -> Collection:
+    def _load_collection(self) -> Union[Collection, dict]:
         if self.fs.exists(self.uri):
             self.read(num=0)
-        return self.collection or Collection()
+        return self.collection or {}
 
     def get_validator(self) -> Optional[Validator]:
         from ..validation.geojson import GeoJSONValidator

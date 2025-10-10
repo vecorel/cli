@@ -30,7 +30,6 @@ from ..vecorel.collection import Collection
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
 from ..vecorel.util import get_fs, name_from_uri, stream_file
-from ..vecorel.version import vecorel_version
 
 
 class BaseConverter(LoggerMixin):
@@ -274,7 +273,7 @@ class BaseConverter(LoggerMixin):
         return f"{title} ({self.variant})" if self.variant else title
 
     def create_collection(self, cid) -> Collection:
-        schema_uris = [Schemas.get_core_uri(vecorel_version)]
+        schema_uris = [Schemas.get_core_uri()]
         schema_uris.extend(self.extensions)
         collection = Collection(
             {

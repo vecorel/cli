@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from ..vecorel.typing import RawSchemas, SchemaMapping
 from ..vecorel.util import load_file
-from .version import is_sdl_supported, sdl_uri
+from .version import is_sdl_supported, sdl_uri, vecorel_version
 
 if TYPE_CHECKING:
     from ..validation.base import Validator
@@ -314,7 +314,9 @@ class Schemas(dict):
     spec_schema = "https://vecorel.org/specification/v{version}/schema.yaml"
 
     @staticmethod
-    def get_core_uri(version: str) -> str:
+    def get_core_uri(version: Optional[str] = None) -> str:
+        if version is None:
+            version = vecorel_version
         return Schemas.spec_schema.format(version=version)
 
     def __init__(self, schemas: Union[RawSchemas, "Schemas"] = {}):
