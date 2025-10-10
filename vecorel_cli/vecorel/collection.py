@@ -3,9 +3,26 @@ from typing import Optional, Union
 from ..validation.base import Validator
 from ..vecorel.typing import SchemaMapping
 from .schemas import RawSchemas, Schemas, VecorelSchema
+from ..registry import Registry
 
 
 class Collection(dict):
+
+    @staticmethod
+    def create_default(cid: str) -> "Collection":
+        collection = Collection()
+
+        schemas = []
+        schemas.append(Schemas.get_core_uri())
+        for ext in Registry.default_extensions:
+            schemas.append(ext)
+        
+        collection["schemas"] = {
+            cid: schemas
+        }
+
+        return collection
+
     def __init__(self, collection: Optional[dict] = None):
         super().__init__(collection or {})
 
