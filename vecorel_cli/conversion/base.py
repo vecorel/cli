@@ -299,7 +299,6 @@ class BaseConverter(LoggerMixin):
         original_geometries=False,
         **kwargs,
     ) -> str:
-        columns = self.columns.copy()
         self.variant = variant
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
@@ -339,6 +338,7 @@ class BaseConverter(LoggerMixin):
         self.info("Applying global migrations")
         gdf = self.migrate(gdf)
         assert isinstance(gdf, GeoDataFrame), "Migration function must return a GeoDataFrame"
+        columns = self.columns.copy()
 
         # 2. Run filters to remove rows that shall not be in the final data
         gdf = self.filter_rows(gdf)
