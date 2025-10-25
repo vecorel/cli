@@ -25,7 +25,7 @@ class CreateStacCollection(BaseCommand):
     processing_extension = "https://stac-extensions.github.io/processing/v1.1.0/schema.json"
     table_extension = "https://stac-extensions.github.io/table/v1.2.0/schema.json"
 
-    temporal_property = "determination_datetime"
+    temporal_property = "datetime"
 
     @staticmethod
     def get_cli_args():

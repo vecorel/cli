@@ -74,7 +74,7 @@ class ConvertData(BaseCommand):
                 "-og",
                 is_flag=True,
                 type=click.BOOL,
-                help="Keep the source geometries as provided, i.e. this option disables that geomtries are made valid and converted to Polygons.",
+                help="Keep the source geometries as provided, i.e. this option disables that geometries are made valid and converted to Polygons.",
                 default=False,
             ),
             "py-package": PY_PACKAGE,

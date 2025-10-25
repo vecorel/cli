@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Change default temporal property to datetime
+- Enable Converter.columns list and tuple types
+
 ## [v0.2.11] - 2025-10-09
 
 - XML/HTML-like tags (with < and > characters) in logs are properly escaped for loguru

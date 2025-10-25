@@ -11,7 +11,7 @@ from copy import copy
 from glob import glob
 from io import StringIO
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Generator, Optional
+from typing import Any, Callable, Generator, Optional, Sequence
 
 import flatdict
 import geopandas as gpd
@@ -51,7 +51,7 @@ class BaseConverter(LoggerMixin):
     variants: dict[str, Sources] = {}
     variant: Optional[str] = None
 
-    columns: dict[str, str] = {}
+    columns: dict[str, str|Sequence[str]] = {}
     column_additions: dict[str, str] = {}
     column_filters: dict[str, Callable] = {}
     column_migrations: dict[str, Callable] = {}
@@ -325,7 +325,6 @@ class BaseConverter(LoggerMixin):
         paths = self.download_files(urls, cache, **request_args)
 
         gdf = self.read_data(paths, **self.open_options)
-
         self.info("GeoDataFrame created from source(s):")
         # Make it so that everything is shown, don't output ... if there are too many columns or rows
         display_pandas_unrestricted()
@@ -375,7 +374,7 @@ class BaseConverter(LoggerMixin):
         for old_key, new_key in columns.items():
             if old_key in gdf.columns:
                 # If the new keys are a list, duplicate the column
-                if isinstance(new_key, list):
+                if isinstance(new_key, (list, tuple)):
                     for key in new_key:
                         gdf[key] = gdf.loc[:, old_key]
                         actual_columns[key] = key
@@ -417,6 +416,7 @@ class BaseConverter(LoggerMixin):
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
         pq.set_collection(self.create_collection(cid))
+
         pq.write(
             gdf,
             properties=columns,
