@@ -14,6 +14,7 @@ from ..validation.base import Validator
 from ..vecorel.collection import Collection
 from ..vecorel.typing import Feature, FeatureCollection, SchemaMapping
 from ..vecorel.util import load_file, to_iso8601
+from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
 
 
@@ -34,16 +35,18 @@ class GeoJSON(BaseEncoding):
         return response.get("$defs", {})
 
     @staticmethod
-    def get_datatypes_uri(version: str) -> str:
+    def get_datatypes_uri(version: Optional[str] = None) -> str:
+        if version is None:
+            version = vecorel_version
         return GeoJSON.datatypes_schema_uri.format(version=version)
 
     def get_format(self) -> str:
         return "GeoJSON"
 
-    def _load_collection(self) -> dict:
+    def _load_collection(self) -> Union[Collection, dict]:
         if self.fs.exists(self.uri):
             self.read(num=0)
-        return self.collection
+        return self.collection or {}
 
     def get_validator(self) -> Optional[Validator]:
         from ..validation.geojson import GeoJSONValidator
@@ -84,7 +87,7 @@ class GeoJSON(BaseEncoding):
         collection["type"] = "FeatureCollection"
         collection["features"] = features
 
-        self._write_json(collection, self.uri, indent=indent)
+        return self._write_json(collection, self.uri, indent=indent)
 
     # indent: int, optional, default None
     #     If set, the JSON will be pretty-printed with the given indentation level.
@@ -119,7 +122,7 @@ class GeoJSON(BaseEncoding):
             if properties is not None and key not in properties:
                 data["properties"].pop(key)
 
-        self._write_json(data, self.uri, indent=indent)
+        return self._write_json(data, self.uri, indent=indent)
 
     def read(
         self,
@@ -127,6 +130,7 @@ class GeoJSON(BaseEncoding):
         properties: Optional[list[str]] = None,
         schema_map: SchemaMapping = {},
         hydrate: bool = False,
+        **kwargs,
     ) -> GeoDataFrame:
         if num is None and properties is None:
             # The memory intensive and fast way: read the whole file into memory
@@ -286,9 +290,10 @@ class GeoJSON(BaseEncoding):
             gdf = GeoDataFrame(DataFrame.from_dict(data), crs=self.crs, geometry="geometry")
             return gdf
 
-    def _write_json(self, obj, path, indent=None):
+    def _write_json(self, obj, path, indent=None) -> bool:
         with open(path, "w") as f:
             json.dump(obj, f, allow_nan=False, indent=indent, cls=VecorelJSONEncoder)
+        return True
 
     @staticmethod
     def fix_geo_interface(obj):
@@ -329,14 +334,14 @@ class GeoJSON(BaseEncoding):
 
 
 class VecorelJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, pd.Timestamp):
-            return to_iso8601(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, set):
-            return list(obj)
-        elif isinstance(obj, np.generic):
-            return obj.item()
+    def default(self, o):
+        if isinstance(o, pd.Timestamp):
+            return to_iso8601(o)
+        elif isinstance(o, np.ndarray):
+            return o.tolist()
+        elif isinstance(o, set):
+            return list(o)
+        elif isinstance(o, np.generic):
+            return o.item()
         else:
-            return super().default(obj)
+            return super().default(o)

@@ -2,11 +2,10 @@ from vecorel_cli.create_jsonschema import CreateJsonSchema
 from vecorel_cli.encoding.geojson import GeoJSON
 from vecorel_cli.validate_schema import ValidateSchema
 from vecorel_cli.vecorel.util import load_file
-from vecorel_cli.vecorel.version import vecorel_version
 
 vecorel_schema_uri = "tests/data-files/jsonschema/schema.yaml"
 vecorel_schema = load_file(vecorel_schema_uri)
-datatypes_uri = GeoJSON.get_datatypes_uri(vecorel_version)
+datatypes_uri = GeoJSON.get_datatypes_uri()
 datatypes = GeoJSON.load_datatypes(datatypes_uri)
 schema_id = "https://example.com/schema.json"
 point = {"type": "Point", "coordinates": [0, 0]}

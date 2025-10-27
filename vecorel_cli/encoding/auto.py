@@ -23,4 +23,4 @@ def create_encoding(filepath: Union[Path, URL, str]) -> BaseEncoding:
         if ext in encoding.ext:
             return encoding(filepath)
 
-    raise ValueError(f"Unsupported file type: {ext}")
+    raise ValueError("Unsupported file type")

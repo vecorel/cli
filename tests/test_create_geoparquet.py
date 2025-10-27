@@ -4,6 +4,7 @@ import pytest
 
 from vecorel_cli.create_geoparquet import CreateGeoParquet
 from vecorel_cli.encoding.geoparquet import GeoParquet
+from vecorel_cli.vecorel.schemas import Schemas
 
 
 def test_create_geoparquet(tmp_parquet_file: Path):
@@ -22,6 +23,7 @@ def test_create_geoparquet(tmp_parquet_file: Path):
     schema_ids = collection["schemas"].keys()
     assert len(schema_ids) == 1
     assert "inspire" in schema_ids
+    assert all(Schemas.get_core_uri() in s for s in collection["schemas"].values())
 
     data = gp.read()
     assert len(data) == 2

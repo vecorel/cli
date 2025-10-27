@@ -35,7 +35,7 @@ def test_list_ids_other_module():
 def test_list_all():
     Registry.ignored_datasets = []
     c = Converters()
-    result = c.list_all()
+    result = c.list_all(("short_name", "license", "provider"))
     assert isinstance(result, dict)
     assert len(result.keys()) == 1
     assert "template" in result
@@ -44,6 +44,8 @@ def test_list_all():
     assert result["template"]["short_name"] == "Country, Region, etc."
     assert "license" in result["template"]
     assert result["template"]["license"] == "CC-BY-4.0"
+    assert "provider" in result["template"]
+    assert result["template"]["provider"] == "ABC Corp"
 
 
 def test_load():

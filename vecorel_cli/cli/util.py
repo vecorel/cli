@@ -37,8 +37,8 @@ def parse_map(value: tuple[str], separator: str = "=") -> dict[str, str]:
 
     mapping = {}
     for v in value:
-        key, value = v.split(separator, 2)
-        mapping[key] = value
+        a, b = v.split(separator, 2)
+        mapping[a] = b
 
     return mapping
 

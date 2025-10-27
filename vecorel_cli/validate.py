@@ -35,14 +35,14 @@ class ValidateData(BaseCommand):
     def validate_cli(
         self,
         source: list[Union[str, Path]],
-        num: int = 100,
+        num: Optional[int] = 100,
         schema_map: SchemaMapping = {},
     ):
         if not isinstance(source, list):
             raise ValueError("Source must be a list.")
         if len(source) == 0:
             raise ValueError("No source files provided")
-        if num < 0:
+        if num is not None and num < 0:
             num = None
 
         invalid = 0
@@ -102,6 +102,8 @@ class ValidateData(BaseCommand):
     ) -> Validator:
         encoding = create_encoding(file)
         validator = encoding.get_validator()
+        if validator is None:
+            raise ValueError(f"No validator available for files of type {encoding.get_format()}")
         validator.set_required_schemas(Registry.required_extensions)
         validator.validate(num=num, schema_map=schema_map)
         return validator

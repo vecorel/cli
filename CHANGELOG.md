@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.11] - 2025-10-09
+
+- XML/HTML-like tags (with < and > characters) in logs are properly escaped for loguru
+
+## [v0.2.10] - 2025-10-09
+
+- XML tags in logs are properly escaped for loguru
+- Set the default temporal_property for STAC collection creation to `determination:datetime` instead of `determination_datetime`
+
+## [v0.2.9] - 2025-10-09
+
+- Converters: `column_filters` allows to inverse the mask
+- Fix use of license and provider in converter list
+- Various small bug fixes and type hint fixes
+
 ## [v0.2.8] - 2025-09-13
 
 - Fix issue with schema requests due to changes in the "firewall" by ReadTheDocs that sits in front of the PROJJSON schema
@@ -62,7 +77,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.8...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.11...main>
+[v0.2.11]: <https://github.com/vecorel/cli/compare/v0.2.10...v0.2.11>
+[v0.2.10]: <https://github.com/vecorel/cli/compare/v0.2.9...v0.2.10>
+[v0.2.9]: <https://github.com/vecorel/cli/compare/v0.2.8...v0.2.9>
 [v0.2.8]: <https://github.com/vecorel/cli/compare/v0.2.7...v0.2.8>
 [v0.2.7]: <https://github.com/vecorel/cli/compare/v0.2.6...v0.2.7>
 [v0.2.6]: <https://github.com/vecorel/cli/compare/v0.2.5...v0.2.6>

@@ -2,7 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 import yaml
@@ -103,8 +103,20 @@ def to_iso8601(dt):
 
 
 def format_filesize(size, decimal_places=2):
-    for unit in ["B", "KB", "MB", "GB", "TB", "PB"]:
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    for unit in units:
         if size < 1024.0 or unit == "PB":
             break
         size /= 1024.0
     return f"{size:.{decimal_places}f} {unit}"
+
+
+def parse_link_str(link_str: str) -> tuple[str, Optional[str]]:
+    """
+    Parse a link string into a tuple of title and (optional)URL.
+    The string can be in the format "Name <URL>" or just "Name".
+    """
+    match = re.match(r"^(.*?)(?:\s*<(.+?)>)?$", link_str.strip())
+    if match:
+        return match.group(1), match.group(2)
+    return link_str.strip(), None

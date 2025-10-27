@@ -1,6 +1,7 @@
 import re
 import sys
 from logging import Logger
+from typing import Any, Optional, Union
 
 from loguru import logger
 
@@ -13,7 +14,7 @@ def format_logs(record):
 
 class LoggerMixin:
     verbose: bool = False
-    logger: Logger = None
+    logger: Optional[Logger] = None
 
     def __init__(self):
         if LoggerMixin.logger is None:
@@ -35,7 +36,7 @@ class LoggerMixin:
     def warning(self, message: str, **kwargs):
         self.log(message, "warning", **kwargs)
 
-    def error(self, message: str, **kwargs):
+    def error(self, message: Union[Exception, str], **kwargs):
         self.log(message, "error", **kwargs)
 
     def success(self, message: str, **kwargs):
@@ -54,8 +55,12 @@ class LoggerMixin:
         if not isinstance(message, str):
             message = str(message)
 
-        # Escape special characters
-        message = re.sub(r"(<\w+>)", r"\\\1", message, count=0, flags=re.IGNORECASE)
+        # Escape XML/HTML tags etc. that look like loguru color directives
+        # The regexp is coming directly from the loguru source code, see
+        # https://github.com/Delgan/loguru/blob/master/loguru/_colorizer.py
+        message = re.sub(
+            r"(</?(?:[fb]g\s)?[^<>\s]*>)", r"\\\1", message, count=0, flags=re.IGNORECASE
+        )
 
         # Handle indentation (including multiple lines)
         message = self._indent_text(message, indent)
@@ -89,7 +94,7 @@ class LoggerMixin:
         lines = text.splitlines()
         return indent + indent2.join(lines)
 
-    def _format_data(self, value: dict, depth=0, max_depth=1, strlen=50):
+    def _format_data(self, value: Any, depth=0, max_depth=1, strlen=50):
         if hasattr(value, "to_dict"):
             value = value.to_dict()
 

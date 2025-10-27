@@ -12,6 +12,7 @@ from .data import validate_column
 class GeoParquetValidator(Validator):
     def __init__(self, encoding: GeoParquet):
         super().__init__(encoding)
+        self.encoding: GeoParquet = encoding  # for correct type hinting
 
     def _validate(self, num: Optional[int] = None, schema_map: SchemaMapping = {}):
         validate_data = num is None or num > 0

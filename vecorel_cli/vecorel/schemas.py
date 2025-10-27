@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from ..vecorel.typing import RawSchemas, SchemaMapping
 from ..vecorel.util import load_file
-from .version import is_sdl_supported, sdl_uri
+from .version import is_sdl_supported, sdl_uri, vecorel_version
 
 if TYPE_CHECKING:
     from ..validation.base import Validator
@@ -235,15 +235,17 @@ class VecorelSchema(dict):
 
 class CollectionSchemas(set):
     @staticmethod
-    def parse_version(schema_uri: str, pattern: str):
+    def parse_version(schema_uri: str, pattern: Union[str, re.Pattern]):
         match = re.match(pattern, schema_uri)
         return match.group(1) if match else None
 
     @staticmethod
-    def parse_schemas(schemas: list[str], spec_pattern: re.Pattern) -> tuple[str, str, list[str]]:
+    def parse_schemas(
+        schemas: Union[set[str], list[str]], spec_pattern: Union[str, re.Pattern]
+    ) -> tuple[Optional[str], Optional[str], list[str]]:
         uri = None
         version = None
-        extensions = []
+        extensions: list[str] = []
         for schema in schemas:
             potential_version = CollectionSchemas.parse_version(schema, spec_pattern)
             if potential_version is None:
@@ -268,14 +270,14 @@ class CollectionSchemas(set):
     def is_empty(self) -> bool:
         return len(self) == 0
 
-    def get(self) -> tuple[str, str, list[str]]:
+    def get(self) -> tuple[Optional[str], Optional[str], list[str]]:
         return CollectionSchemas.parse_schemas(self, Schemas.spec_pattern)
 
-    def get_core_version(self) -> str:
+    def get_core_version(self) -> Optional[str]:
         version, uri, extensions = self.get()
         return version
 
-    def get_core_schema_uri(self):
+    def get_core_schema_uri(self) -> Optional[str]:
         version, uri, extensions = self.get()
         return uri
 
@@ -286,7 +288,7 @@ class CollectionSchemas(set):
     def resolve_schemas(
         self,
         schema_map: SchemaMapping = {},
-        validator: Validator = None,
+        validator: Optional[Validator] = None,
     ) -> dict[str, VecorelSchema]:
         return VecorelSchema.resolve_schema_uris(
             self,
@@ -312,7 +314,9 @@ class Schemas(dict):
     spec_schema = "https://vecorel.org/specification/v{version}/schema.yaml"
 
     @staticmethod
-    def get_core_uri(version: str) -> str:
+    def get_core_uri(version: Optional[str] = None) -> str:
+        if version is None:
+            version = vecorel_version
         return Schemas.spec_schema.format(version=version)
 
     def __init__(self, schemas: Union[RawSchemas, "Schemas"] = {}):
@@ -320,8 +324,8 @@ class Schemas(dict):
         if isinstance(schemas, Schemas):
             self.update(schemas)
         else:
-            for collection, schemas in schemas.items():
-                self[collection] = CollectionSchemas(schemas, collection)
+            for collection, schema_list in schemas.items():
+                self[collection] = CollectionSchemas(schema_list, collection)
 
     def get_all(self) -> list[CollectionSchemas]:
         return list(self.values())
