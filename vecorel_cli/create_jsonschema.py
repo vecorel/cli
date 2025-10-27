@@ -31,7 +31,7 @@ class CreateJsonSchema(BaseCommand):
                 type=PathOrURL(extensions=[".json"]),
                 help=f"Vecorel schema to create the JSON Schema for. Can be a local file or a URL. If not provided, loads the schema for Vecorel version {vecorel_version}.",
                 show_default=True,
-                default=Schemas.get_core_uri(vecorel_version),
+                default=Schemas.get_core_uri(),
             ),
             "datatypes": click.option(
                 "--datatypes",
@@ -40,7 +40,7 @@ class CreateJsonSchema(BaseCommand):
                 type=PathOrURL(extensions=[".json"]),
                 help=f"Schema for the Vecorel GeoJSON datatypes. Can be a local file or a URL. If not provided, loads the GeoJSON datatypes for Vecorel version {vecorel_version}.",
                 show_default=True,
-                default=GeoJSON.get_datatypes_uri(vecorel_version),
+                default=GeoJSON.get_datatypes_uri(),
             ),
             "target": VECOREL_TARGET_CONSOLE,
             "id": click.option(

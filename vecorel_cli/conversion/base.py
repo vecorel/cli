@@ -11,7 +11,7 @@ from copy import copy
 from glob import glob
 from io import StringIO
 from tempfile import TemporaryDirectory
-from typing import Optional, Union
+from typing import Any, Callable, Generator, Optional, Sequence
 
 import flatdict
 import geopandas as gpd
@@ -19,15 +19,17 @@ import numpy as np
 import pandas as pd
 import py7zr
 import rarfile
+from fsspec import AbstractFileSystem
 from fsspec.implementations.local import LocalFileSystem
+from geopandas import GeoDataFrame
 
 from ..cli.logger import LoggerMixin
 from ..cli.util import display_pandas_unrestricted
 from ..encoding.geoparquet import GeoParquet
 from ..vecorel.collection import Collection
 from ..vecorel.schemas import Schemas
+from ..vecorel.typing import Sources
 from ..vecorel.util import get_fs, name_from_uri, stream_file
-from ..vecorel.version import vecorel_version
 
 
 class BaseConverter(LoggerMixin):
@@ -42,18 +44,18 @@ class BaseConverter(LoggerMixin):
     description: str = ""
     provider: Optional[str] = None
 
-    sources: Optional[Union[str, dict[str, str]]] = None
+    sources: Optional[Sources] = None
     data_access: str = ""
     open_options: dict = {}
     avoid_range_request: bool = False
-    variants: dict[str, str] = {}
+    variants: dict[str, Sources] = {}
     variant: Optional[str] = None
 
-    columns: dict[str, str] = {}
+    columns: dict[str, str | Sequence[str]] = {}
     column_additions: dict[str, str] = {}
-    column_filters: dict[str, callable] = {}
-    column_migrations: dict[str, callable] = {}
-    missing_schemas: dict[str, str] = {}
+    column_filters: dict[str, Callable] = {}
+    column_migrations: dict[str, Callable] = {}
+    missing_schemas: dict[str, Any] = {}
     extensions: set[str] = set()
 
     index_as_id: bool = False
@@ -67,24 +69,25 @@ class BaseConverter(LoggerMixin):
             if not key.startswith("_") and isinstance(item, (list, dict, set)):
                 setattr(self, key, copy(item))
 
-    def migrate(self, gdf) -> gpd.GeoDataFrame:
+    def migrate(self, gdf) -> GeoDataFrame:
         return gdf
 
     def file_migration(
-        self, gdf: gpd.GeoDataFrame, path: str, uri: str, layer: str = None
-    ) -> gpd.GeoDataFrame:  # noqa
+        self, gdf: GeoDataFrame, path: str, uri: str, layer: Optional[str] = None
+    ) -> GeoDataFrame:  # noqa
         return gdf
 
     def layer_filter(self, layer: str, uri: str) -> bool:
         return True
 
-    def post_migrate(self, gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    def post_migrate(self, gdf: GeoDataFrame) -> GeoDataFrame:
         return gdf
 
-    def get_cache(self, cache_folder=None, force=False, **kwargs):
+    def get_columns(self, gdf: GeoDataFrame) -> dict[str, str | Sequence[str]]:
+        return self.columns.copy()
+
+    def get_cache(self, cache_folder=None, **kwargs) -> tuple[AbstractFileSystem, str]:
         if cache_folder is None:
-            if not force:
-                return None, None
             _kwargs = {}
             if sys.version_info.major >= 3 and sys.version_info.minor >= 12:
                 _kwargs["delete"] = False  # only available in Python 3.12 and later
@@ -113,7 +116,7 @@ class BaseConverter(LoggerMixin):
                 name = target
 
             source_fs = get_fs(uri, **kwargs)
-            cache_fs, cache_folder = self.get_cache(cache_folder, force=True)
+            cache_fs, cache_folder = self.get_cache(cache_folder)
 
             if isinstance(source_fs, LocalFileSystem):
                 cache_file = uri
@@ -164,7 +167,7 @@ class BaseConverter(LoggerMixin):
     def get_urls(self):
         urls = self.sources
         if not urls and self.variants:
-            opts = ", ".join([str(s) for s in self.variants.keys()])
+            opts = ", ".join(list(self.variants.keys()))
             if self.variant is None:
                 self.variant = next(iter(self.variants))
                 self.warning(f"Choosing first available variant {self.variant} from {opts}")
@@ -174,7 +177,9 @@ class BaseConverter(LoggerMixin):
                 raise ValueError(f"Unknown variant '{self.variant}', choose from {opts}")
         return urls
 
-    def get_data(self, paths, **kwargs):
+    def get_data(
+        self, paths: list[tuple[str, str]], **kwargs
+    ) -> Generator[tuple[GeoDataFrame, str, str, Optional[str]]]:
         for path, uri in paths:
             # e.g. allow "*.shp" to identify the single relevant file without knowing the name in advance
             if "*" in path:
@@ -206,7 +211,7 @@ class BaseConverter(LoggerMixin):
                 else:
                     data = gpd.read_file(path, **kwargs)
 
-                yield data, path, uri, layer
+                yield GeoDataFrame(data), path, uri, layer
 
     def read_geojson(self, path, **kwargs):
         with open(path, **kwargs) as f:
@@ -217,9 +222,9 @@ class BaseConverter(LoggerMixin):
         elif obj["type"] != "FeatureCollection":
             raise ValueError("JSON file must contain a GeoJSON FeatureCollection")
 
-        obj["features"] = list(map(self.normalize_geojson_properties, obj["features"]))
+        obj["features"] = list(map(self._normalize_geojson_properties, obj["features"]))
 
-        return gpd.GeoDataFrame.from_features(obj, crs="EPSG:4326")
+        return GeoDataFrame.from_features(obj, crs="EPSG:4326")
 
     def _normalize_geojson_properties(self, feature):
         # Convert properties of type dict to dot notation
@@ -236,31 +241,34 @@ class BaseConverter(LoggerMixin):
         for data, path, uri, layer in self.get_data(paths, **kwargs):
             # 0. Run migration per file/layer
             data = self.file_migration(data, path, uri, layer)
-            if not isinstance(data, gpd.GeoDataFrame):
+            if not isinstance(data, GeoDataFrame):
                 raise ValueError("Per-file/layer migration function must return a GeoDataFrame")
             gdfs.append(data)
 
         return pd.concat(gdfs)
 
     def filter_rows(self, gdf):
-        if len(self.column_filters) == 0:
-            return gdf
-
-        self.info("Applying filters")
-        for key, fn in self.column_filters.items():
-            if key in gdf.columns:
-                result = fn(gdf[key])
-                if isinstance(result, tuple):
+        if len(self.column_filters) > 0:
+            self.info("Applying filters")
+            for key, fn in self.column_filters.items():
+                if key in gdf.columns:
+                    result = fn(gdf[key])
                     # If the result is a tuple, the second value is a flag to potentially invert the mask
-                    mask = ~result[0] if result[1] else result[0]
-                else:
-                    # Just got a mask, proceed
-                    mask = result
+                    if isinstance(result, tuple):
+                        if result[1]:
+                            # Invert mask
+                            mask = ~result[0]
+                        else:
+                            # Use mask as is
+                            mask = result[0]
+                    else:
+                        # Just got a mask, proceed
+                        mask = result
 
-                # Filter columns based on the mask
-                gdf = gdf[mask]
-            else:
-                self.warning(f"Column '{key}' not found in dataset, skipping filter")
+                    # Filter columns based on the mask
+                    gdf = gdf[mask]
+                else:
+                    self.warning(f"Column '{key}' not found in dataset, skipping filter")
         return gdf
 
     def get_title(self):
@@ -268,7 +276,7 @@ class BaseConverter(LoggerMixin):
         return f"{title} ({self.variant})" if self.variant else title
 
     def create_collection(self, cid) -> Collection:
-        schema_uris = [Schemas.get_core_uri(vecorel_version)]
+        schema_uris = [Schemas.get_core_uri()]
         schema_uris.extend(self.extensions)
         collection = Collection(
             {
@@ -294,7 +302,6 @@ class BaseConverter(LoggerMixin):
         original_geometries=False,
         **kwargs,
     ) -> str:
-        columns = self.columns.copy()
         self.variant = variant
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
@@ -320,13 +327,12 @@ class BaseConverter(LoggerMixin):
         paths = self.download_files(urls, cache, **request_args)
 
         gdf = self.read_data(paths, **self.open_options)
-
         self.info("GeoDataFrame created from source(s):")
         # Make it so that everything is shown, don't output ... if there are too many columns or rows
         display_pandas_unrestricted()
 
         hash_before = self._hash_df(gdf.head())
-        self.info(gdf.head())
+        self.info(gdf.head().to_string())
 
         if self.index_as_id:
             gdf["id"] = gdf.index
@@ -334,7 +340,9 @@ class BaseConverter(LoggerMixin):
         # 1. Run global migration
         self.info("Applying global migrations")
         gdf = self.migrate(gdf)
-        assert isinstance(gdf, gpd.GeoDataFrame), "Migration function must return a GeoDataFrame"
+        assert isinstance(gdf, GeoDataFrame), "Migration function must return a GeoDataFrame"
+
+        columns = self.get_columns(gdf)
 
         # 2. Run filters to remove rows that shall not be in the final data
         gdf = self.filter_rows(gdf)
@@ -363,14 +371,14 @@ class BaseConverter(LoggerMixin):
 
         if hash_before != self._hash_df(gdf.head()):
             self.info("GeoDataFrame after migrations and filters:")
-            self.info(gdf.head())
+            self.info(gdf.head().to_string())
 
         # 5. Duplicate columns if needed
         actual_columns = {}
         for old_key, new_key in columns.items():
             if old_key in gdf.columns:
                 # If the new keys are a list, duplicate the column
-                if isinstance(new_key, list):
+                if isinstance(new_key, (list, tuple)):
                     for key in new_key:
                         gdf[key] = gdf.loc[:, old_key]
                         actual_columns[key] = key
@@ -406,12 +414,13 @@ class BaseConverter(LoggerMixin):
         gdf.drop(columns=drop_columns, inplace=True)
 
         self.info("GeoDataFrame fully migrated:")
-        self.info(gdf.head())
+        self.info(gdf.head().to_string())
 
         self.info("Creating GeoParquet file: " + str(output_file))
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
         pq.set_collection(self.create_collection(cid))
+
         pq.write(
             gdf,
             properties=columns,

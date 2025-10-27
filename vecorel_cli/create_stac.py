@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
@@ -14,7 +13,7 @@ from .cli.options import JSON_INDENT, VECOREL_FILE_ARG, VECOREL_TARGET_CONSOLE
 from .encoding.auto import create_encoding
 from .registry import Registry
 from .vecorel.collection import Collection
-from .vecorel.util import to_iso8601
+from .vecorel.util import parse_link_str, to_iso8601
 
 
 class CreateStacCollection(BaseCommand):
@@ -23,10 +22,10 @@ class CreateStacCollection(BaseCommand):
     cmd_help = f"Creates a STAC Collection for {Registry.project} files."
     cmd_final_report = True
 
-    processing_extension = "https://stac-extensions.github.io/processing/v1.1.0/schema.json"
+    processing_extension = "https://stac-extensions.github.io/processing/v1.2.0/schema.json"
     table_extension = "https://stac-extensions.github.io/table/v1.2.0/schema.json"
 
-    temporal_property = "determination_datetime"
+    temporal_property = "datetime"
 
     @staticmethod
     def get_cli_args():
@@ -55,7 +54,9 @@ class CreateStacCollection(BaseCommand):
         temporal_property: Optional[str] = None,
         indent: Optional[int] = None,
     ) -> Union[Path, str, bool]:
-        stac = self.create_from_file(source, data_url=source, temporal_property=temporal_property)
+        stac = self.create_from_file(
+            source, data_url=str(source), temporal_property=temporal_property
+        )
         if stac:
             return self._json_dump_cli(stac, target, indent)
         else:
@@ -118,7 +119,7 @@ class CreateStacCollection(BaseCommand):
         temporal_property: Optional[str] = None,
     ) -> dict:
         """
-        Creates a collection for the field boundary datasets.
+        Creates a collection for the datasets.
         """
         if len(gdf) == 0:
             raise Exception("No data available.")
@@ -198,7 +199,7 @@ class CreateStacCollection(BaseCommand):
                 }
             )
         else:
-            license_name, license_url = self._parse_link_str(license)
+            license_name, license_url = parse_link_str(license)
             if license_url is None and len(license_name) > 0:
                 stac["license"] = license_name
             elif license_url is not None:
@@ -213,7 +214,7 @@ class CreateStacCollection(BaseCommand):
         # Add provider information
         provider = collection.get("provider", "").strip()
         if len(provider) > 0:
-            provider_name, provider_url = self._parse_link_str(provider)
+            provider_name, provider_url = parse_link_str(provider)
             stac["providers"] = [
                 {
                     "name": provider_name,
@@ -237,13 +238,3 @@ class CreateStacCollection(BaseCommand):
             stac["extent"]["temporal"]["interval"][0] = temporal_extent
 
         return stac
-
-    def _parse_link_str(self, link_str: str) -> tuple[str, Optional[str]]:
-        """
-        Parse a link string into a dictionary.
-        The string can be in the format "Name <URL>" or just "Name".
-        """
-        match = re.match(r"^(.*?)(?:\s*<(.+?)>)?$", link_str.strip())
-        if match:
-            return match.groups()
-        return link_str.strip(), None

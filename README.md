@@ -29,8 +29,6 @@ pixi install
 pixi run vec
 ```
 
-> **Note**: This project recently migrated to Pixi. If you were using the old pip-based workflow, see [MIGRATION.md](MIGRATION.md) for details.
-
 #### Using pip
 
 Alternatively, you can install from PyPI with **Python 3.10** or any later version:

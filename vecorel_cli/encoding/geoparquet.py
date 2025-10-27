@@ -48,7 +48,7 @@ class GeoParquet(BaseEncoding):
             return geo.get("version")
         return None
 
-    def get_geoparquet_schema(self) -> Optional[str]:
+    def get_geoparquet_schema(self) -> Optional[dict]:
         version = self.get_geoparquet_version()
         if version is None:
             return None
@@ -73,7 +73,7 @@ class GeoParquet(BaseEncoding):
 
         return GeoParquetValidator(self)
 
-    def get_properties(self) -> Optional[dict[str, list[str]]]:
+    def get_properties(self) -> dict[str, list[str]]:
         schema = self.get_parquet_schema().to_arrow_schema()
         columns = {}
         for name in schema.names:
@@ -267,6 +267,7 @@ class GeoParquet(BaseEncoding):
         properties: Optional[list[str]] = None,
         schema_map: SchemaMapping = {},
         hydrate: bool = False,
+        **kwargs,
     ) -> GeoDataFrame:
         if properties is not None and len(properties) == 0:
             properties = None

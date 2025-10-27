@@ -78,7 +78,6 @@ class ImproveData(BaseCommand):
         input_encoding = create_encoding(source)
         geodata = input_encoding.read()
         collection = input_encoding.get_collection()
-
         geodata, collection = self.improve(geodata, collection=collection, **kwargs)
 
         output_encoding = create_encoding(target)
@@ -94,8 +93,8 @@ class ImproveData(BaseCommand):
     def improve(
         self,
         gdf: GeoDataFrame,
-        collection: dict = {},
-        rename: dict[str, str] = {},
+        collection: Collection,
+        rename: Optional[dict[str, str]] = None,
         add_sizes: bool = False,
         fix_geometries: bool = False,
         explode_geometries: bool = False,
@@ -117,7 +116,7 @@ class ImproveData(BaseCommand):
             self.info("Exploded geometries")
 
         # Rename columns
-        if len(rename) > 0:
+        if rename:
             self.rename_warnings(gdf, rename)
             gdf, collection = self.rename_properties(gdf, rename, collection)
             self.info("Renamed columns")

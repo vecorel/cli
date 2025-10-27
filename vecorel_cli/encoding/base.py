@@ -37,7 +37,7 @@ class BaseEncoding(LoggerMixin):
             "Compression": self.get_compression() or "None",
         }
 
-    def _load_collection(self) -> dict:
+    def _load_collection(self) -> Union[Collection, dict]:
         return {}
 
     def get_collection(self) -> Collection:
@@ -45,7 +45,8 @@ class BaseEncoding(LoggerMixin):
         Get the collection metadata.
         """
         if self.collection is None:
-            self.collection = Collection(self._load_collection())
+            c = self._load_collection()
+            self.collection = c if isinstance(c, Collection) else Collection(c)
         return self.collection
 
     def set_collection(self, collection: Union[Collection, dict]):
