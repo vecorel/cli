@@ -14533,7 +14533,7 @@ packages:
   - json-stream>=2.3.0,<3.0
   - flatdict>=4.0,<5.0
   - loguru==0.7.3
-  requires_python: '>=3.10,<3.14'
+  requires_python: '>=3.10'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/virtualenv-20.35.0-pyhd8ed1ab_0.conda
   sha256: af3c8d1fdde55d40ee472f9552202c39c4edb5da3edcc493318f7cb934dbe0d2
