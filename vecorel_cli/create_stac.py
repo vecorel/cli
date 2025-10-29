@@ -22,7 +22,7 @@ class CreateStacCollection(BaseCommand):
     cmd_help = f"Creates a STAC Collection for {Registry.project} files."
     cmd_final_report = True
 
-    processing_extension = "https://stac-extensions.github.io/processing/v1.1.0/schema.json"
+    processing_extension = "https://stac-extensions.github.io/processing/v1.2.0/schema.json"
     table_extension = "https://stac-extensions.github.io/table/v1.2.0/schema.json"
 
     temporal_property = "datetime"
@@ -119,7 +119,7 @@ class CreateStacCollection(BaseCommand):
         temporal_property: Optional[str] = None,
     ) -> dict:
         """
-        Creates a collection for the field boundary datasets.
+        Creates a collection for the datasets.
         """
         if len(gdf) == 0:
             raise Exception("No data available.")

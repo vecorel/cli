@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Change default temporal property to datetime
 - Enable Converter.columns list and tuple types
 - Add BaseConverter get_columns hook to customize columns after reading the file
+- Update STAC processing extension
 
 ## [v0.2.11] - 2025-10-09
 
