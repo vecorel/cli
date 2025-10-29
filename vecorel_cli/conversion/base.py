@@ -51,7 +51,7 @@ class BaseConverter(LoggerMixin):
     variants: dict[str, Sources] = {}
     variant: Optional[str] = None
 
-    columns: dict[str, str|Sequence[str]] = {}
+    columns: dict[str, str | Sequence[str]] = {}
     column_additions: dict[str, str] = {}
     column_filters: dict[str, Callable] = {}
     column_migrations: dict[str, Callable] = {}
@@ -82,6 +82,9 @@ class BaseConverter(LoggerMixin):
 
     def post_migrate(self, gdf: GeoDataFrame) -> GeoDataFrame:
         return gdf
+
+    def get_columns(self, gdf: GeoDataFrame) -> dict[str, str | Sequence[str]]:
+        return self.columns.copy()
 
     def get_cache(self, cache_folder=None, **kwargs) -> tuple[AbstractFileSystem, str]:
         if cache_folder is None:
@@ -338,7 +341,8 @@ class BaseConverter(LoggerMixin):
         self.info("Applying global migrations")
         gdf = self.migrate(gdf)
         assert isinstance(gdf, GeoDataFrame), "Migration function must return a GeoDataFrame"
-        columns = self.columns.copy()
+
+        columns = self.get_columns(gdf)
 
         # 2. Run filters to remove rows that shall not be in the final data
         gdf = self.filter_rows(gdf)
