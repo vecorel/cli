@@ -131,22 +131,22 @@ class GeoParquet(BaseEncoding):
     # geoparquet_version: bool, optional, default False
     #     If True, writes the data in GeoParquet 1.0.0 format,
     #     otherwise in GeoParquet 1.1.0 format.
-    # compression: str, optional, default "brotli"
-    #     Compression algorithm to use, defaults to "brotli".
-    #     Other options are "snappy", "gzip", "lz4", "zstd", etc.
+    # compression: str, optional, default "zstd"
+    #     Compression algorithm to use, defaults to "zstd".
+    #     Other options are "snappy", "gzip", "lz4", "brotli", etc.
     def write(
         self,
         data: GeoDataFrame,
         properties: Optional[list[str]] = None,
         schema_map: SchemaMapping = {},
         dehydrate: bool = True,
-        compression: Optional[str] = None,
+        compression: Optional[str] = "zstd",
+        compression_level=None,  # default level for compression
         geoparquet_version: Optional[str] = None,
         **kwargs,  # capture unknown arguments
     ) -> bool:
-        if compression is None:
-            compression = "brotli"
-
+        if compression == "zstd" and compression_level is None:
+            compression_level = 15
         if geoparquet_version not in GEOPARQUET_VERSIONS:
             geoparquet_version = GEOPARQUET_DEFAULT_VERSION
         self.uri.parent.mkdir(parents=True, exist_ok=True)
@@ -240,9 +240,6 @@ class GeoParquet(BaseEncoding):
             }
         )
 
-        if compression is None:
-            compression = "brotli"
-
         # Write the data to the Parquet file
         to_parquet(
             data,
@@ -254,6 +251,7 @@ class GeoParquet(BaseEncoding):
             schema_version=geoparquet_version,
             row_group_size=self.row_group_size,
             write_covering_bbox=bool(geoparquet_version != "1.0.0"),
+            compression_level=compression_level,
         )
 
         return True

@@ -298,6 +298,7 @@ class BaseConverter(LoggerMixin):
         input_files=None,
         variant=None,
         compression=None,
+        compression_level=None,
         geoparquet_version=None,
         original_geometries=False,
         **kwargs,
@@ -425,6 +426,7 @@ class BaseConverter(LoggerMixin):
             gdf,
             properties=columns,
             compression=compression,
+            compression_level=compression_level,
             geoparquet_version=geoparquet_version,
         )
 
