@@ -31,7 +31,7 @@ GEOPARQUET_COMPRESSION = click.option(
     type=click.Choice(COMPRESSION_METHODS),
     help="GeoParquet only: Compression method",
     show_default=True,
-    default="brotli",
+    default="zstd",
 )
 
 GEOPARQUET_VERSION = click.option(
