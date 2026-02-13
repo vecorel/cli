@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [v0.2.14] - 2026-02-13
 
-- Load the most specific class for converters
 - Enable verbose mode via env `VECOREL_VERBOSE` set to `1`
-- Converters: Move block size check so that it applies for all downloads
+- Converters:
+  - Load the most specific class for converters
+  - Move block size check so that it applies for all downloads
+  - Avoid error with license set to None
+  - Made glob recursive, so it can be used for multiple directories
 
 ## [v0.2.13] - 2026-02-13
 
