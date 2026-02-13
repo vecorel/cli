@@ -13,7 +13,6 @@ from io import StringIO
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, Generator, Optional, Sequence
 
-import flatdict
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -30,6 +29,7 @@ from ..vecorel.collection import Collection
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
 from ..vecorel.util import get_fs, name_from_uri, stream_file
+from .flatdict import FlatDict
 
 
 class BaseConverter(LoggerMixin):
@@ -228,7 +228,7 @@ class BaseConverter(LoggerMixin):
 
     def _normalize_geojson_properties(self, feature):
         # Convert properties of type dict to dot notation
-        feature["properties"] = flatdict.FlatDict(feature["properties"], delimiter=".")
+        feature["properties"] = FlatDict(feature["properties"], delimiter=".")
 
         # Preserve id: https://github.com/geopandas/geopandas/issues/1208
         if "id" not in feature["properties"]:
