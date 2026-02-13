@@ -38,7 +38,6 @@ dependencies = [
     "rarfile>=4.0,<5.0",
     "semantic-version>=2.10.0,<3.0",
     "json-stream>=2.3.0,<3.0",
-    "flatdict>=4.0,<5.0",
     "loguru==0.7.3",
 ]
 
