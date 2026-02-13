@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.13] - 2026-02-13
+
 - Change default compression to zstd
 - Add option to set compression level, zstd defaults to 15
 - Add support for Python 3.14, remove support for Python 3.10
@@ -90,7 +92,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.12...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.13...main>
+[v0.2.13]: <https://github.com/vecorel/cli/compare/v0.2.12...v0.2.13>
 [v0.2.12]: <https://github.com/vecorel/cli/compare/v0.2.11...v0.2.12>
 [v0.2.11]: <https://github.com/vecorel/cli/compare/v0.2.10...v0.2.11>
 [v0.2.10]: <https://github.com/vecorel/cli/compare/v0.2.9...v0.2.10>
