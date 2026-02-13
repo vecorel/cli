@@ -1,7 +1,13 @@
 import click
 
 from .basecommand import BaseCommand, runnable
-from .cli.options import GEOPARQUET_COMPRESSION, GEOPARQUET_VERSION, PY_PACKAGE, VECOREL_TARGET
+from .cli.options import (
+    GEOPARQUET_COMPRESSION,
+    GEOPARQUET_COMPRESSION_LEVEL,
+    GEOPARQUET_VERSION,
+    PY_PACKAGE,
+    VECOREL_TARGET,
+)
 from .cli.util import parse_converter_input_files
 from .converters import Converters
 from .registry import Registry
@@ -61,6 +67,7 @@ class ConvertData(BaseCommand):
                 default=None,
             ),
             "compression": GEOPARQUET_COMPRESSION,
+            "compression_level": GEOPARQUET_COMPRESSION_LEVEL,
             "geoparquet_version": GEOPARQUET_VERSION,
             "mapping_file": click.option(
                 "--mapping-file",
