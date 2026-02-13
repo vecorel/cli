@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Change default compression to zstd
 - Add option to set compression level, zstd defaults to 15
+
+## [v0.2.12] - 2025-12-08
+
 - Change default temporal property to datetime
 - Enable Converter.columns list and tuple types
 - Add BaseConverter get_columns hook to customize columns after reading the file
@@ -84,7 +87,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.11...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.12...main>
+[v0.2.12]: <https://github.com/vecorel/cli/compare/v0.2.11...v0.2.12>
 [v0.2.11]: <https://github.com/vecorel/cli/compare/v0.2.10...v0.2.11>
 [v0.2.10]: <https://github.com/vecorel/cli/compare/v0.2.9...v0.2.10>
 [v0.2.9]: <https://github.com/vecorel/cli/compare/v0.2.8...v0.2.9>
