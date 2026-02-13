@@ -37,7 +37,7 @@ GEOPARQUET_COMPRESSION = click.option(
 GEOPARQUET_COMPRESSION_LEVEL = click.option(
     "--compression_level",
     "-pcl",
-    type=click.IntRange(min=0, max=255),
+    type=click.IntRange(min=1, max=22),
     help="GeoParquet only: Compression level",
     show_default=True,
     default=None,

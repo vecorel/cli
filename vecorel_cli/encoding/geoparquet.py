@@ -141,7 +141,7 @@ class GeoParquet(BaseEncoding):
         schema_map: SchemaMapping = {},
         dehydrate: bool = True,
         compression: Optional[str] = "zstd",
-        compression_level=None,  # default level for compression
+        compression_level: Optional[int] = None,  # default level for compression
         geoparquet_version: Optional[str] = None,
         **kwargs,  # capture unknown arguments
     ) -> bool:

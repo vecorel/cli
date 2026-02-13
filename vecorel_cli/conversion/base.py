@@ -298,7 +298,7 @@ class BaseConverter(LoggerMixin):
         input_files=None,
         variant=None,
         compression=None,
-        compression_level=None,
+        compression_level: Optional[int] = None,
         geoparquet_version=None,
         original_geometries=False,
         **kwargs,
