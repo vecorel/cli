@@ -186,7 +186,7 @@ class BaseConverter(LoggerMixin):
         for path, uri in paths:
             # e.g. allow "*.shp" to identify the single relevant file without knowing the name in advance
             if "*" in path:
-                lst = glob(path)
+                lst = glob(path, recursive=True)
                 assert len(lst) == 1, f"Can not match {path} to a single file"
                 path = lst[0]
             self.info(f"Reading {path} into GeoDataFrame(s)")
