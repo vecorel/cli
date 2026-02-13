@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.14] - 2026-02-13
+
+- Load the most specific class for converters
+- Enable verbose mode via env `VECOREL_VERBOSE` set to `1`
+- Converters: Move block size check so that it applies for all downloads
+
 ## [v0.2.13] - 2026-02-13
 
 - Change default compression to zstd
@@ -92,7 +98,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.13...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.14...main>
+[v0.2.14]: <https://github.com/vecorel/cli/compare/v0.2.13...v0.2.14>
 [v0.2.13]: <https://github.com/vecorel/cli/compare/v0.2.12...v0.2.13>
 [v0.2.12]: <https://github.com/vecorel/cli/compare/v0.2.11...v0.2.12>
 [v0.2.11]: <https://github.com/vecorel/cli/compare/v0.2.10...v0.2.11>

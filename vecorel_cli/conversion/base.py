@@ -104,6 +104,9 @@ class BaseConverter(LoggerMixin):
         if isinstance(uris, str):
             uris = {uris: name_from_uri(uris)}
 
+        if self.avoid_range_request and "block_size" not in kwargs:
+            kwargs["block_size"] = 0
+
         paths = []
         for uri, target in uris.items():
             is_archive = isinstance(target, list)
@@ -322,10 +325,7 @@ class BaseConverter(LoggerMixin):
                 raise ValueError("No input files provided")
 
         self.info("Getting file(s) if not cached yet")
-        request_args = {}
-        if self.avoid_range_request:
-            request_args["block_size"] = 0
-        paths = self.download_files(urls, cache, **request_args)
+        paths = self.download_files(urls, cache)
 
         gdf = self.read_data(paths, **self.open_options)
         self.info("GeoDataFrame created from source(s):")
