@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 from logging import Logger
@@ -13,7 +14,7 @@ def format_logs(record):
 
 
 class LoggerMixin:
-    verbose: bool = False
+    verbose: bool = os.environ.get("VEOREL_VERBOSE", "0") == "1"
     logger: Optional[Logger] = None
 
     def __init__(self):

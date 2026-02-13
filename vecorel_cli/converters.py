@@ -101,6 +101,7 @@ class Converters(BaseCommand):
                 if type(v) is type
                 and issubclass(v, base_class)
                 and base_class.__name__ not in v.__name__
+                and v.__module__ == module.__name__
             )
             return clazz(self)
         except StopIteration:
