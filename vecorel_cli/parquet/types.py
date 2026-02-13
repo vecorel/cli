@@ -190,7 +190,7 @@ def get_pyarrow_type_for_geopandas(dtype):
     dtype = dtype.lower()
     if dtype == "bool":
         return pa.bool_()
-    elif dtype == "string" or dtype == "|s0" or dtype == "<u0":
+    elif dtype in ("str", "string", "|s0", "<u0"):
         return pa.string()
     elif (
         dtype == "float128"
