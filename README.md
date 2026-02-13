@@ -31,7 +31,7 @@ pixi run vec
 
 #### Using pip
 
-Alternatively, you can install from PyPI with **Python 3.10** or any later version:
+Alternatively, you can install from PyPI with **Python 3.11** or any later version:
 
 ```bash
 pip install vecorel-cli

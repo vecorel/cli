@@ -190,7 +190,7 @@ class GeoParquet(BaseEncoding):
                         if callable(gp_type):
                             data[column] = gp_type(data[column])
                         else:
-                            data[column] = data[column].astype(gp_type, copy=False)
+                            data[column] = data[column].astype(gp_type)
                     except Exception as e:
                         self.warning(f"{column}: Can't convert to {dtype}: {e}")
 
