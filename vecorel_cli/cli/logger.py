@@ -14,7 +14,7 @@ def format_logs(record):
 
 
 class LoggerMixin:
-    verbose: bool = os.environ.get("VEOREL_VERBOSE", "0") == "1"
+    verbose: bool = os.environ.get("VECOREL_VERBOSE", "0") == "1"
     logger: Optional[Logger] = None
 
     def __init__(self):
