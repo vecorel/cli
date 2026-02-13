@@ -179,7 +179,7 @@ class CreateStacCollection(BaseCommand):
             stac["assets"]["data"]["type"] = media_type
 
         # Add license handling
-        license = collection.get("license", "").strip()
+        license = (collection.get("license") or "").strip()
         if license.lower() == "dl-de/by-2-0":
             stac["links"].append(
                 {
