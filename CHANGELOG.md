@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Replace flatdict from pypi with a local version to avoid pkg_resource install issues
 - Change default compression to zstd
 - Add option to set compression level, zstd defaults to 15
 
