@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.15] - 2026-02-16
+
+- Add a `get_default_collection` to the Registry
+
 ## [v0.2.14] - 2026-02-13
 
 - Enable verbose mode via env `VECOREL_VERBOSE` set to `1`
@@ -101,7 +105,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.14...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.15...main>
+[v0.2.15]: <https://github.com/vecorel/cli/compare/v0.2.14...v0.2.15>
 [v0.2.14]: <https://github.com/vecorel/cli/compare/v0.2.13...v0.2.14>
 [v0.2.13]: <https://github.com/vecorel/cli/compare/v0.2.12...v0.2.13>
 [v0.2.12]: <https://github.com/vecorel/cli/compare/v0.2.11...v0.2.12>
