@@ -2,6 +2,8 @@ import importlib.metadata
 import re
 from typing import Union
 
+from .vecorel.schemas import Schemas
+
 
 class VecorelRegistry:
     """
@@ -76,6 +78,12 @@ class VecorelRegistry:
             extensions += encoding.ext
 
         return extensions
+
+    def get_default_collection(self, id: str, extensions: set | list | None = None) -> dict:
+        schemas = {Schemas.get_core_uri()}
+        if extensions:
+            schemas |= set(extensions)
+        return {"schemas": {id: list(schemas)}, "collection": id}
 
     def remove_command(self, command):
         from .basecommand import BaseCommand
