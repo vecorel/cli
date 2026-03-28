@@ -29,12 +29,14 @@ pixi install
 pixi run vec
 ```
 
-#### Using pip
+#### Using pip or uv
 
 Alternatively, you can install from PyPI with **Python 3.11** or any later version:
 
 ```bash
 pip install vecorel-cli
+# or
+uv pip install vecorel-cli
 ```
 
 ### Execute a command
@@ -79,9 +81,9 @@ Check `vec validate --help` for more details.
 The validator also supports remote files.
 
 - `http://` or `https://`: no further configuration is needed.
-- `s3://`: With Pixi, run `pixi install -e s3` or with pip, run `pip install vecorel-cli[s3]` and you may need to set environment variables.
+- `s3://`: With Pixi, run `pixi install -e s3` or with pip/uv, run `pip install vecorel-cli[s3]` and you may need to set environment variables.
   Refer to the [s3fs credentials documentation](https://s3fs.readthedocs.io/en/latest/#credentials) for how to define credentials.
-- `gs://`: With Pixi, run `pixi install -e gcs` or with pip, run `pip install vecorel-cli[gcs]`.
+- `gs://`: With Pixi, run `pixi install -e gcs` or with pip/uv, run `pip install vecorel-cli[gcs]`.
   By default, `gcsfs` will attempt to use your default gcloud credentials or, attempt to get credentials from the google metadata service, or fall back to anonymous access.
 
 ### Create Vecorel GeoParquet from GeoJSON
@@ -201,14 +203,14 @@ pixi install -e dev
 pixi run install-dev
 
 # Run tests
-pixi run test
+pixi run -e dev test
 
 # Format and lint code
 pixi run format
 pixi run lint
 
 # Run all checks (lint, format, test)
-pixi run check
+pixi run -e dev check
 
 # Install and run pre-commit
 pixi run pre-commit-install
@@ -221,6 +223,6 @@ The following high-level description gives an idea how to implement a converter 
 
 1. Create a new file in `vecorel_cli/datasets` based on the `template.py`
 2. Fill in the required variables / test it / run it
-3. Add missing dependencies into the appropriate feature group in `pixi.toml` (or `setup.py` for pip users)
+3. Add missing dependencies into `pyproject.toml` (and the appropriate pixi feature group if needed)
 4. Add the converter to the list above
 5. Create a PR to submit your converter for review
