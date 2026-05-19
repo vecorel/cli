@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Sort converter output by Hilbert distance against the CRS's total bounds instead of by raw WKB byte order.
+
 ## [v0.2.15] - 2026-02-16
 
 - Add a `get_default_collection` to the Registry
