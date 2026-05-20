@@ -94,7 +94,7 @@ def to_parquet(
         output except `RangeIndex` which is stored as metadata only.
     compression : {'snappy', 'gzip', 'brotli', None}, default 'snappy'
         Name of the compression to use. Use ``None`` for no compression.
-    schema_version : {'0.1.0', '0.4.0', '1.0.0', None}
+    schema_version : {'0.1.0', '0.4.0', '1.0.0', '1.1.0', '2.0.0', None}
         GeoParquet specification version; if not provided will default to
         latest supported version.
     write_covering_bbox : bool, default False

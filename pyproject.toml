@@ -85,11 +85,19 @@ build = ">=1.0.0,<2.0.0"
 s3fs = "==2025.7.0"
 gcsfs = "==2025.7.0"
 
+# Optional dependency for writing GeoParquet 2.0+ (native Parquet GEOMETRY
+# logical type). pyarrow 23 and geopandas 1.1 can't emit GeoParquet 2.0;
+# DuckDB's spatial extension can, so we delegate the write when 2.x is
+# requested. See vecorel_cli/parquet/duckdb.py.
+[tool.pixi.feature.parquet2.dependencies]
+duckdb = ">=1.4,<2.0"
+
 [tool.pixi.environments]
 default = {solve-group = "default"}
 dev = {features = ["dev"], solve-group = "default"}
 cloud = {features = ["cloud"], solve-group = "default"}
-all = {features = ["dev", "cloud"], solve-group = "default"}
+parquet2 = {features = ["parquet2"], solve-group = "default"}
+all = {features = ["dev", "cloud", "parquet2"], solve-group = "default"}
 
 [tool.pixi.tasks]
 # Development tasks

@@ -12,7 +12,7 @@ from yarl import URL
 
 from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..encoding.geojson import VecorelJSONEncoder
-from ..parquet.geopandas import to_parquet
+from ..parquet import to_parquet
 from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
 from ..validation.base import Validator
 from ..vecorel.typing import SchemaMapping
