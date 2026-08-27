@@ -212,7 +212,7 @@ class CreateStacCollection(BaseCommand):
                 )
 
         # Add provider information
-        provider = collection.get("provider", "").strip()
+        provider = (collection.get("provider") or "").strip()
         if len(provider) > 0:
             provider_name, provider_url = parse_link_str(provider)
             stac["providers"] = [
