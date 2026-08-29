@@ -55,3 +55,40 @@ def test_merge_collections():
             },
         }
     )
+
+
+def test_merge_collections_keeps_collection_properties():
+    # https://github.com/vecorel/cli/issues/26
+    schemas = {"c1": ["https://example.com/schema1.yaml"]}
+    collection1 = Collection(
+        {
+            "schemas": schemas,
+            "source_name": "Example",
+            "source_version": "1.0",
+            "only_in_first": "x",
+        }
+    )
+    collection2 = Collection(
+        {
+            "schemas": schemas,
+            "source_name": "Example",
+            "source_version": "2.0",
+        }
+    )
+
+    merged = merge_collections([collection1])
+    assert merged.get("source_name") == "Example"
+    assert merged.get("source_version") == "1.0"
+    assert merged.get("only_in_first") == "x"
+
+    merged = merge_collections([collection1, collection2])
+    # present in all collections with the same value => kept
+    assert merged.get("source_name") == "Example"
+    # conflicting values => dropped
+    assert "source_version" not in merged
+    # missing in one collection => dropped
+    assert "only_in_first" not in merged
+
+    merged = merge_collections([collection1], properties=["only_in_first"])
+    assert "source_name" not in merged
+    assert merged.get("only_in_first") == "x"

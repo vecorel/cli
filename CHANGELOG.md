@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Sort converter output by Hilbert distance against the CRS's total bounds instead of by raw WKB byte order.
 - Exit with a non-zero exit code when a command reports a failure (e.g. `vec validate-schema` on an invalid schema) [#27](https://github.com/vecorel/cli/issues/27)
+- Keep collection-only properties in the collection metadata when merging collections,
+  e.g. in `create-geoparquet` and `merge`.
+  Properties are kept if they have the same value in all source collections.
+  [#26](https://github.com/vecorel/cli/issues/26)
 
 ## [v0.2.15] - 2026-02-16
 

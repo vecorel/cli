@@ -1,0 +1,67 @@
+{
+  "schemas": {
+    "test": [
+      "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ]
+  },
+  "schemas:custom": {
+    "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
+    "collection": {
+      "source_name": true
+    },
+    "properties": {
+      "source_name": {
+        "type": "string"
+      },
+      "determination_datetime": {
+        "type": "date-time"
+      }
+    }
+  },
+  "source_name": "Example Source",
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "1",
+      "bbox": [172.811, 1.043, 172.854, 1.069],
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [172.811, 1.043],
+            [172.854, 1.043],
+            [172.854, 1.069],
+            [172.811, 1.069],
+            [172.811, 1.043]
+          ]
+        ]
+      },
+      "properties": {
+        "determination_datetime": "2020-01-01T00:00:00Z",
+        "collection": "test"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "2",
+      "bbox": [172.911, 1.343, 172.954, 1.369],
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [172.911, 1.343],
+            [172.954, 1.343],
+            [172.954, 1.369],
+            [172.911, 1.369],
+            [172.911, 1.343]
+          ]
+        ]
+      },
+      "properties": {
+        "determination_datetime": "2021-01-01T00:00:00Z",
+        "collection": "test"
+      }
+    }
+  ]
+}

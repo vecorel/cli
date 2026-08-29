@@ -40,3 +40,21 @@ def test_create_geoparquet_invalid_file(tmp_folder):
         gp.create("invalid.parquet", out)
     with pytest.raises(FileNotFoundError):
         gp.create(["invalid.json"], out)
+
+
+def test_create_geoparquet_collection_only_properties(tmp_parquet_file: Path):
+    # https://github.com/vecorel/cli/issues/26
+    inputs = ["tests/data-files/collection-only.json"]
+    creator = CreateGeoParquet()
+    creator.create(inputs, tmp_parquet_file)
+    assert tmp_parquet_file.exists()
+
+    gp = GeoParquet(tmp_parquet_file)
+
+    collection = gp.get_collection()
+    assert collection.get("source_name") == "Example Source"
+
+    data = gp.read()
+    assert len(data) == 2
+    # collection-only properties must not be added as columns
+    assert "source_name" not in data.columns
