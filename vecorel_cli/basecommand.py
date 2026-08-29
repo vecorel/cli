@@ -61,6 +61,10 @@ class BaseCommand(LoggerMixin):
                 self.exception(e)
                 sys.exit(1)
 
+        # Exit with a non-zero exit code if the runnable reported a failure
+        if result is False:
+            sys.exit(1)
+
         # Report command as finished
         if self.cmd_final_report:
             if isinstance(result, Path):

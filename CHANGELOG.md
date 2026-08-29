@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 - Sort converter output by Hilbert distance against the CRS's total bounds instead of by raw WKB byte order.
+- Exit with a non-zero exit code when a command reports a failure (e.g. `vec validate-schema` on an invalid schema) [#27](https://github.com/vecorel/cli/issues/27)
 
 ## [v0.2.15] - 2026-02-16
 
