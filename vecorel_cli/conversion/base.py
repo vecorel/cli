@@ -26,6 +26,7 @@ from ..cli.logger import LoggerMixin
 from ..cli.util import display_pandas_unrestricted
 from ..encoding.geoparquet import GeoParquet
 from ..vecorel.collection import Collection
+from ..vecorel.hilbert import hilbert_sort_geodataframe
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
 from ..vecorel.util import get_fs, name_from_uri, stream_file
@@ -408,7 +409,12 @@ class BaseConverter(LoggerMixin):
                 self.info("Removing Z geometry dimension")
                 gdf.geometry = gdf.geometry.force_2d()
 
-        gdf.sort_values("geometry", inplace=True, ignore_index=True)
+        # Sort by Hilbert distance against the CRS's total bounds. This gives
+        # row groups good spatial locality, and — crucially — produces the same
+        # ordering for any independently-converted partition of the same dataset
+        # (they share a CRS, therefore a Hilbert reference grid), so per-file
+        # outputs can be merged later without re-sorting.
+        gdf = hilbert_sort_geodataframe(gdf)
 
         # 8. Remove all columns that are not listed
         drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
