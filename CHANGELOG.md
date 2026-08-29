@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.16] - 2026-08-29
+
 - Sort converter output by Hilbert distance against the CRS's total bounds instead of by raw WKB byte order.
 - Exit with a non-zero exit code when a command reports a failure (e.g. `vec validate-schema` on an invalid schema) [#27](https://github.com/vecorel/cli/issues/27)
 - Keep collection-only properties in the collection metadata when merging collections,
@@ -112,7 +114,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.15...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.16...main>
+[v0.2.16]: <https://github.com/vecorel/cli/compare/v0.2.15...v0.2.16>
 [v0.2.15]: <https://github.com/vecorel/cli/compare/v0.2.14...v0.2.15>
 [v0.2.14]: <https://github.com/vecorel/cli/compare/v0.2.13...v0.2.14>
 [v0.2.13]: <https://github.com/vecorel/cli/compare/v0.2.12...v0.2.13>
