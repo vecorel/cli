@@ -59,9 +59,11 @@ def test_converter_hilbert_curve_order(tmp_folder, choice):
     bounds = gdf.geometry.bounds.to_numpy(dtype=np.float64, copy=False)
     keys = hilbert_distances_from_bounds(bounds, total_bounds)
 
-    diffs = np.diff(keys)
-    if np.any(diffs < 0):
-        bad = int(np.argmax(diffs < 0))
+    # NB: keys are uint64 — np.diff would wrap descents into huge positives
+    # and never flag them; compare adjacent keys directly instead.
+    descents = keys[1:] < keys[:-1]
+    if np.any(descents):
+        bad = int(np.argmax(descents))
         raise AssertionError(
             "Output rows are not in non-decreasing Hilbert order against the "
             f"CRS total bounds ({total_bounds}).\n"
@@ -82,6 +84,46 @@ def test_crs_total_bounds_etrs89():
     bounds = crs_total_bounds("EPSG:4258")
     assert bounds[0] > -180.0 and bounds[2] < 180.0, bounds
     assert bounds[1] > -90.0 and bounds[3] < 90.0, bounds
+
+
+def test_hilbert_distances_match_public_geopandas_api():
+    # hilbert_distances_from_bounds exists for callers that hold bbox columns
+    # without decoded geometry; it must stay identical to the public
+    # GeoSeries.hilbert_distance, which guards its private-API internals.
+    from shapely.geometry import box
+
+    rng = np.random.default_rng(42)
+    xs = rng.uniform(4.0, 6.0, 50)
+    ys = rng.uniform(51.0, 53.0, 50)
+    geoms = [box(x, y, x + 0.01, y + 0.01) for x, y in zip(xs, ys)]
+    gdf = gpd.GeoDataFrame(geometry=geoms, crs="EPSG:4326")
+    total = crs_total_bounds(gdf.crs)
+    public = gdf.geometry.hilbert_distance(total_bounds=list(total), level=16).to_numpy()
+    ours = hilbert_distances_from_bounds(
+        gdf.geometry.bounds.to_numpy(dtype=np.float64), total, level=16
+    )
+    assert np.array_equal(public.astype(np.uint64), ours)
+
+
+def test_crs_total_bounds_antimeridian():
+    # NZGD2000 / NZTM: the area of use spans the antimeridian (west > east);
+    # the projected bounds must still be finite and non-degenerate.
+    xmin, ymin, xmax, ymax = crs_total_bounds("EPSG:2193")
+    assert xmax > xmin and ymax > ymin
+    assert all(np.isfinite(v) for v in (xmin, ymin, xmax, ymax))
+
+
+def test_hilbert_sort_falls_back_without_area_of_use():
+    # A custom projected CRS without area_of_use must not fail the conversion;
+    # the sorter falls back to the dataset's own bounds.
+    from shapely.geometry import Point
+
+    from vecorel_cli.vecorel.hilbert import hilbert_sort_geodataframe
+
+    crs = "+proj=tmerc +lat_0=0 +lon_0=9 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs"
+    gdf = gpd.GeoDataFrame(geometry=[Point(0, 0), Point(1000, 1000), Point(10, 10)], crs=crs)
+    out = hilbert_sort_geodataframe(gdf)
+    assert len(out) == 3
 
 
 def test_not_existing_converter(tmp_folder):
