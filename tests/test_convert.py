@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -144,6 +145,26 @@ def test_template_from_package_folder():
     Registry.ignored_datasets = []
     converter = ConvertData("template")
     assert isinstance(converter, ConvertData), "Should succeed and not throw an exception"
+
+
+@pytest.mark.parametrize("bom", [False, True], ids=["without-bom", "with-bom"])
+def test_read_geojson_decodes_utf8(tmp_folder, cp1252_locale, bom):
+    file_path = tmp_folder / "umlaut.json"
+    feature = {
+        "type": "Feature",
+        "id": "1",
+        "properties": {"name": "Grünland"},
+        "geometry": {"type": "Point", "coordinates": [0, 0]},
+    }
+    file_path.write_text(
+        # ensure_ascii=False so the file really holds multi-byte UTF-8, not an escape sequence
+        json.dumps({"type": "FeatureCollection", "features": [feature]}, ensure_ascii=False),
+        encoding="utf-8-sig" if bom else "utf-8",
+    )
+
+    gdf = BaseConverter().read_geojson(str(file_path))
+
+    assert gdf["name"].iloc[0] == "Grünland"
 
 
 def test_data_access_exception(capsys, tmp_folder):

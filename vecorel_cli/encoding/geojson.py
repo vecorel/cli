@@ -17,6 +17,11 @@ from ..vecorel.util import load_file, to_iso8601
 from ..vecorel.version import vecorel_version
 from .base import BaseEncoding
 
+# GeoJSON is UTF-8 (RFC 8259, section 8.1). Reading tolerates a byte order mark, which some
+# producers emit; writing must not add one, so the two differ.
+READ_ENCODING = "utf-8-sig"
+WRITE_ENCODING = "utf-8"
+
 
 class GeoJSON(BaseEncoding):
     feature_properties = {"type", "id", "geometry", "bbox", "properties"}
@@ -152,7 +157,7 @@ class GeoJSON(BaseEncoding):
         enforce_featurecollection: bool = False,
     ) -> Union[FeatureCollection, Feature]:
         # num only applies to FeatureCollections
-        with open(self.uri, "r") as f:
+        with open(self.uri, "r", encoding=READ_ENCODING) as f:
             obj = json.load(f)
 
         if not isinstance(obj, dict):
@@ -233,7 +238,7 @@ class GeoJSON(BaseEncoding):
         schema_map: SchemaMapping = {},
         properties: Optional[list[str]] = None,
     ) -> GeoDataFrame:
-        with open(self.uri, "r") as f:
+        with open(self.uri, "r", encoding=READ_ENCODING) as f:
             stream = json_stream.load(f)
             data = {
                 "id": [],
@@ -291,7 +296,7 @@ class GeoJSON(BaseEncoding):
             return gdf
 
     def _write_json(self, obj, path, indent=None) -> bool:
-        with open(path, "w") as f:
+        with open(path, "w", encoding=WRITE_ENCODING) as f:
             json.dump(obj, f, allow_nan=False, indent=indent, cls=VecorelJSONEncoder)
         return True
 
