@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.17] - 2026-09-03
+
 - Read GeoJSON as UTF-8, which the format mandates, instead of following the platform locale.
   The locale default is cp1252 on Windows, where `Grünland` silently became `GrÃ¼nland` — in
   converters, and in `describe`, `merge` and `validate`. Writing now states UTF-8 explicitly too,
