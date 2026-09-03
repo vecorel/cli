@@ -34,7 +34,9 @@ def cp1252_locale(monkeypatch):
     real_open = builtins.open
 
     def localized_open(file, *args, **kwargs):
-        kwargs.setdefault("encoding", "cp1252")
+        mode = args[0] if args else kwargs.get("mode", "r")
+        if "b" not in mode:
+            kwargs.setdefault("encoding", "cp1252")
         return real_open(file, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "open", localized_open)
