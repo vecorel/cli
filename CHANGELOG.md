@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Read GeoJSON as UTF-8, which the format mandates, instead of following the platform locale.
+  The locale default is cp1252 on Windows, where `Grünland` silently became `GrÃ¼nland` — in
+  converters, and in `describe`, `merge` and `validate`. Writing now states UTF-8 explicitly too,
+  which leaves the output unchanged.
+- Accept a byte order mark when reading GeoJSON, instead of failing with
+  `JSONDecodeError: Unexpected UTF-8 BOM`. Output still never contains one.
+
 ## [v0.2.16] - 2026-08-29
 
 - Sort converter output by Hilbert distance against the CRS's total bounds instead of by raw WKB byte order.

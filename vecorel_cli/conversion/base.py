@@ -24,6 +24,7 @@ from geopandas import GeoDataFrame
 
 from ..cli.logger import LoggerMixin
 from ..cli.util import display_pandas_unrestricted
+from ..encoding.geojson import READ_ENCODING
 from ..encoding.geoparquet import GeoParquet
 from ..vecorel.collection import Collection
 from ..vecorel.hilbert import hilbert_sort_geodataframe
@@ -218,6 +219,9 @@ class BaseConverter(LoggerMixin):
                 yield GeoDataFrame(data), path, uri, layer
 
     def read_geojson(self, path, **kwargs):
+        # open_options is shared with gpd.read_parquet() and gpd.read_file(), so a converter
+        # cannot set a default encoding there without breaking the other two readers.
+        kwargs.setdefault("encoding", READ_ENCODING)
         with open(path, **kwargs) as f:
             obj = json.load(f)
 

@@ -1,3 +1,4 @@
+import builtins
 import tempfile
 from pathlib import Path
 
@@ -24,6 +25,21 @@ def tmp_folder():
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
         folder = Path(temp_dir)
         yield folder
+
+
+@fixture
+def cp1252_locale(monkeypatch):
+    # Give open() the default it has on Windows, so that tests for locale independence fail
+    # everywhere instead of only on Windows. Callers passing an encoding are unaffected.
+    real_open = builtins.open
+
+    def localized_open(file, *args, **kwargs):
+        mode = args[0] if args else kwargs.get("mode", "r")
+        if "b" not in mode:
+            kwargs.setdefault("encoding", "cp1252")
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", localized_open)
 
 
 def raiser(message):
