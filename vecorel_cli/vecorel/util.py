@@ -11,7 +11,7 @@ from fsspec.implementations.http import HTTPFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from yarl import URL
 
-from ..const import SUPPORTED_PROTOCOLS
+from ..const import SUPPORTED_PROTOCOLS, USER_AGENT
 
 file_cache = {}
 
@@ -59,7 +59,9 @@ def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
     parsed = urlparse(url_or_path)
 
     if parsed.scheme in ("http", "https"):
-        return HTTPFileSystem(**kwargs)
+        client_kwargs = kwargs.pop("client_kwargs", {})
+        headers = {"User-Agent": USER_AGENT, **client_kwargs.get("headers", {})}
+        return HTTPFileSystem(client_kwargs={**client_kwargs, "headers": headers}, **kwargs)
 
     if parsed.scheme == "s3":
         from s3fs import S3FileSystem

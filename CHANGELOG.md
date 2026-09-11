@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Converters warn when no column is mapped to `id` and when the id column is not unique.
 - Converters load all schemas upfront with retries, so a temporary network issue
   no longer kills a long conversion at the very end.
+- Send `User-Agent: vecorel-cli` on HTTP downloads instead of fsspec's default. Servers that
+  reject the default answer 403, which surfaced as `FileNotFoundError` naming only the URL and
+  read as a dead source.
 
 ## [v0.2.17] - 2026-09-03
 
