@@ -83,6 +83,16 @@ class BaseEncoding(LoggerMixin):
     ) -> bool:
         raise NotImplementedError("Subclasses must implement this method")
 
+    def postprocess(self, schema_map: SchemaMapping = {}, **kwargs) -> bool:
+        """
+        Rewrites an existing file (e.g. written by an external tool) into a
+        compliant Vecorel file, if needed.
+
+        Checks the file first and only rewrites when something needs to change.
+        Returns True if the file was rewritten, False if it was compliant already.
+        """
+        raise NotImplementedError("Not supported by encoding")
+
     def read(
         self,
         num: Optional[int] = None,

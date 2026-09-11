@@ -183,6 +183,40 @@ def get_pyarrow_type(schema):
         return None
 
 
+def normalize_pa_field(field: pa.Field) -> pa.Field:
+    return pa.field(
+        field.name, normalize_pa_type(field.type), nullable=field.nullable, metadata=field.metadata
+    )
+
+
+def normalize_pa_type(dtype: pa.DataType) -> pa.DataType:
+    """
+    Convert Arrow data types to the canonical types required by the Vecorel SDL,
+    e.g. large_string -> string, large_binary -> binary, timestamps -> timestamp[ms, UTC].
+    Non-canonical types can occur when reading files written by external tools
+    such as DuckDB or GDAL.
+    """
+    if pat.is_large_string(dtype) or pat.is_string_view(dtype):
+        return pa.string()
+    if pat.is_large_binary(dtype) or pat.is_binary_view(dtype):
+        return pa.binary()
+    if pat.is_timestamp(dtype):
+        # naive timestamps are assumed to be in UTC
+        return pa.timestamp("ms", tz="UTC")
+    if (
+        pat.is_list(dtype)
+        or pat.is_large_list(dtype)
+        or pat.is_list_view(dtype)
+        or pat.is_large_list_view(dtype)
+    ):
+        return pa.list_(normalize_pa_field(dtype.value_field))
+    if pat.is_struct(dtype):
+        return pa.struct([normalize_pa_field(dtype.field(i)) for i in range(dtype.num_fields)])
+    if pat.is_map(dtype):
+        return pa.map_(normalize_pa_type(dtype.key_type), normalize_pa_type(dtype.item_type))
+    return dtype
+
+
 def get_pyarrow_type_for_geopandas(dtype):
     """
     geopandas datatypes to pyarrow datatypes
