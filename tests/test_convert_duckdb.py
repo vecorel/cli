@@ -3,6 +3,7 @@ import json
 import geopandas as gpd
 import numpy as np
 import pyarrow.parquet as pq
+import pytest
 import shapely
 
 from vecorel_cli.conversion.base import BaseConverter
@@ -109,6 +110,31 @@ def test_duckdb_converter_index_as_id(tmp_folder):
     # row numbers are assigned before geometries are split,
     # so the parts of one source feature share an id (like the default codepath)
     assert sorted(result["id"]) == ["0", "1", "1", "2", "2", "3"]
+
+
+def test_duckdb_converter_source_crs(tmp_folder):
+    src1 = _source_file(tmp_folder)
+    dest = tmp_folder / "converted.parquet"
+
+    # the same CRS, declared as a differently rendered PROJJSON object
+    table = pq.read_table(src1)
+    metadata = dict(table.schema.metadata)
+    geo = json.loads(metadata[b"geo"])
+    crs = geo["columns"]["geometry"]["crs"]
+    crs.pop("scope", None)
+    crs.pop("area", None)
+    crs["$schema"] = "https://proj.org/schemas/v0.5/projjson.schema.json"
+    metadata[b"geo"] = json.dumps(geo).encode()
+    src2 = str(tmp_folder / "source2.parquet")
+    pq.write_table(table.replace_schema_metadata(metadata), src2)
+
+    Converter().convert(dest, input_files={src1: "a.parquet", src2: "b.parquet"})
+    assert len(gpd.read_parquet(dest)) == 12
+
+    src3 = str(tmp_folder / "source3.parquet")
+    gpd.read_parquet(src1).to_crs("EPSG:3857").to_parquet(src3)
+    with pytest.raises(ValueError, match="different coordinate reference"):
+        Converter().convert(dest, input_files={src1: "a.parquet", src3: "c.parquet"})
 
 
 def test_duckdb_converter_original_geometries(tmp_folder):

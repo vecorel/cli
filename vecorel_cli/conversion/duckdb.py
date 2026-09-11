@@ -22,6 +22,19 @@ def _sql_path(path) -> str:
     return f"'{escaped}'"
 
 
+def _normalize_crs(crs):
+    """The comparable pyproj CRS for a GeoParquet crs value,
+    which defaults to OGC:CRS84 when missing."""
+    from pyproj import CRS
+
+    return CRS.from_user_input(crs if crs is not None else "OGC:CRS84")
+
+
+def _equal_crs(a, b) -> bool:
+    # GeoParquet coordinates are always x, y regardless of the CRS axis order
+    return a.equals(b, ignore_axis_order=True)
+
+
 # This converter is experimental, use with caution.
 # Results may not be fully compliant yet.
 # Use this primarily for datasets that are too large to be processed by the default converter.
@@ -99,6 +112,7 @@ class DuckDBBaseConverter(BaseConverter):
         # sources for the Hilbert grid and the output metadata. The sources are
         # combined without reprojection, so they must all use the same CRS.
         source_crs = None
+        reference = None
         for i, source in enumerate([sources] if isinstance(sources, str) else sources):
             crs = None
             row = con.execute(
@@ -110,7 +124,8 @@ class DuckDBBaseConverter(BaseConverter):
                 crs = source_geo.get("columns", {}).get(primary_column, {}).get("crs")
             if i == 0:
                 source_crs = crs
-            elif crs != source_crs:
+                reference = _normalize_crs(crs)
+            elif not _equal_crs(_normalize_crs(crs), reference):
                 raise ValueError(
                     f"The sources use different coordinate reference systems: {source} "
                     "differs from the first source. Reproject the sources to a common CRS."
@@ -142,6 +157,11 @@ class DuckDBBaseConverter(BaseConverter):
         if self.column_additions:
             context = collection.get_collection_context()
             for key, value in self.column_additions.items():
+                # constants override equally named source columns
+                if key in selected_targets:
+                    keep = [i for i, t in enumerate(selected_targets) if t != key]
+                    selections = [selections[i] for i in keep]
+                    selected_targets = [selected_targets[i] for i in keep]
                 if context.get(key) is False:
                     selections.append(f'? as "{key}"')
                     addition_params.append(value)

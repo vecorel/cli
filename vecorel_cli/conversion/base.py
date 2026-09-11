@@ -62,8 +62,9 @@ class BaseConverter(LoggerMixin):
 
     index_as_id: bool = False
 
-    # Rows lacking a value for a schema-required property or a geometry are
-    # dropped up to this share of all rows, else they are kept with a warning
+    # Rows with null values in schema-required properties are dropped up to this
+    # share of all rows; above it the conversion fails. Rows with an empty or
+    # missing geometry are always dropped, regardless of this share.
     max_dropped_share: float = 0.01
 
     def __init__(self, *args, **kwargs):
