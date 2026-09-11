@@ -12,6 +12,7 @@ from yarl import URL
 
 from .basecommand import BaseCommand, runnable
 from .cli.path_url import PathOrURL
+from .const import USER_AGENT
 from .vecorel.util import load_file
 from .vecorel.version import sdl_uri
 
@@ -128,7 +129,7 @@ class ValidateSchema(BaseCommand):
         request = Request(
             uri,
             # see https://github.com/OSGeo/PROJ/issues/4567
-            headers={"User-Agent": "vecorel-cli"},
+            headers={"User-Agent": USER_AGENT},
         )
         with urlopen(request) as response:
             return referencing.Resource.from_contents(
