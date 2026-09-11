@@ -76,13 +76,8 @@ class BaseConverter(LoggerMixin):
                 setattr(self, key, copy(item))
 
     def _require_one_source_of_urls(self):
-        """Fail when both `sources` and `variants` are declared.
-
-        The converter takes `sources` when it is set and ignores the variants
-        entirely, so `--variant 2011` silently converts whatever `sources`
-        points at. A converter that inherits variants it does not want says so
-        with `variants = {}`.
-        """
+        """Fail when both `sources` and `variants` are declared:
+        `sources` wins and every `--variant` would silently convert the same file."""
         if self.sources and self.variants:
             raise ValueError(
                 f"{type(self).__name__} declares both sources and variants; sources wins "
@@ -91,15 +86,9 @@ class BaseConverter(LoggerMixin):
             )
 
     def _check_id_mapping(self):
-        """Warn before converting when nothing will end up as `id`.
-
-        Vecorel requires the identifier, and nothing downstream enforces it:
-        the converter drops columns no mapping names, so a converter without
-        one simply writes a file without `id` and validates. The subtler half
-        is `index_as_id = True`, which fills the column and the same drop step
-        removes it again, because `columns` never named it. A converter with
-        no natural key sets both `index_as_id` and `"id": "id"`.
-        """
+        """Warn before converting when nothing is mapped to the required `id` property.
+        Unmapped columns are dropped, which also removes the column filled by
+        `index_as_id` unless the converter maps `"id": "id"`."""
         targets = set()
         for value in list(self.columns.values()) + list(self.column_additions or {}):
             targets.update(value if isinstance(value, (list, tuple)) else [value])
@@ -114,17 +103,9 @@ class BaseConverter(LoggerMixin):
 
     def _check_unique_ids(self, gdf, columns):
         """Warn when the column that becomes `id` does not identify a feature.
-
-        Vecorel asks for one identifier per feature, but nothing measures it:
-        a converter can map a group id shared by thousands of features, and
-        every converter that reads several files and sets `index_as_id`
-        repeats the same index once per file. This runs before geometries are
-        exploded, so it judges what the converter assigned rather than the
-        split parts of one source feature.
-
-        A missing id is a different failure, dropped under a bounded rule
-        afterwards, so it is not counted here: a column that identifies all
-        features except the few that carry none is a perfectly good identifier.
+        Runs before geometries are exploded, so it judges what the converter
+        assigned rather than the split parts of one source feature. Null ids
+        are not counted here; they are dropped under a bounded rule afterwards.
         """
         sources = [
             k for k, v in columns.items() if "id" in (v if isinstance(v, (list, tuple)) else [v])
@@ -133,9 +114,6 @@ class BaseConverter(LoggerMixin):
             (c for c in sources if c in gdf.columns), "id" if "id" in gdf.columns else None
         )
         if column is None:
-            # The mapping exists (convert() checks that) but the data does not
-            # carry it, and the unlisted-column drop then writes a file
-            # without `id` that validates.
             self.warning(
                 f"{type(self).__name__}: none of the columns mapped to 'id' "
                 f"({', '.join(sources) or 'none'}) is in this source; it has "
@@ -156,24 +134,23 @@ class BaseConverter(LoggerMixin):
         )
 
     def _drop_incomplete_rows(self, gdf, columns):
-        """Drop rows that can never validate: null values in a property the
-        schemas require, and empty or missing geometries (which also cannot
-        be tiled or Hilbert-sorted). Bounded by ``max_dropped_share``: above
-        that share the rows are kept (the converter needs fixing, and quietly
-        dropping large parts of a dataset would hide that), with a warning
-        that the output will not validate.
-
-        The required properties come from the merged schemas (the core
-        specification, the declared extensions and the custom schemas), minus
-        the collection-only properties and the geometry, which is checked
-        separately below.
-        """
+        """Drop rows that can never validate. Rows with null values in a
+        schema-required property are dropped up to ``max_dropped_share``;
+        above it the conversion fails, as quietly dropping large parts of a
+        dataset would hide that the converter needs fixing (and the writer
+        rejects nulls in the non-nullable required fields anyway). Rows with
+        an empty or missing geometry are always dropped: they cannot survive
+        the geometry processing anyway and would break the Hilbert sort."""
         collection = self.create_collection(self.id.strip())
         schemas = collection.merge_schemas({})
         collection_only = set(collection.get_collection_only_properties())
         required = [
             r for r in schemas.get("required", []) if r != "geometry" and r not in collection_only
         ]
+
+        # One combined mask, so max_dropped_share bounds the total share
+        invalid = pd.Series(False, index=gdf.index)
+        reasons = []
 
         # This runs before columns are renamed, so look up the source column
         for key in required:
@@ -182,42 +159,43 @@ class BaseConverter(LoggerMixin):
                 if key in targets and src in gdf.columns:
                     nulls = gdf[src].isna()
                     if nulls.any():
-                        share = nulls.mean()
-                        if share > self.max_dropped_share:
-                            self.warning(
-                                f"{int(nulls.sum())} of {len(gdf)} rows ({share:.1%}) have no "
-                                f"{key} ({src}); the output will not validate — fix the converter"
-                            )
-                        else:
-                            self.warning(
-                                f"Dropping {int(nulls.sum())} rows without a value for {key} ({src})"
-                            )
-                            gdf = gdf[~nulls]
+                        reasons.append(f"{int(nulls.sum())} without a value for {key} ({src})")
+                        invalid |= nulls
+
+        if invalid.any():
+            share = invalid.mean()
+            details = "; ".join(reasons)
+            if share > self.max_dropped_share:
+                raise ValueError(
+                    f"{int(invalid.sum())} of {len(gdf)} rows ({share:.1%}) have no value for "
+                    f"a required property ({details}); fix the converter instead of dropping them"
+                )
+            self.warning(
+                f"Dropping {int(invalid.sum())} of {len(gdf)} rows that can never "
+                f"validate ({details})"
+            )
+            gdf = gdf[~invalid]
 
         if gdf.active_geometry_name is not None:
             geom = gdf.geometry
             blank = geom.isna() | geom.is_empty
             if blank.any():
                 share = blank.mean()
+                message = (
+                    f"Dropping {int(blank.sum())} of {len(gdf)} rows with an empty "
+                    f"or missing geometry"
+                )
                 if share > self.max_dropped_share:
-                    self.warning(
-                        f"{int(blank.sum())} of {len(gdf)} rows ({share:.1%}) have an empty or "
-                        f"missing geometry; the output will not validate — fix the converter"
-                    )
-                else:
-                    self.warning(
-                        f"Dropping {int(blank.sum())} rows with an empty or missing geometry"
-                    )
-                    gdf = gdf[~blank]
+                    message += f" ({share:.1%}, exceeds max_dropped_share) — fix the converter"
+                self.warning(message)
+                gdf = gdf[~blank]
 
         return gdf
 
     def _prewarm_schemas(self):
-        """Fetch every schema this conversion will need before doing any real
-        work, with retries. The schema hosts fail intermittently; without this,
-        a transient blip after a long source download kills the conversion at
-        the very last step. load_file caches per process, so a successful
-        pre-warm makes the write network-free."""
+        """Fetch every schema this conversion will need upfront, with retries,
+        so a transient schema-host blip cannot kill the conversion at the very
+        last step. load_file caches per process."""
         import time
 
         from ..vecorel.util import load_file
@@ -602,8 +580,6 @@ class BaseConverter(LoggerMixin):
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
         collection = self.create_collection(cid)
-        # Record the collection id at the collection level rather than as a
-        # constant column, like the DuckDB-based codepath does
         collection["collection"] = cid
         pq.set_collection(collection)
 

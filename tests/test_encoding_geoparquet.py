@@ -86,9 +86,12 @@ def test_postprocess(tmp_parquet_file):
     assert gp.postprocess(geoparquet_version="1.1.0", compression="zstd") is True
     # a second run detects the compliant file and doesn't rewrite it
     assert gp.postprocess(geoparquet_version="1.1.0", compression="zstd") is False
+    # unless a different compression is requested
+    assert gp.postprocess(geoparquet_version="1.1.0", compression="brotli") is True
 
-    result = pq.ParquetFile(tmp_parquet_file)
-    schema = result.schema_arrow
+    with pq.ParquetFile(tmp_parquet_file) as result:
+        schema = result.schema_arrow
+        metadata = result.metadata.metadata
 
     field = schema.field("geometry")
     assert field.type == pa.binary()
@@ -103,7 +106,6 @@ def test_postprocess(tmp_parquet_file):
     assert pat.is_struct(bbox.type)
     assert bbox.type.field("xmin").type == pa.float64()
 
-    metadata = result.metadata.metadata
     geo = json.loads(metadata[b"geo"])
     assert geo["version"] == "1.1.0"
     assert geo["columns"]["geometry"]["covering"]["bbox"]["xmin"] == ["bbox", "xmin"]
@@ -114,3 +116,10 @@ def test_postprocess(tmp_parquet_file):
     assert data.num_rows == src.num_rows
     assert data["id"].to_pylist() == src["id"].to_pylist()
     assert data["geometry"].to_pylist() == src["geometry"].to_pylist()
+
+    # a downgrade removes the covering metadata, which only exists since GeoParquet 1.1
+    assert gp.postprocess(geoparquet_version="1.0.0", compression="brotli") is True
+    with pq.ParquetFile(tmp_parquet_file) as pf:
+        geo = json.loads(pf.metadata.metadata[b"geo"])
+    assert geo["version"] == "1.0.0"
+    assert "covering" not in geo["columns"]["geometry"]

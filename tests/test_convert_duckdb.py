@@ -98,6 +98,19 @@ def test_duckdb_converter(tmp_folder):
     assert validation.errors == []
 
 
+def test_duckdb_converter_index_as_id(tmp_folder):
+    src = _source_file(tmp_folder)
+    dest = tmp_folder / "converted.parquet"
+
+    IndexConverter = type("IndexConverter", (DuckDBBaseConverter,), {**CONFIG, "index_as_id": True})
+    IndexConverter().convert(dest, input_files={src: "source.parquet"})
+
+    result = gpd.read_parquet(dest)
+    # row numbers are assigned before geometries are split,
+    # so the parts of one source feature share an id (like the default codepath)
+    assert sorted(result["id"]) == ["0", "1", "1", "2", "2", "3"]
+
+
 def test_duckdb_converter_original_geometries(tmp_folder):
     src = _source_file(tmp_folder)
     dest = tmp_folder / "converted.parquet"
@@ -165,8 +178,11 @@ def test_codepath_parity(tmp_folder):
         assert pandas_geo[key] == duckdb_geo[key]
     pandas_column = pandas_geo["columns"]["geometry"]
     duckdb_column = duckdb_geo["columns"]["geometry"]
-    for key in ("encoding", "covering"):
-        assert pandas_column[key] == duckdb_column[key]
+    for key in ("encoding", "covering", "crs", "bbox"):
+        assert pandas_column.get(key) == duckdb_column.get(key), f"geo {key} differs"
+    assert sorted(pandas_column.get("geometry_types", [])) == sorted(
+        duckdb_column.get("geometry_types", [])
+    )
 
     # Same packaging
     assert pandas_compression == duckdb_compression

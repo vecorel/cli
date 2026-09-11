@@ -124,8 +124,10 @@ class GeoParquet(BaseEncoding):
 
     @staticmethod
     def _detect_compression(metadata: pq.FileMetaData) -> Optional[str]:
-        compressions = set()
+        if metadata.num_row_groups == 0:
+            return None
 
+        compressions = set()
         row_group = metadata.row_group(0)
         for col_idx in range(row_group.num_columns):
             column = row_group.column(col_idx)
@@ -274,6 +276,7 @@ class GeoParquet(BaseEncoding):
         compression: Optional[str] = None,
         compression_level: Optional[int] = None,
         geoparquet_version: Optional[str] = None,
+        crs=None,  # the CRS to record in the GeoParquet metadata, e.g. from the source file
         **kwargs,  # capture unknown arguments
     ) -> bool:
         """
@@ -305,12 +308,21 @@ class GeoParquet(BaseEncoding):
             # The reader must be closed before the temp file can replace the original file,
             # as Windows can't replace files that are still opened
             with pq.ParquetFile(str(self.uri)) as pq_file:
+                existing_compression = self._detect_compression(pq_file.metadata)
                 if compression is None:
-                    compression = self._detect_compression(pq_file.metadata)
+                    compression = existing_compression
+                if compression == "mixed":  # per-column codecs are not preserved
+                    compression = "zstd"
                 if compression == "zstd" and compression_level is None:
                     compression_level = 15
                 tmp_path = self._rewrite(
-                    pq_file, schema_map, compression, compression_level, geoparquet_version
+                    pq_file,
+                    schema_map,
+                    compression,
+                    compression_level,
+                    geoparquet_version,
+                    crs=crs,
+                    compression_changed=compression != existing_compression,
                 )
             if tmp_path is None:
                 return False
@@ -334,6 +346,8 @@ class GeoParquet(BaseEncoding):
         compression: Optional[str],
         compression_level: Optional[int],
         geoparquet_version: str,
+        crs=None,
+        compression_changed: bool = False,
     ) -> Optional[str]:
         existing_schema = pq_file.schema_arrow
         col_names = existing_schema.names
@@ -344,44 +358,57 @@ class GeoParquet(BaseEncoding):
         has_multiple_collections = len(collection.get_schemas()) > 1
         props = schemas.get("properties", {})
 
-        required_columns = {"geometry"}
-        if "id" in col_names:
-            required_columns.add("id")
+        # Must mirror the nullability rule of writer and validator:
+        # nullable = not required, and everything is nullable for files
+        # with multiple collections
+        required_columns = set()
         if not has_multiple_collections:
-            collection_only = collection.get_collection_only_properties(schema_map=schema_map)
-            required_columns |= {
-                r
-                for r in schemas.get("required", [])
-                if r in col_names and r not in collection_only
-            }
+            required_columns = {"geometry"}
+            if "id" in col_names:
+                required_columns.add("id")
+            required_columns |= {r for r in schemas.get("required", []) if r in col_names}
 
+        if "bbox" in col_names:
+            bbox_type = existing_schema.field("bbox").type
+            children = (
+                {bbox_type.field(i).name for i in range(bbox_type.num_fields)}
+                if pa.types.is_struct(bbox_type)
+                else set()
+            )
+            if children != {"xmin", "ymin", "xmax", "ymax"}:
+                raise ValueError(
+                    f"The bbox column is not a GeoParquet covering struct, is {bbox_type}"
+                )
         add_bbox = geoparquet_version != "1.0.0" and "bbox" not in col_names
 
-        # Update the GeoParquet and collection metadata
         metadata = existing_schema.metadata or {}
+        if b"geo" not in metadata:
+            # Creating GeoParquet metadata from scratch would require CRS and
+            # geometry information this file doesn't carry
+            raise ValueError("The Parquet file has no GeoParquet metadata")
         metadata[b"collection"] = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
-        if b"geo" in metadata:
-            geo = json.loads(metadata[b"geo"])
-            geo["version"] = geoparquet_version
-            if geoparquet_version != "1.0.0" and (add_bbox or "bbox" in col_names):
-                primary_column = geo.get("primary_column", "geometry")
-                column = geo.get("columns", {}).get(primary_column)
-                if column is not None:
-                    column["covering"] = {
-                        "bbox": {
-                            "xmin": ["bbox", "xmin"],
-                            "ymin": ["bbox", "ymin"],
-                            "xmax": ["bbox", "xmax"],
-                            "ymax": ["bbox", "ymax"],
-                        }
+        geo = json.loads(metadata[b"geo"])
+        geo["version"] = geoparquet_version
+        column = geo.get("columns", {}).get(geo.get("primary_column", "geometry"))
+        if column is not None:
+            if crs is not None:
+                column["crs"] = crs
+            if geoparquet_version == "1.0.0":
+                # covering metadata only exists since GeoParquet 1.1
+                column.pop("covering", None)
+            elif add_bbox or "bbox" in col_names:
+                column["covering"] = {
+                    "bbox": {
+                        "xmin": ["bbox", "xmin"],
+                        "ymin": ["bbox", "ymin"],
+                        "xmax": ["bbox", "xmax"],
+                        "ymax": ["bbox", "ymax"],
                     }
-            metadata[b"geo"] = json.dumps(geo).encode("utf-8")
+                }
+        metadata[b"geo"] = json.dumps(geo).encode("utf-8")
 
-        # Build a new Arrow schema with the data types from the Vecorel schemas,
-        # otherwise with normalized data types, and with adjusted nullability.
-        # The bbox covering column is kept as written (a float64 struct, like
-        # the GeoDataFrame-based codepath writes it), not as the schema's
-        # bounding-box type.
+        # The bbox covering column is kept as written (a float64 struct, like the
+        # GeoDataFrame-based codepath writes it), not as the schema's bounding-box type
         new_fields = []
         for field in existing_schema:
             pa_type = None
@@ -397,7 +424,7 @@ class GeoParquet(BaseEncoding):
                 pa.field(
                     field.name,
                     pa_type,
-                    nullable=field.nullable and field.name not in required_columns,
+                    nullable=field.name not in required_columns,
                     metadata=field.metadata,
                 )
             )
@@ -418,39 +445,47 @@ class GeoParquet(BaseEncoding):
             )
         new_schema = pa.schema(new_fields, metadata=metadata)
 
-        # Nothing to change? Then leave the file untouched.
-        if not add_bbox and new_schema.equals(existing_schema, check_metadata=True):
+        if (
+            not add_bbox
+            and not compression_changed
+            and new_schema.equals(existing_schema, check_metadata=True)
+        ):
             return None
 
-        # Streamingly rewrite the file to a temp file
         with NamedTemporaryFile("wb", delete=False, dir=self.uri.parent, suffix=".parquet") as tmp:
             tmp_path = tmp.name
 
-        writer = pq.ParquetWriter(
-            tmp_path,
-            new_schema,
-            compression=compression,
-            compression_level=compression_level,
-            use_dictionary=True,
-            write_statistics=True,
-        )
         try:
-            for rg in range(pq_file.num_row_groups):
-                tbl = pq_file.read_row_group(rg)
-                if add_bbox:
-                    # array of shape (n, 4) with minx, miny, maxx, maxy
-                    bounds = from_wkb(tbl["geometry"]).bounds
-                    bbox_array = StructArray.from_arrays(
-                        [bounds[:, 0], bounds[:, 1], bounds[:, 2], bounds[:, 3]],
-                        names=["xmin", "ymin", "xmax", "ymax"],
-                    )
-                    tbl = tbl.append_column("bbox", bbox_array)
-                # Ensure the table adheres to the new schema (types, nullability)
-                if tbl.schema != new_schema:
-                    tbl = tbl.cast(new_schema, safe=False)
-                writer.write_table(tbl)
-        finally:
-            writer.close()
+            writer = pq.ParquetWriter(
+                tmp_path,
+                new_schema,
+                compression=compression,
+                compression_level=compression_level,
+                use_dictionary=True,
+                write_statistics=True,
+            )
+            try:
+                for rg in range(pq_file.num_row_groups):
+                    tbl = pq_file.read_row_group(rg)
+                    if add_bbox:
+                        # array of shape (n, 4) with minx, miny, maxx, maxy
+                        bounds = from_wkb(tbl["geometry"]).bounds
+                        bbox_array = StructArray.from_arrays(
+                            [bounds[:, 0], bounds[:, 1], bounds[:, 2], bounds[:, 3]],
+                            names=["xmin", "ymin", "xmax", "ymax"],
+                        )
+                        tbl = tbl.append_column("bbox", bbox_array)
+                    # The safe cast fails on lossy conversions (e.g. out-of-range integers),
+                    # so invalid source data is reported instead of silently corrupted
+                    if tbl.schema != new_schema:
+                        tbl = tbl.cast(new_schema)
+                    writer.write_table(tbl)
+            finally:
+                writer.close()
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
         return tmp_path
 

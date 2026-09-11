@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   constant `collection` column. Previously files without constant columns were written
   without any collection id.
 - Converters drop rows that can never validate (missing required values, empty or
-  missing geometries), bounded by the new `max_dropped_share` (default 1%).
+  missing geometries). Missing required values are dropped only up to the new
+  `max_dropped_share` (default 1%), above it the conversion fails.
 - Converters fail when both `sources` and `variants` are declared.
 - Converters warn when no column is mapped to `id` and when the id column is not unique.
 - Converters load all schemas upfront with retries, so a temporary network issue

@@ -126,7 +126,7 @@ def hilbert_reference_bounds(crs, fallback=None):
     try:
         return crs_total_bounds(crs)
     except ValueError:
-        return tuple(fallback) if fallback else None
+        return tuple(fallback) if fallback is not None else None
 
 
 def bounds_array_for_table(table, primary_col: str) -> np.ndarray:
@@ -160,6 +160,35 @@ def hilbert_keys_for_table(table, primary_col: str, total_bounds) -> np.ndarray:
     return hilbert_distances_from_bounds(bounds, total_bounds)
 
 
+def hilbert_keys_for_file(path: str, primary_col: str, total_bounds) -> np.ndarray:
+    """Hilbert keys for every row of a GeoParquet file, in row order.
+
+    Computed row group by row group, so the file never needs to fit into
+    memory: only the bbox covering column is read when present (zero-decode),
+    otherwise the WKB of the primary geometry column.
+    """
+    import pyarrow.parquet as pq
+    import pyarrow.types as pat
+
+    keys = []
+    with pq.ParquetFile(path) as pf:
+        schema = pf.schema_arrow
+        has_bbox = "bbox" in schema.names and pat.is_struct(schema.field("bbox").type)
+        columns = ["bbox"] if has_bbox else [primary_col]
+        for rg in range(pf.num_row_groups):
+            table = pf.read_row_group(rg, columns=columns)
+            keys.append(hilbert_keys_for_table(table, primary_col, total_bounds))
+    if not keys:
+        return np.array([], dtype=np.uint64)
+    return np.concatenate(keys)
+
+
+def is_hilbert_sorted(keys: np.ndarray) -> bool:
+    # NB: keys are uint64; never use np.diff for monotonicity here — uint
+    # underflow makes any descent wrap to a huge positive and fool the check.
+    return keys.size <= 1 or bool(np.all(keys[1:] >= keys[:-1]))
+
+
 def ensure_hilbert_sorted(
     path: str,
     primary_col: str,
@@ -178,14 +207,9 @@ def ensure_hilbert_sorted(
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    # cheap check first: the keys only need the bbox covering column
-    with pq.ParquetFile(path) as pf:
-        has_bbox = "bbox" in pf.schema_arrow.names
-        probe = pf.read(columns=["bbox"]) if has_bbox else pf.read()
-    hilberts = hilbert_keys_for_table(probe, primary_col, total_bounds)
-    # NB: hilberts is uint64; never use np.diff for monotonicity here — uint
-    # underflow makes any descent wrap to a huge positive and fool the check.
-    if hilberts.size <= 1 or bool(np.all(hilberts[1:] >= hilberts[:-1])):
+    # cheap check first, streamed row group by row group
+    hilberts = hilbert_keys_for_file(path, primary_col, total_bounds)
+    if is_hilbert_sorted(hilberts):
         return False
 
     with pq.ParquetFile(path) as pf:
@@ -222,15 +246,30 @@ def ensure_hilbert_sorted(
     # Write batch-wise against the ORIGINAL narrow schema: each batch is far
     # below the int32 offset limit, so the down-cast is safe, the geo/collection
     # metadata is preserved, and the rewritten file schema-matches untouched
-    # pre-sorted siblings during merges.
+    # pre-sorted siblings during merges. Write to a temp file first and replace
+    # atomically, so a failure doesn't destroy the previously valid file.
+    import os
+    from tempfile import NamedTemporaryFile
+
     step = row_group_size or 131_072
-    writer = pq.ParquetWriter(path, narrow_schema, **write_kwargs)
+    tmp_path = None
     try:
-        for start in range(0, sorted_table.num_rows, step):
-            batch = sorted_table.slice(start, step)
-            writer.write_table(batch.cast(narrow_schema) if widened else batch)
-    finally:
-        writer.close()
+        with NamedTemporaryFile(
+            "wb", delete=False, dir=os.path.dirname(path) or ".", suffix=".parquet"
+        ) as tmp:
+            tmp_path = tmp.name
+        writer = pq.ParquetWriter(tmp_path, narrow_schema, **write_kwargs)
+        try:
+            for start in range(0, sorted_table.num_rows, step):
+                batch = sorted_table.slice(start, step)
+                writer.write_table(batch.cast(narrow_schema) if widened else batch)
+        finally:
+            writer.close()
+        os.replace(tmp_path, path)
+    except Exception:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
     return True
 
 
@@ -263,7 +302,9 @@ __all__ = [
     "crs_total_bounds",
     "ensure_hilbert_sorted",
     "hilbert_distances_from_bounds",
+    "hilbert_keys_for_file",
     "hilbert_keys_for_table",
     "hilbert_reference_bounds",
     "hilbert_sort_geodataframe",
+    "is_hilbert_sorted",
 ]
