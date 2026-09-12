@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.18] - 2026-09-14
+
 - Add an experimental `DuckDBBaseConverter` to convert large Parquet-based datasets
   without loading them into memory. Its output matches the default converter
   (geometry handling, Hilbert order, data types, metadata, file packaging).
@@ -141,7 +143,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.16...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.18...main>
+[v0.2.18]: <https://github.com/vecorel/cli/compare/v0.2.17...v0.2.18>
+[v0.2.17]: <https://github.com/vecorel/cli/compare/v0.2.16...v0.2.17>
 [v0.2.16]: <https://github.com/vecorel/cli/compare/v0.2.15...v0.2.16>
 [v0.2.15]: <https://github.com/vecorel/cli/compare/v0.2.14...v0.2.15>
 [v0.2.14]: <https://github.com/vecorel/cli/compare/v0.2.13...v0.2.14>
