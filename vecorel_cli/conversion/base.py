@@ -62,6 +62,11 @@ class BaseConverter(LoggerMixin):
 
     index_as_id: bool = False
 
+    # Rows with null values in schema-required properties are dropped up to this
+    # share of all rows; above it the conversion fails. Rows with an empty or
+    # missing geometry are always dropped, regardless of this share.
+    max_dropped_share: float = 0.01
+
     def __init__(self, *args, **kwargs):
         super().__init__()
 
@@ -70,6 +75,148 @@ class BaseConverter(LoggerMixin):
         for key, item in inspect.getmembers(self):
             if not key.startswith("_") and isinstance(item, (list, dict, set)):
                 setattr(self, key, copy(item))
+
+    def _require_one_source_of_urls(self):
+        """Fail when both `sources` and `variants` are declared:
+        `sources` wins and every `--variant` would silently convert the same file."""
+        if self.sources and self.variants:
+            raise ValueError(
+                f"{type(self).__name__} declares both sources and variants; sources wins "
+                "and every --variant would convert the same file. Drop sources, or set "
+                "variants = {} when the inherited ones do not apply."
+            )
+
+    def _check_id_mapping(self):
+        """Warn before converting when nothing is mapped to the required `id` property.
+        Unmapped columns are dropped, which also removes the column filled by
+        `index_as_id` unless the converter maps `"id": "id"`."""
+        targets = set()
+        for value in list(self.columns.values()) + list(self.column_additions or {}):
+            targets.update(value if isinstance(value, (list, tuple)) else [value])
+        if "id" not in targets:
+            hint = (
+                ' — `index_as_id = True` is set, so add \'"id": "id"\' to columns'
+                if self.index_as_id
+                else " — map a unique source column to it, or set index_as_id = True"
+                ' and add \'"id": "id"\' to columns'
+            )
+            self.warning(f"{type(self).__name__} maps no column to 'id'{hint}")
+
+    def _check_unique_ids(self, gdf, columns):
+        """Warn when the column that becomes `id` does not identify a feature.
+        Runs before geometries are exploded, so it judges what the converter
+        assigned rather than the split parts of one source feature. Null ids
+        are not counted here; they are dropped under a bounded rule afterwards.
+        """
+        sources = [
+            k for k, v in columns.items() if "id" in (v if isinstance(v, (list, tuple)) else [v])
+        ]
+        column = next(
+            (c for c in sources if c in gdf.columns), "id" if "id" in gdf.columns else None
+        )
+        if column is None:
+            self.warning(
+                f"{type(self).__name__}: none of the columns mapped to 'id' "
+                f"({', '.join(sources) or 'none'}) is in this source; it has "
+                f"{', '.join(sorted(gdf.columns)[:12])}"
+            )
+            return
+        ids = gdf[column].dropna()
+        if ids.is_unique:
+            return
+        counts = ids.value_counts()
+        duplicated = int(len(ids) - len(counts))
+        worst = int(counts.iloc[0])
+        self.warning(
+            f"{type(self).__name__}: '{column}' is not unique — {duplicated:,} of {len(ids):,} "
+            f"rows repeat an id (one appears {worst:,} times), so it cannot be `id`. Map a column "
+            "that identifies a feature, build one from the source's key columns, or use the row "
+            "index (index_as_id) only when the conversion reads a single file."
+        )
+
+    def _drop_incomplete_rows(self, gdf, columns):
+        """Drop rows that can never validate. Rows with null values in a
+        schema-required property are dropped up to ``max_dropped_share``;
+        above it the conversion fails, as quietly dropping large parts of a
+        dataset would hide that the converter needs fixing (and the writer
+        rejects nulls in the non-nullable required fields anyway). Rows with
+        an empty or missing geometry are always dropped: they cannot survive
+        the geometry processing anyway and would break the Hilbert sort."""
+        collection = self.create_collection(self.id.strip())
+        schemas = collection.merge_schemas({})
+        collection_only = set(collection.get_collection_only_properties())
+        required = [
+            r for r in schemas.get("required", []) if r != "geometry" and r not in collection_only
+        ]
+
+        # One combined mask, so max_dropped_share bounds the total share
+        invalid = pd.Series(False, index=gdf.index)
+        reasons = []
+
+        # This runs before columns are renamed, so look up the source column
+        for key in required:
+            for src, dst in columns.items():
+                targets = dst if isinstance(dst, (list, tuple)) else [dst]
+                if key in targets and src in gdf.columns:
+                    nulls = gdf[src].isna()
+                    if nulls.any():
+                        reasons.append(f"{int(nulls.sum())} without a value for {key} ({src})")
+                        invalid |= nulls
+
+        if invalid.any():
+            share = invalid.mean()
+            details = "; ".join(reasons)
+            if share > self.max_dropped_share:
+                raise ValueError(
+                    f"{int(invalid.sum())} of {len(gdf)} rows ({share:.1%}) have no value for "
+                    f"a required property ({details}); fix the converter instead of dropping them"
+                )
+            self.warning(
+                f"Dropping {int(invalid.sum())} of {len(gdf)} rows that can never "
+                f"validate ({details})"
+            )
+            gdf = gdf[~invalid]
+
+        if gdf.active_geometry_name is not None:
+            geom = gdf.geometry
+            blank = geom.isna() | geom.is_empty
+            if blank.any():
+                share = blank.mean()
+                message = (
+                    f"Dropping {int(blank.sum())} of {len(gdf)} rows with an empty "
+                    f"or missing geometry"
+                )
+                if share > self.max_dropped_share:
+                    message += f" ({share:.1%}, exceeds max_dropped_share) — fix the converter"
+                self.warning(message)
+                gdf = gdf[~blank]
+
+        return gdf
+
+    def _prewarm_schemas(self):
+        """Fetch every schema this conversion will need upfront, with retries,
+        so a transient schema-host blip cannot kill the conversion at the very
+        last step. load_file caches per process."""
+        import time
+
+        from ..vecorel.util import load_file
+
+        uris = set(self.extensions)
+        uris.add(Schemas.get_core_uri())
+        attempts = 8
+        for uri in sorted(uris):
+            for attempt in range(attempts):
+                try:
+                    load_file(uri)
+                    break
+                except Exception as e:
+                    if attempt == attempts - 1:
+                        raise RuntimeError(
+                            f"Cannot load schema {uri} after {attempts} attempts: {e}"
+                        ) from e
+                    self.warning(f"Schema fetch failed ({uri}), retrying: {str(e)[:100]}")
+                    # ~4 min of tolerance: schema host outages have outlasted a 30 s budget
+                    time.sleep(min(2**attempt * 2, 60))
 
     def migrate(self, gdf) -> GeoDataFrame:
         return gdf
@@ -316,6 +463,10 @@ class BaseConverter(LoggerMixin):
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")
 
+        self._check_id_mapping()
+        self._require_one_source_of_urls()
+        self._prewarm_schemas()
+
         # Create output folder if it doesn't exist
         directory = os.path.dirname(output_file)
         if directory:
@@ -360,10 +511,6 @@ class BaseConverter(LoggerMixin):
                 gdf[key] = value
                 columns[key] = key
 
-            # Add collection ID
-            columns["collection"] = "collection"
-            gdf["collection"] = cid
-
         # 4. Run column migrations
         if self.column_migrations:
             self.info("Applying column migrations")
@@ -374,6 +521,9 @@ class BaseConverter(LoggerMixin):
                     self.warning(f"Column '{key}' not found in dataset, skipping migration")
 
         gdf = self.post_migrate(gdf)
+
+        self._check_unique_ids(gdf, columns)
+        gdf = self._drop_incomplete_rows(gdf, columns)
 
         if hash_before != self._hash_df(gdf.head()):
             self.info("GeoDataFrame after migrations and filters:")
@@ -430,7 +580,9 @@ class BaseConverter(LoggerMixin):
         self.info("Creating GeoParquet file: " + str(output_file))
         columns = list(actual_columns.values())
         pq = GeoParquet(output_file)
-        pq.set_collection(self.create_collection(cid))
+        collection = self.create_collection(cid)
+        collection["collection"] = cid
+        pq.set_collection(collection)
 
         pq.write(
             gdf,

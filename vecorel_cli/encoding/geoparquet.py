@@ -1,19 +1,28 @@
 import json
+import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Optional, Union
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 from geopandas import GeoDataFrame
+from geopandas.array import from_wkb
 from geopandas.io.arrow import _arrow_to_geopandas
-from pyarrow import NativeFile
+from pyarrow import NativeFile, StructArray
 from pyarrow.fs import FSSpecHandler, PyFileSystem
 from yarl import URL
 
 from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..encoding.geojson import VecorelJSONEncoder
 from ..parquet.geopandas import to_parquet
-from ..parquet.types import get_geopandas_dtype, get_pyarrow_field, get_pyarrow_type_for_geopandas
+from ..parquet.types import (
+    get_geopandas_dtype,
+    get_pyarrow_field,
+    get_pyarrow_type,
+    get_pyarrow_type_for_geopandas,
+    normalize_pa_type,
+)
 from ..validation.base import Validator
 from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import get_fs, load_file
@@ -111,9 +120,14 @@ class GeoParquet(BaseEncoding):
         Get the compression method used in the file.
         Returns "mixed" if multiple compression methods are found.
         """
-        metadata = self.get_parquet_metadata()
-        compressions = set()
+        return self._detect_compression(self.get_parquet_metadata())
 
+    @staticmethod
+    def _detect_compression(metadata: pq.FileMetaData) -> Optional[str]:
+        if metadata.num_row_groups == 0:
+            return None
+
+        compressions = set()
         row_group = metadata.row_group(0)
         for col_idx in range(row_group.num_columns):
             column = row_group.column(col_idx)
@@ -255,6 +269,225 @@ class GeoParquet(BaseEncoding):
         )
 
         return True
+
+    def postprocess(
+        self,
+        schema_map: SchemaMapping = {},
+        compression: Optional[str] = None,
+        compression_level: Optional[int] = None,
+        geoparquet_version: Optional[str] = None,
+        crs=None,  # the CRS to record in the GeoParquet metadata, e.g. from the source file
+        **kwargs,  # capture unknown arguments
+    ) -> bool:
+        """
+        Rewrites an existing Parquet file (e.g. written by an external tool such as
+        DuckDB or GDAL) into a compliant Vecorel GeoParquet file:
+
+        - Converts the column data types to the types defined in the Vecorel schemas,
+          otherwise normalizes them to the canonical Vecorel types
+          (e.g. large_string -> string, timestamps -> timestamp[ms, UTC])
+        - Sets the nullability based on the required properties
+        - Adds a bbox covering column for GeoParquet > 1.0.0
+        - Updates the GeoParquet metadata and embeds the collection metadata
+
+        The collection metadata is taken from `set_collection` or read from the file.
+        The file is rewritten row group by row group, so it never needs to fit into memory.
+        If no compression is given, the compression of the existing file is used.
+
+        Checks the file first and only rewrites when something needs to change,
+        so it is cheap to call on files that are already compliant.
+        Returns True if the file was rewritten, False if it was compliant already.
+        """
+        if not isinstance(self.uri, Path):
+            raise ValueError("Post-processing is only supported for local files")
+        if geoparquet_version not in GEOPARQUET_VERSIONS:
+            geoparquet_version = GEOPARQUET_DEFAULT_VERSION
+
+        tmp_path = None
+        try:
+            # The reader must be closed before the temp file can replace the original file,
+            # as Windows can't replace files that are still opened
+            with pq.ParquetFile(str(self.uri)) as pq_file:
+                existing_compression = self._detect_compression(pq_file.metadata)
+                if compression is None:
+                    compression = existing_compression
+                if compression == "mixed":  # per-column codecs are not preserved
+                    compression = "zstd"
+                if compression == "zstd" and compression_level is None:
+                    compression_level = 15
+                tmp_path = self._rewrite(
+                    pq_file,
+                    schema_map,
+                    compression,
+                    compression_level,
+                    geoparquet_version,
+                    crs=crs,
+                    compression_changed=compression != existing_compression,
+                )
+            if tmp_path is None:
+                return False
+            os.replace(tmp_path, self.uri)
+        except Exception:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+
+        # The file has changed, invalidate the cached metadata
+        self.pq_metadata = None
+        self.pq_schema = None
+        return True
+
+    # Rewrites the Parquet file to a temp file and returns its path,
+    # or returns None if the file needs no changes
+    def _rewrite(
+        self,
+        pq_file: pq.ParquetFile,
+        schema_map: SchemaMapping,
+        compression: Optional[str],
+        compression_level: Optional[int],
+        geoparquet_version: str,
+        crs=None,
+        compression_changed: bool = False,
+    ) -> Optional[str]:
+        existing_schema = pq_file.schema_arrow
+        col_names = existing_schema.names
+        assert "geometry" in col_names, "Missing geometry column in the Parquet file"
+
+        collection = self.get_collection()
+        schemas = collection.merge_schemas(schema_map)
+        has_multiple_collections = len(collection.get_schemas()) > 1
+        props = schemas.get("properties", {})
+
+        # Must mirror the nullability rule of writer and validator:
+        # nullable = not required, and everything is nullable for files
+        # with multiple collections
+        required_columns = set()
+        if not has_multiple_collections:
+            required_columns = {"geometry"}
+            if "id" in col_names:
+                required_columns.add("id")
+            required_columns |= {r for r in schemas.get("required", []) if r in col_names}
+
+        if "bbox" in col_names:
+            bbox_type = existing_schema.field("bbox").type
+            children = (
+                {bbox_type.field(i).name for i in range(bbox_type.num_fields)}
+                if pa.types.is_struct(bbox_type)
+                else set()
+            )
+            if children != {"xmin", "ymin", "xmax", "ymax"}:
+                raise ValueError(
+                    f"The bbox column is not a GeoParquet covering struct, is {bbox_type}"
+                )
+        add_bbox = geoparquet_version != "1.0.0" and "bbox" not in col_names
+
+        metadata = existing_schema.metadata or {}
+        if b"geo" not in metadata:
+            # Creating GeoParquet metadata from scratch would require CRS and
+            # geometry information this file doesn't carry
+            raise ValueError("The Parquet file has no GeoParquet metadata")
+        metadata[b"collection"] = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
+        geo = json.loads(metadata[b"geo"])
+        geo["version"] = geoparquet_version
+        column = geo.get("columns", {}).get(geo.get("primary_column", "geometry"))
+        if column is not None:
+            if crs is not None:
+                column["crs"] = crs
+            if geoparquet_version == "1.0.0":
+                # covering metadata only exists since GeoParquet 1.1
+                column.pop("covering", None)
+            elif add_bbox or "bbox" in col_names:
+                column["covering"] = {
+                    "bbox": {
+                        "xmin": ["bbox", "xmin"],
+                        "ymin": ["bbox", "ymin"],
+                        "xmax": ["bbox", "xmax"],
+                        "ymax": ["bbox", "ymax"],
+                    }
+                }
+        metadata[b"geo"] = json.dumps(geo).encode("utf-8")
+
+        # The bbox covering column is kept as written (a float64 struct, like the
+        # GeoDataFrame-based codepath writes it), not as the schema's bounding-box type
+        new_fields = []
+        for field in existing_schema:
+            pa_type = None
+            prop_schema = props.get(field.name) if field.name != "bbox" else None
+            if prop_schema is not None:
+                try:
+                    pa_type = get_pyarrow_type(prop_schema)
+                except Exception as e:
+                    self.warning(f"{field.name}: Can't create data type from schema: {e}")
+            if pa_type is None:
+                pa_type = normalize_pa_type(field.type)
+            new_fields.append(
+                pa.field(
+                    field.name,
+                    pa_type,
+                    nullable=field.name not in required_columns,
+                    metadata=field.metadata,
+                )
+            )
+
+        if add_bbox:
+            new_fields.append(
+                pa.field(
+                    "bbox",
+                    pa.struct(
+                        [
+                            ("xmin", pa.float64()),
+                            ("ymin", pa.float64()),
+                            ("xmax", pa.float64()),
+                            ("ymax", pa.float64()),
+                        ]
+                    ),
+                )
+            )
+        new_schema = pa.schema(new_fields, metadata=metadata)
+
+        if (
+            not add_bbox
+            and not compression_changed
+            and new_schema.equals(existing_schema, check_metadata=True)
+        ):
+            return None
+
+        with NamedTemporaryFile("wb", delete=False, dir=self.uri.parent, suffix=".parquet") as tmp:
+            tmp_path = tmp.name
+
+        try:
+            writer = pq.ParquetWriter(
+                tmp_path,
+                new_schema,
+                compression=compression,
+                compression_level=compression_level,
+                use_dictionary=True,
+                write_statistics=True,
+            )
+            try:
+                for rg in range(pq_file.num_row_groups):
+                    tbl = pq_file.read_row_group(rg)
+                    if add_bbox:
+                        # array of shape (n, 4) with minx, miny, maxx, maxy
+                        bounds = from_wkb(tbl["geometry"]).bounds
+                        bbox_array = StructArray.from_arrays(
+                            [bounds[:, 0], bounds[:, 1], bounds[:, 2], bounds[:, 3]],
+                            names=["xmin", "ymin", "xmax", "ymax"],
+                        )
+                        tbl = tbl.append_column("bbox", bbox_array)
+                    # The safe cast fails on lossy conversions (e.g. out-of-range integers),
+                    # so invalid source data is reported instead of silently corrupted
+                    if tbl.schema != new_schema:
+                        tbl = tbl.cast(new_schema)
+                    writer.write_table(tbl)
+            finally:
+                writer.close()
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+
+        return tmp_path
 
     # kwargs:
     # if num = None => kwargs go into pq.read_table

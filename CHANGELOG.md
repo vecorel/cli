@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Add an experimental `DuckDBBaseConverter` to convert large Parquet-based datasets
+  without loading them into memory. Its output matches the default converter
+  (geometry handling, Hilbert order, data types, metadata, file packaging).
+  `duckdb` is a new dependency.
+- Converters record the collection id in the collection metadata and no longer add a
+  constant `collection` column. Previously files without constant columns were written
+  without any collection id.
+- Converters drop rows that can never validate (missing required values, empty or
+  missing geometries). Missing required values are dropped only up to the new
+  `max_dropped_share` (default 1%), above it the conversion fails.
+- Converters fail when both `sources` and `variants` are declared.
+- Converters warn when no column is mapped to `id` and when the id column is not unique.
+- Converters load all schemas upfront with retries, so a temporary network issue
+  no longer kills a long conversion at the very end.
 - Send `User-Agent: vecorel-cli` on HTTP downloads instead of fsspec's default. Servers that
   reject the default answer 403, which surfaced as `FileNotFoundError` naming only the URL and
   read as a dead source.
