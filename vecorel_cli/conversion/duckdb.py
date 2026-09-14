@@ -51,13 +51,6 @@ class DuckDBBaseConverter(BaseConverter):
         original_geometries=False,
         **kwargs,
     ) -> str:
-        geoparquet_version = geoparquet_version or "1.1.0"
-        # Same packaging as the GeoDataFrame-based codepath
-        compression = compression or "zstd"
-        if compression == "zstd" and compression_level is None:
-            compression_level = 15
-        row_group_size = GeoParquet.row_group_size
-
         self.variant = variant
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
@@ -191,11 +184,6 @@ class DuckDBBaseConverter(BaseConverter):
         if len(filters) > 0:
             where = f"WHERE {' AND '.join(filters)}"
 
-        if isinstance(output_file, Path):
-            output_file = str(output_file)
-
-        collection_json = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
-
         if isinstance(sources, str):
             sources_sql = _sql_path(sources)
         else:
@@ -205,6 +193,58 @@ class DuckDBBaseConverter(BaseConverter):
             FROM read_parquet({sources_sql}, union_by_name=true)
             {where}
         """
+
+        return self.write_query(
+            con,
+            source_query,
+            output_file,
+            collection,
+            targets=selected_targets,
+            params=addition_params,
+            source_crs=source_crs,
+            compression=compression,
+            compression_level=compression_level,
+            geoparquet_version=geoparquet_version,
+            original_geometries=original_geometries,
+        )
+
+    def write_query(
+        self,
+        con,
+        source_query: str,
+        output_file,
+        collection,
+        targets: list,
+        params: list = [],
+        source_crs=None,
+        compression: Optional[str] = None,
+        compression_level: Optional[int] = None,
+        geoparquet_version: Optional[str] = None,
+        original_geometries: bool = False,
+    ) -> str:
+        """Write the rows a SELECT returns as a Vecorel GeoParquet file: drop rows
+        that no required property or geometry survives, report an id that is not
+        unique, normalize the geometries, sort into Hilbert order and package.
+
+        `targets` names the properties the query returns, which is what the checks
+        run over.
+        """
+        compression = compression or "zstd"
+        if compression == "zstd" and compression_level is None:
+            compression_level = 15
+        geoparquet_version = geoparquet_version or "1.1.0"
+        row_group_size = GeoParquet.row_group_size
+        if isinstance(output_file, Path):
+            output_file = str(output_file)
+        selected_targets = targets
+        addition_params = params
+        collection_json = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
+
+        # An external sort spills to disk; keep that next to the output, which is
+        # where there is room for it, rather than wherever DuckDB defaults to
+        con.execute(
+            f"SET temp_directory = {_sql_path(os.path.join(os.path.dirname(output_file) or '.', '.duckdb_tmp'))}"
+        )
 
         # Same bounded null-value drop, empty-geometry drop and id uniqueness
         # check as in the GeoDataFrame-based codepath, in one scan
@@ -342,6 +382,41 @@ class DuckDBBaseConverter(BaseConverter):
         )
 
         return output_file
+
+    def merge_parquet(self, paths: list, output_file, collection=None, **kwargs) -> str:
+        """Combine Vecorel GeoParquet files into one, checked and sorted over the
+        whole set rather than per file.
+
+        The parts are written by a converter, so they need no column mapping and
+        their geometries are already valid polygons; pass `original_geometries=False`
+        to run the geometry step anyway.
+        """
+        if not paths:
+            raise ValueError("No paths to merge")
+        paths = [str(path) for path in paths]
+        kwargs.setdefault("original_geometries", True)
+
+        con = duckdb.connect()
+        con.install_extension("spatial")
+        con.load_extension("spatial")
+
+        sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
+        with pq.ParquetFile(paths[0]) as pf:
+            targets = list(pf.schema_arrow.names)
+
+        if collection is None:
+            cid = self.id.strip()
+            collection = self.create_collection(cid)
+            collection["collection"] = cid
+
+        return self.write_query(
+            con,
+            f"SELECT * FROM read_parquet({sources})",
+            output_file,
+            collection,
+            targets=targets,
+            **kwargs,
+        )
 
     # Streams the Hilbert keys per row group to a sidecar file and reports
     # whether the file is already sorted, so memory stays bounded
