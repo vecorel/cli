@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional, Union
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from geopandas import GeoDataFrame
@@ -27,6 +28,20 @@ from ..validation.base import Validator
 from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import get_fs, load_file
 from .base import BaseEncoding
+
+# pandas has no integer dtype that holds a null, so an integer column with one
+# missing value comes back as float64 and every value in it then reads as a float.
+# The nullable dtypes do hold one, so integers are read into those.
+NULLABLE_INTEGERS = {
+    pa.int8(): pd.Int8Dtype(),
+    pa.uint8(): pd.UInt8Dtype(),
+    pa.int16(): pd.Int16Dtype(),
+    pa.uint16(): pd.UInt16Dtype(),
+    pa.int32(): pd.Int32Dtype(),
+    pa.uint32(): pd.UInt32Dtype(),
+    pa.int64(): pd.Int64Dtype(),
+    pa.uint64(): pd.UInt64Dtype(),
+}
 
 
 class GeoParquet(BaseEncoding):
@@ -516,7 +531,7 @@ class GeoParquet(BaseEncoding):
             rows = next(pf.iter_batches(batch_size=num, columns=properties))
             table = pa.Table.from_batches([rows])
 
-        gdf = _arrow_to_geopandas(table)
+        gdf = _arrow_to_geopandas(table, to_pandas_kwargs={"types_mapper": NULLABLE_INTEGERS.get})
 
         if hydrate:
             gdf = self.hydrate_from_collection(gdf, schema_map=schema_map)

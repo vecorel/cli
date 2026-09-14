@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix: an integer column with a null value read back as float64, so validation
+  rejected every value in it (#37). Integers are now read into pandas' nullable
+  dtypes, which also keeps int64 values that float64 cannot represent exactly.
+
 ## [v0.2.18] - 2026-09-14
 
 - Add an experimental `DuckDBBaseConverter` to convert large Parquet-based datasets
