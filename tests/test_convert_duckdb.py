@@ -1,10 +1,12 @@
 import json
+import sys
 
 import geopandas as gpd
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
 import shapely
+from loguru import logger
 
 from vecorel_cli.conversion.base import BaseConverter
 from vecorel_cli.conversion.duckdb import DuckDBBaseConverter
@@ -218,3 +220,72 @@ def test_codepath_parity(tmp_folder):
     for dest in (pandas_dest, duckdb_dest):
         validation = ValidateData().validate(dest, num=100, schema_map={})
         assert validation.errors == []
+
+
+def test_merge_parquet(tmp_folder):
+    """Converted files combine into one, sorted over the whole set and
+    packaged like any other output."""
+    parts = []
+    for index, offset in enumerate((0, 20)):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": [f"{index}-{n}" for n in range(3)],
+                "name": ["a", "b", "c"],
+                "geometry": [shapely.box(offset + n, 0, offset + n + 1, 1) for n in range(3)],
+            },
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    dest = tmp_folder / "merged.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    result = gpd.read_parquet(dest)
+    assert sorted(result["id"]) == ["0-0", "0-1", "0-2", "1-0", "1-1", "1-2"]
+
+    with pq.ParquetFile(dest) as pf:
+        table = pf.read()
+    # sorted over the merged set, not per part
+    keys = hilbert_keys_for_table(table, "geometry", (-180.0, -90.0, 180.0, 90.0))
+    assert bool(np.all(keys[1:] >= keys[:-1]))
+    assert "bbox" in table.schema.names
+    assert b"collection" in table.schema.metadata
+
+    assert ValidateData().validate(dest, num=100, schema_map={}).errors == []
+
+
+def test_merge_parquet_sees_an_id_that_repeats_across_parts(tmp_folder, capsys):
+    """A per-part check cannot see this; a check over the merge can."""
+    parts = []
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": ["same", f"other-{index}"],
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index, 0, index + 1, 1),
+                    shapely.box(index, 2, index + 1, 3),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"dup_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"dup_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    # loguru's default sink is bound to stderr at import, so point it at stdout
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    Converter().merge_parquet(parts, tmp_folder / "dup_merged.parquet")
+    assert "'id' is not unique" in capsys.readouterr().out
+
+
+def test_merge_parquet_rejects_empty_input(tmp_folder):
+    with pytest.raises(ValueError, match="No paths"):
+        Converter().merge_parquet([], tmp_folder / "nothing.parquet")
