@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Add `BaseConverter.dehydrate` (default `True`). Set it to `False` when a conversion
+  writes one part of a dataset: constants would otherwise be judged over the part and
+  a property that varies between parts is lost (#35).
+
 ## [v0.2.18] - 2026-09-14
 
 - Add an experimental `DuckDBBaseConverter` to convert large Parquet-based datasets
