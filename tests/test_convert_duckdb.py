@@ -218,3 +218,29 @@ def test_codepath_parity(tmp_folder):
     for dest in (pandas_dest, duckdb_dest):
         validation = ValidateData().validate(dest, num=100, schema_map={})
         assert validation.errors == []
+
+
+def test_duckdb_converter_can_keep_the_constants_in_columns(tmp_folder):
+    """A conversion that writes one part of a dataset cannot let constants move
+    into the collection metadata, in this codepath either."""
+    src = _source_file(tmp_folder)
+    dest = tmp_folder / "hydrated.parquet"
+
+    Hydrated = type(
+        "Hydrated",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "dehydrate": False,
+            "column_additions": {"region": "north"},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "region": {"type": "string"}}
+            },
+        },
+    )
+    Hydrated().convert(dest, input_files={src: "source.parquet"})
+
+    table = pq.read_table(dest)
+    assert "region" in table.schema.names, "the constant should have stayed a column"
+    assert set(table.column("region").to_pylist()) == {"north"}
+    assert "region" not in json.loads(table.schema.metadata[b"collection"])

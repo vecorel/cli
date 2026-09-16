@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix: a constant pinned to the feature level was passed to DuckDB as a bound parameter,
+  which a `COPY` binds before its subquery's, so the output went to a file named after the
+  constant.
 - Add `BaseConverter.dehydrate` (default `True`). Set it to `False` when a conversion
   writes one part of a dataset: constants would otherwise be judged over the part and
   a property that varies between parts is lost (#35).
