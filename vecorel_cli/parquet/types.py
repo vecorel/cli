@@ -6,6 +6,20 @@ import pyarrow as pa
 import pyarrow.types as pat
 from shapely.geometry.base import BaseGeometry
 
+# pandas has no integer dtype that holds a null, so an integer column with one
+# missing value comes back as float64 and every value in it then reads as a float.
+# The nullable dtypes do hold one, so integers are read into those.
+NULLABLE_INTEGERS = {
+    pa.int8(): pd.Int8Dtype(),
+    pa.uint8(): pd.UInt8Dtype(),
+    pa.int16(): pd.Int16Dtype(),
+    pa.uint16(): pd.UInt16Dtype(),
+    pa.int32(): pd.Int32Dtype(),
+    pa.uint32(): pd.UInt32Dtype(),
+    pa.int64(): pd.Int64Dtype(),
+    pa.uint64(): pd.UInt64Dtype(),
+}
+
 
 def is_enum(schema):
     return isinstance(schema.get("enum"), list)

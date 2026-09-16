@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add `BaseConverter.dehydrate` (default `True`). Set it to `False` when a conversion
   writes one part of a dataset: constants would otherwise be judged over the part and
   a property that varies between parts is lost (#35).
+- Fix: an integer column with a null value read back as float64, so validation
+  rejected every value in it (#37). Integers are now read into pandas' nullable
+  dtypes, which also keeps int64 values that float64 cannot represent exactly.
+- Require `aiohttp>=3.13.5`, which allows downloads from servers that send duplicate
+  headers, such as Zenodo (#41).
 
 ## [v0.2.18] - 2026-09-14
 
