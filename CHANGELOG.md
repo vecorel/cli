@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add `DuckDBBaseConverter.merge_parquet()`, which combines Vecorel GeoParquet files
   into one, checked and sorted over the whole set. `convert()` now ends in the same
   `write_query()`, so there is one route from a query to a packaged file (#36).
+- Fix: a constant pinned to the feature level was passed to DuckDB as a bound parameter,
+  which a `COPY` binds before its subquery's, so the output went to a file named after the
+  constant.
+- Add `BaseConverter.dehydrate` (default `True`). Set it to `False` when a conversion
+  writes one part of a dataset: constants would otherwise be judged over the part and
+  a property that varies between parts is lost (#35).
+- Fix: an integer column with a null value read back as float64, so validation
+  rejected every value in it (#37). Integers are now read into pandas' nullable
+  dtypes, which also keeps int64 values that float64 cannot represent exactly.
 - Require `aiohttp>=3.13.5`, which allows downloads from servers that send duplicate
   headers, such as Zenodo (#41).
 

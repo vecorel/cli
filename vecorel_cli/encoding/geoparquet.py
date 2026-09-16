@@ -17,6 +17,7 @@ from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..encoding.geojson import VecorelJSONEncoder
 from ..parquet.geopandas import to_parquet
 from ..parquet.types import (
+    NULLABLE_INTEGERS,
     get_geopandas_dtype,
     get_pyarrow_field,
     get_pyarrow_type,
@@ -27,7 +28,6 @@ from ..validation.base import Validator
 from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import get_fs, load_file
 from .base import BaseEncoding
-
 
 class GeoParquet(BaseEncoding):
     schema_uri = "https://geoparquet.org/releases/v{version}/schema.json"
@@ -516,7 +516,7 @@ class GeoParquet(BaseEncoding):
             rows = next(pf.iter_batches(batch_size=num, columns=properties))
             table = pa.Table.from_batches([rows])
 
-        gdf = _arrow_to_geopandas(table)
+        gdf = _arrow_to_geopandas(table, to_pandas_kwargs={"types_mapper": NULLABLE_INTEGERS.get})
 
         if hydrate:
             gdf = self.hydrate_from_collection(gdf, schema_map=schema_map)

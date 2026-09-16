@@ -67,6 +67,12 @@ class BaseConverter(LoggerMixin):
     # missing geometry are always dropped, regardless of this share.
     max_dropped_share: float = 0.01
 
+    # Move properties that hold one value for every row into the collection metadata.
+    # A conversion that writes one part of a dataset must not: "one value for every
+    # row" is then judged over the part rather than over the dataset, so a property
+    # that varies between parts is lost.
+    dehydrate: bool = True
+
     def __init__(self, *args, **kwargs):
         super().__init__()
 
@@ -587,6 +593,7 @@ class BaseConverter(LoggerMixin):
         pq.write(
             gdf,
             properties=columns,
+            dehydrate=self.dehydrate,
             compression=compression,
             compression_level=compression_level,
             geoparquet_version=geoparquet_version,

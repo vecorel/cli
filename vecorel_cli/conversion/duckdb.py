@@ -22,6 +22,29 @@ def _sql_path(path) -> str:
     return f"'{escaped}'"
 
 
+# A COPY statement binds its own parameters before those of its subquery, so a value
+# placed in the SELECT cannot be a bound parameter: it would be read as the output path.
+def _sql_literal(value) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, int):
+        return repr(value)
+    if isinstance(value, float):
+        if np.isnan(value):
+            return "'NaN'::DOUBLE"
+        if np.isposinf(value):
+            return "'Infinity'::DOUBLE"
+        if np.isneginf(value):
+            return "'-Infinity'::DOUBLE"
+        return repr(value)
+    if not isinstance(value, str):
+        raise ValueError(f"Cannot use {value!r} as a constant column; it is not a scalar")
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
 def _normalize_crs(crs):
     """The comparable pyproj CRS for a GeoParquet crs value,
     which defaults to OGC:CRS84 when missing."""
@@ -143,10 +166,9 @@ class DuckDBBaseConverter(BaseConverter):
         collection = self.create_collection(cid)
         collection["collection"] = cid
 
-        # Constants pinned to the feature level become literal columns, all others
-        # end up in the collection metadata (like the dehydration step of the
-        # GeoDataFrame-based codepath)
-        addition_params = []
+        # A constant the schema pins to the feature level becomes a literal column and one
+        # it pins to the collection goes there; the rest follow `dehydrate`, like the
+        # dehydration step of the GeoDataFrame-based codepath
         if self.column_additions:
             context = collection.get_collection_context()
             for key, value in self.column_additions.items():
@@ -155,12 +177,12 @@ class DuckDBBaseConverter(BaseConverter):
                     keep = [i for i, t in enumerate(selected_targets) if t != key]
                     selections = [selections[i] for i in keep]
                     selected_targets = [selected_targets[i] for i in keep]
-                if context.get(key) is False:
-                    selections.append(f'? as "{key}"')
-                    addition_params.append(value)
-                    selected_targets.append(key)
-                else:
+                where = context.get(key)
+                if where is True or (where is None and self.dehydrate):
                     collection[key] = value
+                else:
+                    selections.append(f'{_sql_literal(value)} as "{key}"')
+                    selected_targets.append(key)
         selection = ", ".join(selections)
 
         filters = []
@@ -274,9 +296,7 @@ class DuckDBBaseConverter(BaseConverter):
             stats.append(f"count(*) FILTER (WHERE {blank_cond})")
         if len(stats) > 1:
             values = list(
-                con.execute(
-                    f"SELECT {', '.join(stats)} FROM ({source_query})", addition_params
-                ).fetchone()
+                con.execute(f"SELECT {', '.join(stats)} FROM ({source_query})").fetchone()
             )
             total = values.pop(0)
             invalid = values.pop(0) if null_cond else 0
@@ -344,7 +364,7 @@ class DuckDBBaseConverter(BaseConverter):
                 }}
             )
         """,
-            [*addition_params, output_file, compression, collection_json],
+            [output_file, compression, collection_json],
         )
 
         # Sort against the same CRS-derived Hilbert grid as the

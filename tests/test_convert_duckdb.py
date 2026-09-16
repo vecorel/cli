@@ -289,3 +289,29 @@ def test_merge_parquet_sees_an_id_that_repeats_across_parts(tmp_folder, capsys):
 def test_merge_parquet_rejects_empty_input(tmp_folder):
     with pytest.raises(ValueError, match="No paths"):
         Converter().merge_parquet([], tmp_folder / "nothing.parquet")
+
+
+def test_duckdb_converter_can_keep_the_constants_in_columns(tmp_folder):
+    """A conversion that writes one part of a dataset cannot let constants move
+    into the collection metadata, in this codepath either."""
+    src = _source_file(tmp_folder)
+    dest = tmp_folder / "hydrated.parquet"
+
+    Hydrated = type(
+        "Hydrated",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "dehydrate": False,
+            "column_additions": {"region": "north"},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "region": {"type": "string"}}
+            },
+        },
+    )
+    Hydrated().convert(dest, input_files={src: "source.parquet"})
+
+    table = pq.read_table(dest)
+    assert "region" in table.schema.names, "the constant should have stayed a column"
+    assert set(table.column("region").to_pylist()) == {"north"}
+    assert "region" not in json.loads(table.schema.metadata[b"collection"])
