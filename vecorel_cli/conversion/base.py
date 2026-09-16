@@ -285,8 +285,7 @@ class BaseConverter(LoggerMixin):
             must_extract = is_archive and not os.path.exists(zip_folder)
 
             if (not is_archive or must_extract) and not cache_fs.exists(cache_file):
-                with cache_fs.open(cache_file, mode="wb") as file:
-                    stream_file(source_fs, uri, file)
+                self._download_file(source_fs, uri, cache_fs, cache_file)
 
             if must_extract:
                 if zipfile.is_zipfile(cache_file):
@@ -321,6 +320,26 @@ class BaseConverter(LoggerMixin):
                 paths.append((cache_file, uri))
 
         return paths
+
+    @staticmethod
+    def _download_file(source_fs, uri, cache_fs, cache_file):
+        """Stream a remote file into the cache.
+
+        The data goes to a `.part` file that is renamed only after a clean close,
+        so an interrupted download leaves nothing that a later run could mistake
+        for a cached file.
+        """
+        part_file = cache_file + ".part"
+        try:
+            with cache_fs.open(part_file, mode="wb") as file:
+                stream_file(source_fs, uri, file)
+        except BaseException:
+            try:
+                cache_fs.rm(part_file)
+            except FileNotFoundError:
+                pass
+            raise
+        cache_fs.mv(part_file, cache_file)
 
     def get_urls(self):
         urls = self.sources
