@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Require `aiohttp>=3.13.5`, which allows downloads from servers that send duplicate
+  headers, such as Zenodo (#41).
+
 ## [v0.2.18] - 2026-09-14
 
 - Add an experimental `DuckDBBaseConverter` to convert large Parquet-based datasets
