@@ -222,7 +222,6 @@ class DuckDBBaseConverter(BaseConverter):
             output_file,
             collection,
             targets=selected_targets,
-            params=addition_params,
             source_crs=source_crs,
             compression=compression,
             compression_level=compression_level,
@@ -237,7 +236,6 @@ class DuckDBBaseConverter(BaseConverter):
         output_file,
         collection,
         targets: list,
-        params: list = [],
         source_crs=None,
         compression: Optional[str] = None,
         compression_level: Optional[int] = None,
@@ -262,7 +260,6 @@ class DuckDBBaseConverter(BaseConverter):
         if directory:
             os.makedirs(directory, exist_ok=True)
         selected_targets = targets
-        addition_params = params
         collection_json = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
 
         # An external sort spills to disk; keep that next to the output, which is
