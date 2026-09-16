@@ -236,6 +236,9 @@ class DuckDBBaseConverter(BaseConverter):
         row_group_size = GeoParquet.row_group_size
         if isinstance(output_file, Path):
             output_file = str(output_file)
+        directory = os.path.dirname(output_file)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         selected_targets = targets
         addition_params = params
         collection_json = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
