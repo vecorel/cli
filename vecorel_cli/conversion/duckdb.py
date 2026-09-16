@@ -421,8 +421,8 @@ class DuckDBBaseConverter(BaseConverter):
         con.load_extension("spatial")
 
         sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
-        with pq.ParquetFile(paths[0]) as pf:
-            targets = list(pf.schema_arrow.names)
+        source_query = f"SELECT * FROM read_parquet({sources}, union_by_name=true)"
+        targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
 
         if collection is None:
             cid = self.id.strip()
@@ -431,7 +431,7 @@ class DuckDBBaseConverter(BaseConverter):
 
         return self.write_query(
             con,
-            f"SELECT * FROM read_parquet({sources})",
+            source_query,
             output_file,
             collection,
             targets=targets,
