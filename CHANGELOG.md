@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add `DuckDBBaseConverter.merge_parquet()`, which combines Vecorel GeoParquet files
   into one, checked and sorted over the whole set. `convert()` now ends in the same
   `write_query()`, so there is one route from a query to a packaged file (#36).
+- Require `aiohttp>=3.13.5`, which allows downloads from servers that send duplicate
+  headers, such as Zenodo (#41).
 
 ## [v0.2.18] - 2026-09-14
 
