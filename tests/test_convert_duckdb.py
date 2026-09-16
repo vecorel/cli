@@ -315,3 +315,42 @@ def test_duckdb_converter_can_keep_the_constants_in_columns(tmp_folder):
     assert "region" in table.schema.names, "the constant should have stayed a column"
     assert set(table.column("region").to_pylist()) == {"north"}
     assert "region" not in json.loads(table.schema.metadata[b"collection"])
+
+
+def test_merge_parquet_refuses_parts_in_different_crs(tmp_folder):
+    parts = []
+    for index, crs in enumerate(("EPSG:4326", "EPSG:3857")):
+        gdf = gpd.GeoDataFrame(
+            {"id": [f"{index}"], "name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]},
+            crs="EPSG:4326",
+        ).to_crs(crs)
+        src = tmp_folder / f"crs_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"crs_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    with pytest.raises(ValueError, match="different coordinate reference systems"):
+        Converter().merge_parquet(parts, tmp_folder / "merged.parquet")
+
+
+def test_merge_parquet_unions_parts_that_differ(tmp_folder):
+    """A converter drops a column a source file does not have, so two parts of one
+    dataset can differ; the merge must not fail on that."""
+    parts = []
+    for index, columns in enumerate(({"id": ["0"], "name": ["a"]}, {"id": ["1"]})):
+        gdf = gpd.GeoDataFrame(
+            {**columns, "geometry": [shapely.box(index, 0, index + 1, 1)]}, crs="EPSG:4326"
+        )
+        src = tmp_folder / f"u_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"u_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    dest = tmp_folder / "unioned.parquet"
+    Converter().merge_parquet(parts, dest)
+    table = pq.read_table(dest)
+    assert table.num_rows == 2
+    assert "name" in table.schema.names
+    assert sorted(x for x in table.column("id").to_pylist()) == ["0", "1"]

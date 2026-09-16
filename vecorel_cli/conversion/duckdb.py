@@ -124,28 +124,9 @@ class DuckDBBaseConverter(BaseConverter):
             ).fetchall()
         }
 
-        # DuckDB drops the CRS from the GeoParquet metadata, so take it from the
-        # sources for the Hilbert grid and the output metadata. The sources are
-        # combined without reprojection, so they must all use the same CRS.
-        source_crs = None
-        reference = None
-        for i, source in enumerate([sources] if isinstance(sources, str) else sources):
-            crs = None
-            row = con.execute(
-                "SELECT value FROM parquet_kv_metadata(?) WHERE key = 'geo'", [source]
-            ).fetchone()
-            if row:
-                source_geo = json.loads(bytes(row[0]))
-                primary_column = source_geo.get("primary_column", "")
-                crs = source_geo.get("columns", {}).get(primary_column, {}).get("crs")
-            if i == 0:
-                source_crs = crs
-                reference = _normalize_crs(crs)
-            elif not _equal_crs(_normalize_crs(crs), reference):
-                raise ValueError(
-                    f"The sources use different coordinate reference systems: {source} "
-                    "differs from the first source. Reproject the sources to a common CRS."
-                )
+        source_crs = self._common_crs(
+            con, [sources] if isinstance(sources, str) else sources
+        )
         selections = []
         selected_targets = []
         for k, v in self.columns.items():
@@ -228,6 +209,33 @@ class DuckDBBaseConverter(BaseConverter):
             geoparquet_version=geoparquet_version,
             original_geometries=original_geometries,
         )
+
+    def _common_crs(self, con, sources: list):
+        """The CRS the sources declare, refusing a set that does not agree on one.
+
+        They are combined without reprojection, and DuckDB before 1.5 drops the CRS
+        from the metadata, so it has to be read from the files themselves.
+        """
+        source_crs = None
+        reference = None
+        for i, source in enumerate(sources):
+            crs = None
+            row = con.execute(
+                "SELECT value FROM parquet_kv_metadata(?) WHERE key = 'geo'", [source]
+            ).fetchone()
+            if row:
+                geo = json.loads(bytes(row[0]))
+                primary = geo.get("primary_column", "")
+                crs = geo.get("columns", {}).get(primary, {}).get("crs")
+            if i == 0:
+                source_crs = crs
+                reference = _normalize_crs(crs)
+            elif not _equal_crs(_normalize_crs(crs), reference):
+                raise ValueError(
+                    f"The sources use different coordinate reference systems: {source} "
+                    "differs from the first source. Reproject the sources to a common CRS."
+                )
+        return source_crs
 
     def write_query(
         self,
@@ -420,6 +428,11 @@ class DuckDBBaseConverter(BaseConverter):
         con.install_extension("spatial")
         con.load_extension("spatial")
 
+        source_crs = self._common_crs(con, paths)
+
+        # union_by_name, because a converter drops a column a source file does not have,
+        # so two parts of one dataset can legitimately differ; the targets then come from
+        # the union rather than from whichever part happens to be first
         sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
         source_query = f"SELECT * FROM read_parquet({sources}, union_by_name=true)"
         targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
@@ -435,6 +448,7 @@ class DuckDBBaseConverter(BaseConverter):
             output_file,
             collection,
             targets=targets,
+            source_crs=source_crs,
             **kwargs,
         )
 
