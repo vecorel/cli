@@ -29,7 +29,15 @@ def _sql_literal(value) -> str:
         return "NULL"
     if isinstance(value, bool):
         return "TRUE" if value else "FALSE"
-    if isinstance(value, (int, float)):
+    if isinstance(value, int):
+        return repr(value)
+    if isinstance(value, float):
+        if np.isnan(value):
+            return "'NaN'::DOUBLE"
+        if np.isposinf(value):
+            return "'Infinity'::DOUBLE"
+        if np.isneginf(value):
+            return "'-Infinity'::DOUBLE"
         return repr(value)
     if not isinstance(value, str):
         raise ValueError(f"Cannot use {value!r} as a constant column; it is not a scalar")
