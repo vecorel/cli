@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyarrow.types as pat
@@ -123,3 +125,26 @@ def test_postprocess(tmp_parquet_file):
         geo = json.loads(pf.metadata.metadata[b"geo"])
     assert geo["version"] == "1.0.0"
     assert "covering" not in geo["columns"]["geometry"]
+
+
+def test_read_keeps_integers_that_have_a_null(tmp_parquet_file):
+    # pandas turns an integer column with a missing value into float64, after which
+    # every value in it reads as a float and validation rejects the column
+    src = pq.read_table("tests/data-files/inspire.parquet")
+    counts = pa.array([7] * (len(src) - 1) + [None], pa.uint32())
+    table = src.append_column(pa.field("count", pa.uint32(), nullable=True), counts)
+
+    metadata = dict(src.schema.metadata)
+    collection = json.loads(metadata[b"collection"])
+    collection["schemas:custom"]["properties"]["count"] = {"type": "uint32"}
+    metadata[b"collection"] = json.dumps(collection).encode("utf-8")
+    pq.write_table(table.replace_schema_metadata(metadata), tmp_parquet_file, store_schema=True)
+
+    data = GeoParquet(tmp_parquet_file).read()
+    assert str(data["count"].dtype) == "UInt32"
+    assert isinstance(data["count"].iloc[0], np.uint32)
+    assert pd.isna(data["count"].iloc[-1])
+
+    from vecorel_cli.validate import ValidateData
+
+    assert ValidateData().validate(tmp_parquet_file).errors == []
