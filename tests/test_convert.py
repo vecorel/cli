@@ -180,3 +180,22 @@ def test_data_access_exception(capsys, tmp_folder):
 
     assert isinstance(converter.converter, BaseConverter)
     assert converter.converter.data_access in out
+
+
+@pytest.mark.parametrize("choice", ["example"])
+def test_converter_can_keep_the_constants_in_columns(tmp_folder, monkeypatch, choice):
+    """A conversion that writes one part of a dataset cannot let constants move
+    into the collection metadata: constant is then judged over the part."""
+    import pyarrow.parquet as pq
+
+    from tests.datasets.example import Converter
+
+    dest = tmp_folder / "hydrated.parquet"
+    monkeypatch.setattr(Converter, "dehydrate", False)
+    ConvertData(choice).convert(dest, cache=(test_path / choice))
+
+    schema = pq.ParquetFile(dest).schema_arrow
+    collection = json.loads(schema.metadata[b"collection"])
+    for key in ("admin:country_code", "admin:subdivision_code", "determination_datetime"):
+        assert key in schema.names, f"{key} should have stayed a column"
+        assert key not in collection, f"{key} should not be in the collection metadata"
