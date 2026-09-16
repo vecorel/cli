@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   dtypes, which also keeps int64 values that float64 cannot represent exactly.
 - Require `aiohttp>=3.13.5`, which allows downloads from servers that send duplicate
   headers, such as Zenodo (#41).
+- Fix: a failed download left an empty file in the cache that later runs treated as
+  cached, so they never retried and failed with an unrelated error (#43). Downloads now
+  stream to a `.part` file that is renamed only after a clean close.
 
 ## [v0.2.18] - 2026-09-14
 
