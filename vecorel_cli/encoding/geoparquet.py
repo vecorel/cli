@@ -18,6 +18,7 @@ from ..const import GEOPARQUET_DEFAULT_VERSION, GEOPARQUET_VERSIONS
 from ..encoding.geojson import VecorelJSONEncoder
 from ..parquet.geopandas import to_parquet
 from ..parquet.types import (
+    NULLABLE_INTEGERS,
     get_geopandas_dtype,
     get_pyarrow_field,
     get_pyarrow_type,
@@ -28,21 +29,6 @@ from ..validation.base import Validator
 from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import get_fs, load_file
 from .base import BaseEncoding
-
-# pandas has no integer dtype that holds a null, so an integer column with one
-# missing value comes back as float64 and every value in it then reads as a float.
-# The nullable dtypes do hold one, so integers are read into those.
-NULLABLE_INTEGERS = {
-    pa.int8(): pd.Int8Dtype(),
-    pa.uint8(): pd.UInt8Dtype(),
-    pa.int16(): pd.Int16Dtype(),
-    pa.uint16(): pd.UInt16Dtype(),
-    pa.int32(): pd.Int32Dtype(),
-    pa.uint32(): pd.UInt32Dtype(),
-    pa.int64(): pd.Int64Dtype(),
-    pa.uint64(): pd.UInt64Dtype(),
-}
-
 
 class GeoParquet(BaseEncoding):
     schema_uri = "https://geoparquet.org/releases/v{version}/schema.json"
