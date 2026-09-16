@@ -4,7 +4,6 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional, Union
 
-import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from geopandas import GeoDataFrame
