@@ -354,3 +354,61 @@ def test_merge_parquet_unions_parts_that_differ(tmp_folder):
     assert table.num_rows == 2
     assert "name" in table.schema.names
     assert sorted(x for x in table.column("id").to_pylist()) == ["0", "1"]
+
+
+def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
+    """Each part numbered its own rows from zero, so the merge has to check what
+    convert() is allowed to take for granted."""
+    IndexConverter = type("IndexConverter", (DuckDBBaseConverter,), {**CONFIG, "index_as_id": True})
+    parts = []
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index, 0, index + 1, 1),
+                    shapely.box(index, 2, index + 1, 3),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"idx_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"idx_part_{index}.parquet"
+        IndexConverter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    # both parts start at 0, so every id occurs twice
+    assert (
+        pq.read_table(parts[0]).column("id").to_pylist()
+        == pq.read_table(parts[1]).column("id").to_pylist()
+    )
+
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    IndexConverter().merge_parquet(parts, tmp_folder / "idx_merged.parquet")
+    assert "'id' is not unique" in capsys.readouterr().out
+
+
+def test_merge_parquet_keeps_a_crs_duckdb_would_drop(tmp_folder):
+    """DuckDB before 1.5 writes no CRS into the merged file's metadata, so it has to
+    come from the parts. Checked with a CRS that is not the default."""
+    parts = []
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {"id": [f"{index}"], "name": ["a"], "geometry": [shapely.box(index, 0, index + 1, 1)]},
+            crs="EPSG:4326",
+        ).to_crs("EPSG:3857")
+        src = tmp_folder / f"crs_keep_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"crs_keep_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    dest = tmp_folder / "crs_keep.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    geo = json.loads(pq.read_table(dest).schema.metadata[b"geo"])
+    crs = geo["columns"][geo["primary_column"]]["crs"]
+    assert crs is not None, "the merged file lost the CRS of its parts"
+    assert "3857" in json.dumps(crs)

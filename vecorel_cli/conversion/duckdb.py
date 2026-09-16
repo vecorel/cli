@@ -124,9 +124,7 @@ class DuckDBBaseConverter(BaseConverter):
             ).fetchall()
         }
 
-        source_crs = self._common_crs(
-            con, [sources] if isinstance(sources, str) else sources
-        )
+        source_crs = self._common_crs(con, [sources] if isinstance(sources, str) else sources)
         selections = []
         selected_targets = []
         for k, v in self.columns.items():
@@ -204,6 +202,7 @@ class DuckDBBaseConverter(BaseConverter):
             collection,
             targets=selected_targets,
             source_crs=source_crs,
+            ids_are_generated=self.index_as_id,
             compression=compression,
             compression_level=compression_level,
             geoparquet_version=geoparquet_version,
@@ -245,6 +244,9 @@ class DuckDBBaseConverter(BaseConverter):
         collection,
         targets: list,
         source_crs=None,
+        # convert() numbers the rows itself, so they are unique by construction; a merge
+        # combines parts that each started over, so it always has to check
+        ids_are_generated: bool = False,
         compression: Optional[str] = None,
         compression_level: Optional[int] = None,
         geoparquet_version: Optional[str] = None,
@@ -291,7 +293,7 @@ class DuckDBBaseConverter(BaseConverter):
             null_cond = " OR ".join(f'"{target}" IS NULL' for target in required)
             stats.append(f"count(*) FILTER (WHERE {null_cond})")
         # row numbers are unique by construction
-        check_ids = "id" in selected_targets and not self.index_as_id
+        check_ids = "id" in selected_targets and not ids_are_generated
         if check_ids:
             stats.append('count("id")')
             stats.append('count(DISTINCT "id")')
