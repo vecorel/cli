@@ -16809,8 +16809,8 @@ packages:
   timestamp: 1767320173250
 - pypi: ./
   name: vecorel-cli
-  version: 0.2.18
-  sha256: 886868a6dd7fee3ab1f1eadbca3faac990b29343e5ad95ad33f87cc70ad002cd
+  version: 0.2.19
+  sha256: c83b35e945f169616659b199c464dfc54dfdececbcacf111f9d2e3cd237287da
   requires_dist:
   - pyyaml>=6.0,<7.0
   - click>=8.1,<9.0

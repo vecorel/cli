@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.19] - 2026-09-17
+
 - Add `DuckDBBaseConverter.merge_parquet()`, which combines Vecorel GeoParquet files
   into one, checked and sorted over the whole set. `convert()` now ends in the same
   `write_query()`, so there is one route from a query to a packaged file (#36).
@@ -161,7 +163,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.18...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.19...main>
+[v0.2.19]: <https://github.com/vecorel/cli/compare/v0.2.18...v0.2.19>
 [v0.2.18]: <https://github.com/vecorel/cli/compare/v0.2.17...v0.2.18>
 [v0.2.17]: <https://github.com/vecorel/cli/compare/v0.2.16...v0.2.17>
 [v0.2.16]: <https://github.com/vecorel/cli/compare/v0.2.15...v0.2.16>

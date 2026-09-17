@@ -442,9 +442,7 @@ class DuckDBBaseConverter(BaseConverter):
         if collection is None:
             from ..vecorel.ops import merge_collections
 
-            collection = merge_collections(
-                [GeoParquet(path).get_collection() for path in paths]
-            )
+            collection = merge_collections([GeoParquet(path).get_collection() for path in paths])
 
         return self.write_query(
             con,
