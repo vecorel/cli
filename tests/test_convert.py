@@ -207,9 +207,10 @@ def test_default_variant_is_chosen_before_get_urls():
 
     class Converter(BaseConverter):
         id = "variants"
+        # oldest first: the latest year is still the default
         variants = {
-            "2025": "https://example.com/2025.gpkg",
             "2024": "https://example.com/2024.gpkg",
+            "2025": "https://example.com/2025.gpkg",
         }
 
         def get_urls(self):
@@ -224,6 +225,16 @@ def test_default_variant_is_chosen_before_get_urls():
     converter.select_variant("2024")
     assert converter.variant == "2024"
     assert converter.get_urls() == {"https://example.com/2024/": "2024.gpkg"}
+
+
+def test_default_variant_is_the_first_declared_unless_the_variants_are_years():
+    class Converter(BaseConverter):
+        id = "variants"
+        variants = {"full": "https://example.com/full.gpkg", "2025": "https://example.com/2025"}
+
+    converter = Converter()
+    converter.select_variant(None)
+    assert converter.variant == "full"
 
 
 def test_get_urls_rejects_an_unknown_variant():

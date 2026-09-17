@@ -4,6 +4,7 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import sys
 import tarfile
 import zipfile
@@ -93,15 +94,22 @@ class BaseConverter(LoggerMixin):
             )
 
     def select_variant(self, variant: Optional[str]) -> None:
-        """Store the requested variant; without one, the first declared variant is used.
+        """Store the requested variant; without one, the default variant is used.
         Done at the start of convert() rather than in get_urls(), so a converter that
         overrides get_urls() does not have to repeat the default, and so the default is
         also set when the user supplies the input files."""
         self.variant = variant
         if self.variants and self.variant is None:
-            self.variant = next(iter(self.variants))
+            self.variant = self.default_variant()
             opts = ", ".join(self.variants)
-            self.warning(f"Choosing first available variant {self.variant} from {opts}")
+            self.warning(f"No variant given, choosing {self.variant} from {opts}")
+
+    def default_variant(self) -> str:
+        """The latest year when the variants are years, otherwise the first declared."""
+        keys = list(self.variants)
+        if all(re.fullmatch(r"\d{4}", key) for key in keys):
+            return max(keys)
+        return keys[0]
 
     def _check_id_mapping(self):
         """Warn before converting when nothing is mapped to the required `id` property.
