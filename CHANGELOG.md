@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- `BaseConverter.convert()` chooses the first declared variant when none is given, before
+  `get_urls()` runs. A converter that overrides `get_urls()` no longer has to repeat the
+  default, and it is also set when the input files are supplied by the user.
+
 ## [v0.2.19] - 2026-09-17
 
 - Add `DuckDBBaseConverter.merge_parquet()`, which combines Vecorel GeoParquet files
