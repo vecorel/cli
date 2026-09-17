@@ -440,9 +440,11 @@ class DuckDBBaseConverter(BaseConverter):
         targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
 
         if collection is None:
-            cid = self.id.strip()
-            collection = self.create_collection(cid)
-            collection["collection"] = cid
+            from ..vecorel.ops import merge_collections
+
+            collection = merge_collections(
+                [GeoParquet(path).get_collection() for path in paths]
+            )
 
         return self.write_query(
             con,
