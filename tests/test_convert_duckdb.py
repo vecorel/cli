@@ -1,10 +1,12 @@
 import json
+import sys
 
 import geopandas as gpd
 import numpy as np
 import pyarrow.parquet as pq
 import pytest
 import shapely
+from loguru import logger
 
 from vecorel_cli.conversion.base import BaseConverter
 from vecorel_cli.conversion.duckdb import DuckDBBaseConverter
@@ -220,6 +222,75 @@ def test_codepath_parity(tmp_folder):
         assert validation.errors == []
 
 
+def test_merge_parquet(tmp_folder):
+    """Converted files combine into one, sorted over the whole set and
+    packaged like any other output."""
+    parts = []
+    for index, offset in enumerate((0, 20)):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": [f"{index}-{n}" for n in range(3)],
+                "name": ["a", "b", "c"],
+                "geometry": [shapely.box(offset + n, 0, offset + n + 1, 1) for n in range(3)],
+            },
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    dest = tmp_folder / "merged.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    result = gpd.read_parquet(dest)
+    assert sorted(result["id"]) == ["0-0", "0-1", "0-2", "1-0", "1-1", "1-2"]
+
+    with pq.ParquetFile(dest) as pf:
+        table = pf.read()
+    # sorted over the merged set, not per part
+    keys = hilbert_keys_for_table(table, "geometry", (-180.0, -90.0, 180.0, 90.0))
+    assert bool(np.all(keys[1:] >= keys[:-1]))
+    assert "bbox" in table.schema.names
+    assert b"collection" in table.schema.metadata
+
+    assert ValidateData().validate(dest, num=100, schema_map={}).errors == []
+
+
+def test_merge_parquet_sees_an_id_that_repeats_across_parts(tmp_folder, capsys):
+    """A per-part check cannot see this; a check over the merge can."""
+    parts = []
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": ["same", f"other-{index}"],
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index, 0, index + 1, 1),
+                    shapely.box(index, 2, index + 1, 3),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"dup_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"dup_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    # loguru's default sink is bound to stderr at import, so point it at stdout
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    Converter().merge_parquet(parts, tmp_folder / "dup_merged.parquet")
+    assert "'id' is not unique" in capsys.readouterr().out
+
+
+def test_merge_parquet_rejects_empty_input(tmp_folder):
+    with pytest.raises(ValueError, match="No paths"):
+        Converter().merge_parquet([], tmp_folder / "nothing.parquet")
+
+
 def test_duckdb_converter_can_keep_the_constants_in_columns(tmp_folder):
     """A conversion that writes one part of a dataset cannot let constants move
     into the collection metadata, in this codepath either."""
@@ -244,3 +315,100 @@ def test_duckdb_converter_can_keep_the_constants_in_columns(tmp_folder):
     assert "region" in table.schema.names, "the constant should have stayed a column"
     assert set(table.column("region").to_pylist()) == {"north"}
     assert "region" not in json.loads(table.schema.metadata[b"collection"])
+
+
+def test_merge_parquet_refuses_parts_in_different_crs(tmp_folder):
+    parts = []
+    for index, crs in enumerate(("EPSG:4326", "EPSG:3857")):
+        gdf = gpd.GeoDataFrame(
+            {"id": [f"{index}"], "name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]},
+            crs="EPSG:4326",
+        ).to_crs(crs)
+        src = tmp_folder / f"crs_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"crs_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    with pytest.raises(ValueError, match="different coordinate reference systems"):
+        Converter().merge_parquet(parts, tmp_folder / "merged.parquet")
+
+
+def test_merge_parquet_unions_parts_that_differ(tmp_folder):
+    """A converter drops a column a source file does not have, so two parts of one
+    dataset can differ; the merge must not fail on that."""
+    parts = []
+    for index, columns in enumerate(({"id": ["0"], "name": ["a"]}, {"id": ["1"]})):
+        gdf = gpd.GeoDataFrame(
+            {**columns, "geometry": [shapely.box(index, 0, index + 1, 1)]}, crs="EPSG:4326"
+        )
+        src = tmp_folder / f"u_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"u_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    dest = tmp_folder / "unioned.parquet"
+    Converter().merge_parquet(parts, dest)
+    table = pq.read_table(dest)
+    assert table.num_rows == 2
+    assert "name" in table.schema.names
+    assert sorted(x for x in table.column("id").to_pylist()) == ["0", "1"]
+
+
+def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
+    """Each part numbered its own rows from zero, so the merge has to check what
+    convert() is allowed to take for granted."""
+    IndexConverter = type("IndexConverter", (DuckDBBaseConverter,), {**CONFIG, "index_as_id": True})
+    parts = []
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index, 0, index + 1, 1),
+                    shapely.box(index, 2, index + 1, 3),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"idx_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"idx_part_{index}.parquet"
+        IndexConverter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    # both parts start at 0, so every id occurs twice
+    assert (
+        pq.read_table(parts[0]).column("id").to_pylist()
+        == pq.read_table(parts[1]).column("id").to_pylist()
+    )
+
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    IndexConverter().merge_parquet(parts, tmp_folder / "idx_merged.parquet")
+    assert "'id' is not unique" in capsys.readouterr().out
+
+
+def test_merge_parquet_keeps_a_crs_duckdb_would_drop(tmp_folder):
+    """DuckDB before 1.5 writes no CRS into the merged file's metadata, so it has to
+    come from the parts. Checked with a CRS that is not the default."""
+    parts = []
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {"id": [f"{index}"], "name": ["a"], "geometry": [shapely.box(index, 0, index + 1, 1)]},
+            crs="EPSG:4326",
+        ).to_crs("EPSG:3857")
+        src = tmp_folder / f"crs_keep_src_{index}.parquet"
+        gdf.to_parquet(src)
+        part = tmp_folder / f"crs_keep_part_{index}.parquet"
+        Converter().convert(part, input_files={str(src): src.name})
+        parts.append(part)
+
+    dest = tmp_folder / "crs_keep.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    geo = json.loads(pq.read_table(dest).schema.metadata[b"geo"])
+    crs = geo["columns"][geo["primary_column"]]["crs"]
+    assert crs is not None, "the merged file lost the CRS of its parts"
+    assert "3857" in json.dumps(crs)

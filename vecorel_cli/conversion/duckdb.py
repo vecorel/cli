@@ -74,13 +74,6 @@ class DuckDBBaseConverter(BaseConverter):
         original_geometries=False,
         **kwargs,
     ) -> str:
-        geoparquet_version = geoparquet_version or "1.1.0"
-        # Same packaging as the GeoDataFrame-based codepath
-        compression = compression or "zstd"
-        if compression == "zstd" and compression_level is None:
-            compression_level = 15
-        row_group_size = GeoParquet.row_group_size
-
         self.variant = variant
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
@@ -131,28 +124,7 @@ class DuckDBBaseConverter(BaseConverter):
             ).fetchall()
         }
 
-        # DuckDB drops the CRS from the GeoParquet metadata, so take it from the
-        # sources for the Hilbert grid and the output metadata. The sources are
-        # combined without reprojection, so they must all use the same CRS.
-        source_crs = None
-        reference = None
-        for i, source in enumerate([sources] if isinstance(sources, str) else sources):
-            crs = None
-            row = con.execute(
-                "SELECT value FROM parquet_kv_metadata(?) WHERE key = 'geo'", [source]
-            ).fetchone()
-            if row:
-                source_geo = json.loads(bytes(row[0]))
-                primary_column = source_geo.get("primary_column", "")
-                crs = source_geo.get("columns", {}).get(primary_column, {}).get("crs")
-            if i == 0:
-                source_crs = crs
-                reference = _normalize_crs(crs)
-            elif not _equal_crs(_normalize_crs(crs), reference):
-                raise ValueError(
-                    f"The sources use different coordinate reference systems: {source} "
-                    "differs from the first source. Reproject the sources to a common CRS."
-                )
+        source_crs = self._common_crs(con, [sources] if isinstance(sources, str) else sources)
         selections = []
         selected_targets = []
         for k, v in self.columns.items():
@@ -213,11 +185,6 @@ class DuckDBBaseConverter(BaseConverter):
         if len(filters) > 0:
             where = f"WHERE {' AND '.join(filters)}"
 
-        if isinstance(output_file, Path):
-            output_file = str(output_file)
-
-        collection_json = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
-
         if isinstance(sources, str):
             sources_sql = _sql_path(sources)
         else:
@@ -227,6 +194,89 @@ class DuckDBBaseConverter(BaseConverter):
             FROM read_parquet({sources_sql}, union_by_name=true)
             {where}
         """
+
+        return self.write_query(
+            con,
+            source_query,
+            output_file,
+            collection,
+            targets=selected_targets,
+            source_crs=source_crs,
+            ids_are_generated=self.index_as_id,
+            compression=compression,
+            compression_level=compression_level,
+            geoparquet_version=geoparquet_version,
+            original_geometries=original_geometries,
+        )
+
+    def _common_crs(self, con, sources: list):
+        """The CRS the sources declare, refusing a set that does not agree on one.
+
+        They are combined without reprojection, and DuckDB before 1.5 drops the CRS
+        from the metadata, so it has to be read from the files themselves.
+        """
+        source_crs = None
+        reference = None
+        for i, source in enumerate(sources):
+            crs = None
+            row = con.execute(
+                "SELECT value FROM parquet_kv_metadata(?) WHERE key = 'geo'", [source]
+            ).fetchone()
+            if row:
+                geo = json.loads(bytes(row[0]))
+                primary = geo.get("primary_column", "")
+                crs = geo.get("columns", {}).get(primary, {}).get("crs")
+            if i == 0:
+                source_crs = crs
+                reference = _normalize_crs(crs)
+            elif not _equal_crs(_normalize_crs(crs), reference):
+                raise ValueError(
+                    f"The sources use different coordinate reference systems: {source} "
+                    "differs from the first source. Reproject the sources to a common CRS."
+                )
+        return source_crs
+
+    def write_query(
+        self,
+        con,
+        source_query: str,
+        output_file,
+        collection,
+        targets: list,
+        source_crs=None,
+        # convert() numbers the rows itself, so they are unique by construction; a merge
+        # combines parts that each started over, so it always has to check
+        ids_are_generated: bool = False,
+        compression: Optional[str] = None,
+        compression_level: Optional[int] = None,
+        geoparquet_version: Optional[str] = None,
+        original_geometries: bool = False,
+    ) -> str:
+        """Write the rows a SELECT returns as a Vecorel GeoParquet file: drop rows
+        that no required property or geometry survives, report an id that is not
+        unique, normalize the geometries, sort into Hilbert order and package.
+
+        `targets` names the properties the query returns, which is what the checks
+        run over.
+        """
+        compression = compression or "zstd"
+        if compression == "zstd" and compression_level is None:
+            compression_level = 15
+        geoparquet_version = geoparquet_version or "1.1.0"
+        row_group_size = GeoParquet.row_group_size
+        if isinstance(output_file, Path):
+            output_file = str(output_file)
+        directory = os.path.dirname(output_file)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        selected_targets = targets
+        collection_json = json.dumps(collection, cls=VecorelJSONEncoder).encode("utf-8")
+
+        # An external sort spills to disk; keep that next to the output, which is
+        # where there is room for it, rather than wherever DuckDB defaults to
+        con.execute(
+            f"SET temp_directory = {_sql_path(os.path.join(os.path.dirname(output_file) or '.', '.duckdb_tmp'))}"
+        )
 
         # Same bounded null-value drop, empty-geometry drop and id uniqueness
         # check as in the GeoDataFrame-based codepath, in one scan
@@ -243,7 +293,7 @@ class DuckDBBaseConverter(BaseConverter):
             null_cond = " OR ".join(f'"{target}" IS NULL' for target in required)
             stats.append(f"count(*) FILTER (WHERE {null_cond})")
         # row numbers are unique by construction
-        check_ids = "id" in selected_targets and not self.index_as_id
+        check_ids = "id" in selected_targets and not ids_are_generated
         if check_ids:
             stats.append('count("id")')
             stats.append('count(DISTINCT "id")')
@@ -362,6 +412,49 @@ class DuckDBBaseConverter(BaseConverter):
         )
 
         return output_file
+
+    def merge_parquet(self, paths: list, output_file, collection=None, **kwargs) -> str:
+        """Combine Vecorel GeoParquet files into one, checked and sorted over the
+        whole set rather than per file.
+
+        The parts are written by a converter, so they need no column mapping and
+        their geometries are already valid polygons; pass `original_geometries=False`
+        to run the geometry step anyway.
+        """
+        if not paths:
+            raise ValueError("No paths to merge")
+        paths = [str(path) for path in paths]
+        kwargs.setdefault("original_geometries", True)
+
+        con = duckdb.connect()
+        con.install_extension("spatial")
+        con.load_extension("spatial")
+
+        source_crs = self._common_crs(con, paths)
+
+        # union_by_name, because a converter drops a column a source file does not have,
+        # so two parts of one dataset can legitimately differ; the targets then come from
+        # the union rather than from whichever part happens to be first
+        sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
+        source_query = f"SELECT * FROM read_parquet({sources}, union_by_name=true)"
+        targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
+
+        if collection is None:
+            from ..vecorel.ops import merge_collections
+
+            collection = merge_collections(
+                [GeoParquet(path).get_collection() for path in paths]
+            )
+
+        return self.write_query(
+            con,
+            source_query,
+            output_file,
+            collection,
+            targets=targets,
+            source_crs=source_crs,
+            **kwargs,
+        )
 
     # Streams the Hilbert keys per row group to a sidecar file and reports
     # whether the file is already sorted, so memory stays bounded

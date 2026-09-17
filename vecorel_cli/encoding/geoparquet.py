@@ -29,6 +29,7 @@ from ..vecorel.typing import SchemaMapping
 from ..vecorel.util import get_fs, load_file
 from .base import BaseEncoding
 
+
 class GeoParquet(BaseEncoding):
     schema_uri = "https://geoparquet.org/releases/v{version}/schema.json"
     ext = [".parquet", ".geoparquet"]
