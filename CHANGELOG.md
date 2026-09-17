@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.20] - 2026-09-17
+
 - `BaseConverter.convert()` chooses a default variant when none is given, before
   `get_urls()` runs: the latest year when the variants are years, otherwise the first
   declared one (`default_variant()`). A converter that overrides `get_urls()` no longer has
@@ -168,7 +170,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.19...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.20...main>
+[v0.2.20]: <https://github.com/vecorel/cli/compare/v0.2.19...v0.2.20>
 [v0.2.19]: <https://github.com/vecorel/cli/compare/v0.2.18...v0.2.19>
 [v0.2.18]: <https://github.com/vecorel/cli/compare/v0.2.17...v0.2.18>
 [v0.2.17]: <https://github.com/vecorel/cli/compare/v0.2.16...v0.2.17>
