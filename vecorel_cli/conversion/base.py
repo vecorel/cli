@@ -4,6 +4,7 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import sys
 import tarfile
 import zipfile
@@ -91,6 +92,24 @@ class BaseConverter(LoggerMixin):
                 "and every --variant would convert the same file. Drop sources, or set "
                 "variants = {} when the inherited ones do not apply."
             )
+
+    def select_variant(self, variant: Optional[str]) -> None:
+        """Store the requested variant; without one, the default variant is used.
+        Done at the start of convert() rather than in get_urls(), so a converter that
+        overrides get_urls() does not have to repeat the default, and so the default is
+        also set when the user supplies the input files."""
+        self.variant = variant
+        if self.variants and self.variant is None:
+            self.variant = self.default_variant()
+            opts = ", ".join(self.variants)
+            self.warning(f"No variant given, choosing {self.variant} from {opts}")
+
+    def default_variant(self) -> str:
+        """The latest year when the variants are years, otherwise the first declared."""
+        keys = list(self.variants)
+        if all(re.fullmatch(r"\d{4}", key) for key in keys):
+            return max(keys)
+        return keys[0]
 
     def _check_id_mapping(self):
         """Warn before converting when nothing is mapped to the required `id` property.
@@ -344,13 +363,11 @@ class BaseConverter(LoggerMixin):
     def get_urls(self):
         urls = self.sources
         if not urls and self.variants:
-            opts = ", ".join(list(self.variants.keys()))
-            if self.variant is None:
-                self.variant = next(iter(self.variants))
-                self.warning(f"Choosing first available variant {self.variant} from {opts}")
+            # the default variant is chosen in convert(), see select_variant()
             if self.variant in self.variants:
                 urls = self.variants[self.variant]
             else:
+                opts = ", ".join(self.variants)
                 raise ValueError(f"Unknown variant '{self.variant}', choose from {opts}")
         return urls
 
@@ -483,7 +500,7 @@ class BaseConverter(LoggerMixin):
         original_geometries=False,
         **kwargs,
     ) -> str:
-        self.variant = variant
+        self.select_variant(variant)
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")

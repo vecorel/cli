@@ -199,3 +199,53 @@ def test_converter_can_keep_the_constants_in_columns(tmp_folder, monkeypatch, ch
     for key in ("admin:country_code", "admin:subdivision_code", "determination_datetime"):
         assert key in schema.names, f"{key} should have stayed a column"
         assert key not in collection, f"{key} should not be in the collection metadata"
+
+
+def test_default_variant_is_chosen_before_get_urls():
+    """A converter that overrides get_urls() must see the default variant, so the
+    default lives in convert() and not in the base get_urls() it replaces."""
+
+    class Converter(BaseConverter):
+        id = "variants"
+        # oldest first: the latest year is still the default
+        variants = {
+            "2024": "https://example.com/2024.gpkg",
+            "2025": "https://example.com/2025.gpkg",
+        }
+
+        def get_urls(self):
+            # like the converters that look their files up by year
+            return {f"https://example.com/{self.variant}/": f"{self.variant}.gpkg"}
+
+    converter = Converter()
+    converter.select_variant(None)
+    assert converter.variant == "2025"
+    assert converter.get_urls() == {"https://example.com/2025/": "2025.gpkg"}
+
+    converter.select_variant("2024")
+    assert converter.variant == "2024"
+    assert converter.get_urls() == {"https://example.com/2024/": "2024.gpkg"}
+
+
+def test_default_variant_is_the_first_declared_unless_the_variants_are_years():
+    class Converter(BaseConverter):
+        id = "variants"
+        variants = {"full": "https://example.com/full.gpkg", "2025": "https://example.com/2025"}
+
+    converter = Converter()
+    converter.select_variant(None)
+    assert converter.variant == "full"
+
+
+def test_get_urls_rejects_an_unknown_variant():
+    class Converter(BaseConverter):
+        id = "variants"
+        variants = {"2025": "https://example.com/2025.gpkg"}
+
+    converter = Converter()
+    converter.select_variant("2025")
+    assert converter.get_urls() == "https://example.com/2025.gpkg"
+
+    converter.select_variant("1999")
+    with pytest.raises(ValueError, match="Unknown variant '1999'"):
+        converter.get_urls()

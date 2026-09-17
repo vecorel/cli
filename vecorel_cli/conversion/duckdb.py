@@ -74,7 +74,7 @@ class DuckDBBaseConverter(BaseConverter):
         original_geometries=False,
         **kwargs,
     ) -> str:
-        self.variant = variant
+        self.select_variant(variant)
         cid = self.id.strip()
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")
