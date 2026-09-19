@@ -159,6 +159,37 @@ class BaseConverter(LoggerMixin):
             "index (index_as_id) only when the conversion reads a single file."
         )
 
+    @staticmethod
+    def _id_from_index(gdf):
+        """Number the rows, once over the whole frame.
+
+        read_data() concatenates the source files and pandas keeps each file's own
+        index, so numbering straight from it restarts at 0 for every file: es_pv
+        reads one per territory and its 562,040 rows carried 24,979 distinct ids.
+        """
+        gdf = gdf.reset_index(drop=True)
+        gdf["id"] = gdf.index
+        return gdf
+
+    def _number_split_parts(self, gdf):
+        """Number the rows that make_valid() and explode() made out of one feature.
+
+        They inherit the id of the feature they came from, which _check_unique_ids()
+        has already approved, so the file would be written with ids that repeat and
+        nothing would say so. Only rows that share an id after the split are touched.
+        """
+        if "id" not in gdf.columns or gdf["id"].is_unique:
+            return gdf
+        part = gdf.groupby("id").cumcount()
+        extra = part > 0
+        if not extra.any():
+            return gdf
+        self.info(f"Numbering {int(extra.sum()):,} row(s) split off a feature that shares an id")
+        ids = gdf["id"].astype("string")
+        ids[extra] = ids[extra] + "-" + (part[extra] + 1).astype("string")
+        gdf["id"] = ids
+        return gdf
+
     def _drop_incomplete_rows(self, gdf, columns):
         """Drop rows that can never validate. Rows with null values in a
         schema-required property are dropped up to ``max_dropped_share``;
@@ -534,7 +565,7 @@ class BaseConverter(LoggerMixin):
         self.info(gdf.head().to_string())
 
         if self.index_as_id:
-            gdf["id"] = gdf.index
+            gdf = self._id_from_index(gdf)
 
         # 1. Run global migration
         self.info("Applying global migrations")
@@ -601,6 +632,7 @@ class BaseConverter(LoggerMixin):
             gdf.geometry = gdf.geometry.make_valid()
             gdf = gdf.explode()
             gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
+            gdf = self._number_split_parts(gdf)
             if gdf.geometry.array.has_z.any():
                 self.info("Removing Z geometry dimension")
                 gdf.geometry = gdf.geometry.force_2d()

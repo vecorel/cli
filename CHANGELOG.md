@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- `index_as_id` numbers the whole frame instead of the index `read_data()` leaves behind,
+  which restarted at 0 for every source file: `es_pv` read one per territory and its
+  562,040 rows carried 24,979 distinct ids.
+- Rows that `make_valid()` and `explode()` split off a feature are numbered, so a file is
+  no longer written with ids that repeat. The uniqueness check runs before the split and
+  cannot see them; 32 published collections had duplicates because of one or the other.
+
 ## [v0.2.20] - 2026-09-17
 
 - `BaseConverter.convert()` chooses a default variant when none is given, before
