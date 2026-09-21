@@ -24,29 +24,36 @@ def test_id_from_index_numbers_the_whole_frame():
     assert list(numbered["id"]) == [0, 1, 2, 3]
 
 
-def test_split_parts_are_numbered():
+def test_duplicates_keep_the_source_id_and_gain_a_suffix():
     # what make_valid() and explode() leave behind: one feature, several rows
     exploded = frame(["a", "a", "a", "b"], [box(0, 0, 1, 1)] * 4)
-    converter = BaseConverter()
 
-    numbered = converter._number_split_parts(exploded)
+    suffixed = BaseConverter()._suffix_duplicate_ids(exploded)
 
-    assert list(numbered["id"]) == ["a", "a-2", "a-3", "b"]
-    assert numbered["id"].is_unique
+    assert list(suffixed["id"]) == ["a", "a_1", "a_2", "b"]
+    assert suffixed["id"].is_unique
+
+
+def test_a_suffix_the_source_already_uses_is_skipped():
+    clashing = frame(["1", "1", "1_1"], [box(0, 0, 1, 1)] * 3)
+
+    suffixed = BaseConverter()._suffix_duplicate_ids(clashing)
+
+    assert list(suffixed["id"]) == ["1", "1_2", "1_1"]
+    assert suffixed["id"].is_unique
 
 
 def test_unique_ids_are_left_alone():
     untouched = frame(["a", "b"], [box(0, 0, 1, 1), box(1, 0, 2, 1)])
-    converter = BaseConverter()
 
-    assert list(converter._number_split_parts(untouched)["id"]) == ["a", "b"]
+    assert list(BaseConverter()._suffix_duplicate_ids(untouched)["id"]) == ["a", "b"]
 
 
-def test_a_multipolygon_explodes_into_numbered_rows():
+def test_a_multipolygon_explodes_into_suffixed_rows():
     parts = MultiPolygon([Polygon([(0, 0), (1, 0), (1, 1)]), Polygon([(2, 2), (3, 2), (3, 3)])])
     gdf = frame(["only"], [parts]).explode(index_parts=False)
     assert len(gdf) == 2 and not gdf["id"].is_unique
 
-    numbered = BaseConverter()._number_split_parts(gdf)
+    suffixed = BaseConverter()._suffix_duplicate_ids(gdf)
 
-    assert list(numbered["id"]) == ["only", "only-2"]
+    assert list(suffixed["id"]) == ["only", "only_1"]

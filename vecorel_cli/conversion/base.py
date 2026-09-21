@@ -171,22 +171,34 @@ class BaseConverter(LoggerMixin):
         gdf["id"] = gdf.index
         return gdf
 
-    def _number_split_parts(self, gdf):
-        """Number the rows that make_valid() and explode() made out of one feature.
+    def _suffix_duplicate_ids(self, gdf, separator="_"):
+        """Make every id unique without losing the one the source gave.
 
-        They inherit the id of the feature they came from, which _check_unique_ids()
-        has already approved, so the file would be written with ids that repeat and
-        nothing would say so. Only rows that share an id after the split are touched.
+        A row can end up sharing an id with another for reasons the converter cannot
+        see: make_valid() splits a self-intersecting polygon and explode() makes a row
+        of each part, or the source simply reissues a key. The first row keeps the id
+        as it is and the others get a suffix, so `1` becomes `1`, `1_1`, `1_2`.
+
+        _check_unique_ids() still reports a column that does not identify a feature —
+        this makes the file valid, it does not make the mapping right.
         """
         if "id" not in gdf.columns or gdf["id"].is_unique:
             return gdf
-        part = gdf.groupby("id").cumcount()
-        extra = part > 0
-        if not extra.any():
-            return gdf
-        self.info(f"Numbering {int(extra.sum()):,} row(s) split off a feature that shares an id")
+
         ids = gdf["id"].astype("string")
-        ids[extra] = ids[extra] + "-" + (part[extra] + 1).astype("string")
+        taken = set(ids)
+        extra = ids.groupby(ids).cumcount() > 0
+        suffixed = []
+        for value, n in zip(ids[extra], ids[extra].groupby(ids[extra]).cumcount() + 1):
+            candidate = f"{value}{separator}{n}"
+            # the source may already use the name we would give it
+            while candidate in taken:
+                n += 1
+                candidate = f"{value}{separator}{n}"
+            taken.add(candidate)
+            suffixed.append(candidate)
+        ids[extra] = suffixed
+        self.info(f"Suffixed {len(suffixed):,} duplicate id(s) to make every row identifiable")
         gdf["id"] = ids
         return gdf
 
@@ -632,7 +644,6 @@ class BaseConverter(LoggerMixin):
             gdf.geometry = gdf.geometry.make_valid()
             gdf = gdf.explode()
             gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
-            gdf = self._number_split_parts(gdf)
             if gdf.geometry.array.has_z.any():
                 self.info("Removing Z geometry dimension")
                 gdf.geometry = gdf.geometry.force_2d()
@@ -647,6 +658,9 @@ class BaseConverter(LoggerMixin):
         # 8. Remove all columns that are not listed
         drop_columns = list(set(gdf.columns) - set(actual_columns.values()))
         gdf.drop(columns=drop_columns, inplace=True)
+
+        # 9. Whatever is left sharing an id gets one, keeping the source's own value
+        gdf = self._suffix_duplicate_ids(gdf)
 
         self.info("GeoDataFrame fully migrated:")
         self.info(gdf.head().to_string())
