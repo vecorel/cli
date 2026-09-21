@@ -161,49 +161,32 @@ class BaseConverter(LoggerMixin):
 
     @staticmethod
     def _id_from_index(gdf):
-        """Number the rows, once over the whole frame.
-
-        read_data() concatenates the source files and pandas keeps each file's own
-        index, so numbering straight from it restarts at 0 for every file: es_pv
-        reads one per territory and its 562,040 rows carried 24,979 distinct ids.
-        """
+        """Number the whole frame: read_data() leaves each source file's own index."""
         gdf = gdf.reset_index(drop=True)
         gdf["id"] = gdf.index
         return gdf
 
-    def _suffix_duplicate_ids(self, gdf, separator="_"):
-        """Make every id unique without losing the one the source gave.
+    def _suffix_duplicate_ids(self, gdf):
+        """Keep the id the source gave and suffix the rows that share it: `1`, `1_1`, `1_2`.
 
-        A row can end up sharing an id with another for reasons the converter cannot
-        see: make_valid() splits a self-intersecting polygon and explode() makes a row
-        of each part, or the source simply reissues a key. The first row keeps the id
-        as it is and the others get a suffix, so `1` becomes `1`, `1_1`, `1_2`. The
-        DuckDB codepath applies the same rule in SQL, so the two agree row for row.
-
-        _check_unique_ids() still reports a column that does not identify a feature —
-        this makes the file valid, it does not make the mapping right.
+        make_valid() and explode() turn one feature into several rows, and a source can
+        reissue a key. _check_unique_ids() reports the column either way; this only makes
+        the file writable.
         """
         if "id" not in gdf.columns or gdf["id"].is_unique:
             return gdf
 
+        gdf = gdf.reset_index(drop=True)  # explode() repeats the source row labels
         ids = gdf["id"].astype("string")
-        # Order the rows sharing an id by their geometry, so the DuckDB codepath puts
-        # the suffix on the same polygon: the two split a shape into parts in different
-        # orders. Only the rows that repeat are rendered, which are few.
         repeated = ids.duplicated(keep=False)
-        order = pd.Series(range(len(ids)), index=ids.index)
-        if repeated.any() and gdf.geometry.name in gdf:
-            wkt = gdf.geometry[repeated].to_wkt()
-            order[repeated] = wkt.groupby(ids[repeated]).rank(method="first").astype(int)
-        part = order.groupby(ids).rank(method="first").astype(int) - 1
-        extra = part > 0
-        ids[extra] = ids[extra] + separator + part[extra].astype("string")
-        self.info(f"Suffixed {int(extra.sum()):,} duplicate id(s) to make every row identifiable")
+        # Rank the rows sharing an id by their geometry, not their position: DuckDB's
+        # MakeValid splits a shape into parts in a different order than shapely's, and
+        # both codepaths have to suffix the same row.
+        rank = gdf.geometry[repeated].to_wkt().groupby(ids[repeated]).rank(method="first")
+        extra = rank[rank > 1].astype(int) - 1
+        ids[extra.index] = ids[extra.index] + "_" + extra.astype("string")
+        self.info(f"Suffixed {len(extra):,} duplicate id(s)")
         gdf["id"] = ids
-        if not ids.is_unique:
-            # only when the source already uses a name the suffix produces
-            repeats = len(ids) - ids.nunique()
-            self.warning(f"{repeats:,} id(s) still repeat after suffixing, and the file needs them")
         return gdf
 
     def _drop_incomplete_rows(self, gdf, columns):

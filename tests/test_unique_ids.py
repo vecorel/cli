@@ -34,9 +34,9 @@ def test_duplicates_keep_the_source_id_and_gain_a_suffix():
     assert suffixed["id"].is_unique
 
 
-def test_a_suffix_the_source_already_uses_is_reported():
-    # the rule has to be simple enough for the DuckDB codepath to apply the same one,
-    # so a clash with a name the source already carries is reported, not worked around
+def test_a_suffix_the_source_already_uses_is_left_alone():
+    # the rule has to stay simple enough for the DuckDB codepath to apply the same one;
+    # _check_unique_ids() has already reported the column that repeats
     clashing = frame(["1", "1", "1_1"], [box(0, 0, 1, 1)] * 3)
 
     suffixed = BaseConverter()._suffix_duplicate_ids(clashing)

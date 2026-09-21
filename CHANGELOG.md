@@ -7,14 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-- `index_as_id` numbers the whole frame instead of the index `read_data()` leaves behind,
-  which restarted at 0 for every source file: `es_pv` read one per territory and its
-  562,040 rows carried 24,979 distinct ids.
-- Ids that still repeat when the conversion is done get a suffix, keeping the value the
-  source gave: `1` becomes `1`, `1_1`, `1_2`. `make_valid()` splitting a self-intersecting
-  polygon and a source reissuing a key both produce duplicates the uniqueness check cannot
-  see, because it runs before the geometries are split. 32 collections built for the
-  harmonized-field-data catalog had them.
+- Ids that still repeat once a conversion is done get a `_1`, `_2` suffix and keep the
+  value the source gave. The uniqueness check runs before the geometries are split, so it
+  cannot see the duplicates `make_valid()` and `explode()` leave behind; 32 collections in
+  the harmonized-field-data catalog carried them.
+- `index_as_id` numbers the whole frame, not the per-file index `read_data()` leaves behind:
+  `es_pv` reads one file per territory and its 562,040 rows carried 24,979 distinct ids.
 
 ## [v0.2.20] - 2026-09-17
 

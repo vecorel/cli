@@ -336,35 +336,13 @@ class DuckDBBaseConverter(BaseConverter):
                     message += f" ({share:.1%}, exceeds max_dropped_share) — fix the converter"
                 self.warning(message)
                 source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({blank_cond})"
-        # Splitting a feature gives every part the id the whole had, and the check
-        # above ran before the split, so the parts have to be told apart here. Same
-        # rule as the GeoDataFrame-based codepath: the first keeps the id, the rest
-        # get _1, _2, ordered by the geometry so that both codepaths put the suffix on
-        # the same polygon — MakeValid does not split a shape into parts in the same
-        # order here as shapely does.
-        plain = "SELECT * EXCLUDE (path) FROM polygons"
-        # Suffixing turns the column into text, so it is only applied when something
-        # actually repeats — as in the GeoDataFrame-based codepath, where an id that
-        # is already unique keeps its type. Costs one aggregate over the split rows.
-        suffixed = """
-              SELECT * EXCLUDE (path, part_number)
-              REPLACE (CAST(id AS VARCHAR) ||
-                       CASE WHEN part_number = 0 THEN '' ELSE '_' || part_number END AS id)
-              FROM (
-                SELECT *,
-                  row_number() OVER (PARTITION BY id ORDER BY ST_AsText(geometry)) - 1
-                    AS part_number
-                FROM polygons
-              )
-        """
-
         if original_geometries:
             query = source_query
-        else:  # noqa: PLR5501
+        else:
             # Mirror the geometry handling of the GeoDataFrame-based codepath:
             # make geometries valid, split multi-part geometries, keep only
             # valid polygons, and remove the Z dimension
-            query = f"""
+            ctes = f"""
               WITH src AS ({source_query}),
               valid AS (
                 SELECT * REPLACE (ST_MakeValid(geometry) AS geometry) FROM src
@@ -378,16 +356,30 @@ class DuckDBBaseConverter(BaseConverter):
                 FROM parts
                 WHERE ST_GeometryType(geom) = 'POLYGON' AND ST_IsValid(geom)
               )
-              {plain}
             """
+            query = f"{ctes} SELECT * EXCLUDE (path) FROM polygons"
 
-        if not original_geometries and "id" in selected_targets:
-            repeats = con.execute(
-                f"SELECT count(*) - count(DISTINCT id) FROM ({query})"
-            ).fetchone()[0]
-            if repeats:
-                self.info(f"Suffixed {repeats:,} duplicate id(s) to make every row identifiable")
-                query = query.replace(plain, suffixed)
+            # The split gives every part the id the whole had, and the uniqueness check
+            # ran before it. Suffixing casts the column to text, so it only runs when
+            # something repeats; ordering by the geometry makes both codepaths suffix
+            # the same row, MakeValid splitting a shape in a different order than shapely.
+            if "id" in selected_targets:
+                repeats = con.execute(
+                    f"{ctes} SELECT count(*) - count(DISTINCT id) FROM polygons"
+                ).fetchone()[0]
+                if repeats:
+                    self.info(f"Suffixed {repeats:,} duplicate id(s)")
+                    query = f"""{ctes}
+                      SELECT * EXCLUDE (path, part)
+                      REPLACE (CAST(id AS VARCHAR) ||
+                               CASE WHEN part = 0 THEN '' ELSE '_' || part END AS id)
+                      FROM (
+                        SELECT *,
+                          row_number() OVER (PARTITION BY id ORDER BY ST_AsText(geometry)) - 1
+                            AS part
+                        FROM polygons
+                      )
+                    """
 
         # No ORDER BY here: ST_Hilbert without bounds is meaningless (whole
         # countries collapse into a handful of cells), and with bounds it uses
