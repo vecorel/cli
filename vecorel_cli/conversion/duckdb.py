@@ -336,9 +336,31 @@ class DuckDBBaseConverter(BaseConverter):
                     message += f" ({share:.1%}, exceeds max_dropped_share) — fix the converter"
                 self.warning(message)
                 source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({blank_cond})"
+        # Splitting a feature gives every part the id the whole had, and the check
+        # above ran before the split, so the parts have to be told apart here. Same
+        # rule as the GeoDataFrame-based codepath: the first keeps the id, the rest
+        # get _1, _2, ordered by the geometry so that both codepaths put the suffix on
+        # the same polygon — MakeValid does not split a shape into parts in the same
+        # order here as shapely does.
+        plain = "SELECT * EXCLUDE (path) FROM polygons"
+        # Suffixing turns the column into text, so it is only applied when something
+        # actually repeats — as in the GeoDataFrame-based codepath, where an id that
+        # is already unique keeps its type. Costs one aggregate over the split rows.
+        suffixed = """
+              SELECT * EXCLUDE (path, part_number)
+              REPLACE (CAST(id AS VARCHAR) ||
+                       CASE WHEN part_number = 0 THEN '' ELSE '_' || part_number END AS id)
+              FROM (
+                SELECT *,
+                  row_number() OVER (PARTITION BY id ORDER BY ST_AsText(geometry)) - 1
+                    AS part_number
+                FROM polygons
+              )
+        """
+
         if original_geometries:
             query = source_query
-        else:
+        else:  # noqa: PLR5501
             # Mirror the geometry handling of the GeoDataFrame-based codepath:
             # make geometries valid, split multi-part geometries, keep only
             # valid polygons, and remove the Z dimension
@@ -350,11 +372,22 @@ class DuckDBBaseConverter(BaseConverter):
               parts AS (
                 SELECT * EXCLUDE (geometry), UNNEST(ST_Dump(geometry), recursive := true)
                 FROM valid
+              ),
+              polygons AS (
+                SELECT * EXCLUDE (geom), ST_Force2D(geom) AS geometry
+                FROM parts
+                WHERE ST_GeometryType(geom) = 'POLYGON' AND ST_IsValid(geom)
               )
-              SELECT * EXCLUDE (geom, path), ST_Force2D(geom) AS geometry
-              FROM parts
-              WHERE ST_GeometryType(geom) = 'POLYGON' AND ST_IsValid(geom)
+              {plain}
             """
+
+        if not original_geometries and "id" in selected_targets:
+            repeats = con.execute(
+                f"SELECT count(*) - count(DISTINCT id) FROM ({query})"
+            ).fetchone()[0]
+            if repeats:
+                self.info(f"Suffixed {repeats:,} duplicate id(s) to make every row identifiable")
+                query = query.replace(plain, suffixed)
 
         # No ORDER BY here: ST_Hilbert without bounds is meaningless (whole
         # countries collapse into a handful of cells), and with bounds it uses

@@ -75,7 +75,15 @@ def test_duckdb_converter(tmp_folder):
     result = gpd.read_parquet(dest)
     # multi is split in two, bowtie is repaired into two valid polygons,
     # the point is dropped and the Z dimension is removed
-    assert sorted(result["id"]) == ["bowtie", "bowtie", "multi", "multi", "square", "with_z"]
+    # the parts a split makes share the id the whole feature had, and are told apart here
+    assert sorted(result["id"]) == [
+        "bowtie",
+        "bowtie_1",
+        "multi",
+        "multi_1",
+        "square",
+        "with_z",
+    ]
     assert set(result.geometry.geom_type) == {"Polygon"}
     assert result.geometry.is_valid.all()
     assert not result.geometry.has_z.any()
@@ -109,9 +117,9 @@ def test_duckdb_converter_index_as_id(tmp_folder):
     IndexConverter().convert(dest, input_files={src: "source.parquet"})
 
     result = gpd.read_parquet(dest)
-    # row numbers are assigned before geometries are split,
-    # so the parts of one source feature share an id (like the default codepath)
-    assert sorted(result["id"]) == ["0", "1", "1", "2", "2", "3"]
+    # row numbers are assigned before geometries are split, so the parts of one source
+    # feature start out sharing an id and are suffixed (like the default codepath)
+    assert sorted(result["id"]) == ["0", "1", "1_1", "2", "2_1", "3"]
 
 
 def test_duckdb_converter_source_crs(tmp_folder):

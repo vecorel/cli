@@ -177,7 +177,8 @@ class BaseConverter(LoggerMixin):
         A row can end up sharing an id with another for reasons the converter cannot
         see: make_valid() splits a self-intersecting polygon and explode() makes a row
         of each part, or the source simply reissues a key. The first row keeps the id
-        as it is and the others get a suffix, so `1` becomes `1`, `1_1`, `1_2`.
+        as it is and the others get a suffix, so `1` becomes `1`, `1_1`, `1_2`. The
+        DuckDB codepath applies the same rule in SQL, so the two agree row for row.
 
         _check_unique_ids() still reports a column that does not identify a feature —
         this makes the file valid, it does not make the mapping right.
@@ -186,20 +187,23 @@ class BaseConverter(LoggerMixin):
             return gdf
 
         ids = gdf["id"].astype("string")
-        taken = set(ids)
-        extra = ids.groupby(ids).cumcount() > 0
-        suffixed = []
-        for value, n in zip(ids[extra], ids[extra].groupby(ids[extra]).cumcount() + 1):
-            candidate = f"{value}{separator}{n}"
-            # the source may already use the name we would give it
-            while candidate in taken:
-                n += 1
-                candidate = f"{value}{separator}{n}"
-            taken.add(candidate)
-            suffixed.append(candidate)
-        ids[extra] = suffixed
-        self.info(f"Suffixed {len(suffixed):,} duplicate id(s) to make every row identifiable")
+        # Order the rows sharing an id by their geometry, so the DuckDB codepath puts
+        # the suffix on the same polygon: the two split a shape into parts in different
+        # orders. Only the rows that repeat are rendered, which are few.
+        repeated = ids.duplicated(keep=False)
+        order = pd.Series(range(len(ids)), index=ids.index)
+        if repeated.any() and gdf.geometry.name in gdf:
+            wkt = gdf.geometry[repeated].to_wkt()
+            order[repeated] = wkt.groupby(ids[repeated]).rank(method="first").astype(int)
+        part = order.groupby(ids).rank(method="first").astype(int) - 1
+        extra = part > 0
+        ids[extra] = ids[extra] + separator + part[extra].astype("string")
+        self.info(f"Suffixed {int(extra.sum()):,} duplicate id(s) to make every row identifiable")
         gdf["id"] = ids
+        if not ids.is_unique:
+            # only when the source already uses a name the suffix produces
+            repeats = len(ids) - ids.nunique()
+            self.warning(f"{repeats:,} id(s) still repeat after suffixing, and the file needs them")
         return gdf
 
     def _drop_incomplete_rows(self, gdf, columns):

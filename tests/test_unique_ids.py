@@ -34,13 +34,15 @@ def test_duplicates_keep_the_source_id_and_gain_a_suffix():
     assert suffixed["id"].is_unique
 
 
-def test_a_suffix_the_source_already_uses_is_skipped():
+def test_a_suffix_the_source_already_uses_is_reported():
+    # the rule has to be simple enough for the DuckDB codepath to apply the same one,
+    # so a clash with a name the source already carries is reported, not worked around
     clashing = frame(["1", "1", "1_1"], [box(0, 0, 1, 1)] * 3)
 
     suffixed = BaseConverter()._suffix_duplicate_ids(clashing)
 
-    assert list(suffixed["id"]) == ["1", "1_2", "1_1"]
-    assert suffixed["id"].is_unique
+    assert list(suffixed["id"]) == ["1", "1_1", "1_1"]
+    assert not suffixed["id"].is_unique
 
 
 def test_unique_ids_are_left_alone():
