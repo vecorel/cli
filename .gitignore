@@ -7,11 +7,14 @@ Thumbs.db
 /.vscode/
 
 # Python
+build/
 dist/
 __pycache__/
 *.egg-info/
 /.pytest_cache/
 /.ruff_cache/
+/.venv/
+uv.lock
 
 # Coverage
 .coverage

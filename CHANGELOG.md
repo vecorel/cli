@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Conversions no longer drop rows with missing required values (`max_dropped_share`
+  is removed): any row without a value for a required property fails the conversion,
+  so each dataset handles such rows explicitly (#33).
+- Conversions report how many geometry parts the geometry repair removed;
+  previously they vanished silently (#33).
+
 ## [v0.2.20] - 2026-09-17
 
 - `BaseConverter.convert()` chooses a default variant when none is given, before

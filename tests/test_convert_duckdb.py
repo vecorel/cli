@@ -390,6 +390,87 @@ def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
     assert "'id' is not unique" in capsys.readouterr().out
 
 
+def _null_id_source(folder):
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["a", None, "b"],
+            "name": ["a", "b", "c"],
+            "geometry": [shapely.box(n, 0, n + 1, 1) for n in range(3)],
+        },
+        crs="EPSG:4326",
+    )
+    path = folder / "null_id.parquet"
+    gdf.to_parquet(path)
+    return str(path)
+
+
+@pytest.mark.parametrize("cls", [Converter, PandasConverter], ids=["duckdb", "pandas"])
+def test_required_null_is_an_error(tmp_folder, cls):
+    """A null in a schema-required property fails the conversion, whatever the
+    count; silently dropping rows would make that data-quality decision for
+    the user (vecorel/cli#33)."""
+    src = _null_id_source(tmp_folder)
+    with pytest.raises(ValueError, match="required property"):
+        cls().convert(tmp_folder / "converted.parquet", input_files={src: "source.parquet"})
+
+
+def test_required_null_excluded_with_column_filters(tmp_folder):
+    """The converter handles incomplete rows explicitly, e.g. with a filter."""
+    src = _null_id_source(tmp_folder)
+
+    FilteredDuck = type(
+        "FilteredDuck",
+        (DuckDBBaseConverter,),
+        {**CONFIG, "column_filters": {"id": '"id" IS NOT NULL'}},
+    )
+    dest = tmp_folder / "duck.parquet"
+    FilteredDuck().convert(dest, input_files={src: "source.parquet"})
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["a", "b"]
+
+    FilteredPandas = type(
+        "FilteredPandas",
+        (BaseConverter,),
+        {**CONFIG, "column_filters": {"id": lambda col: col.notna()}},
+    )
+    dest = tmp_folder / "pandas.parquet"
+    FilteredPandas().convert(dest, input_files={src: "source.parquet"})
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["a", "b"]
+
+
+@pytest.mark.parametrize("cls", [Converter, PandasConverter], ids=["duckdb", "pandas"])
+def test_blank_geometry_is_dropped_and_reported(tmp_folder, cls, capsys):
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["a", "b"],
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), None],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "blank.parquet"
+    gdf.to_parquet(src)
+
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    dest = tmp_folder / "converted.parquet"
+    cls().convert(dest, input_files={str(src): "blank.parquet"})
+
+    assert "Dropping 1 of 2 rows with an empty or missing geometry" in capsys.readouterr().out
+    assert gpd.read_parquet(dest)["id"].to_list() == ["a"]
+
+
+@pytest.mark.parametrize("cls", [Converter, PandasConverter], ids=["duckdb", "pandas"])
+def test_dropped_geometry_parts_are_reported(tmp_folder, cls, capsys):
+    """The polygon-only filter after geometry repair must say what it removed."""
+    src = _source_file(tmp_folder)
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    cls().convert(tmp_folder / "converted.parquet", input_files={src: "source.parquet"})
+    # the point survives repair as a part that is no polygon
+    out = capsys.readouterr().out
+    assert "geometry parts" in out, out
+
+
 def test_merge_parquet_keeps_a_crs_duckdb_would_drop(tmp_folder):
     """DuckDB before 1.5 writes no CRS into the merged file's metadata, so it has to
     come from the parts. Checked with a CRS that is not the default."""

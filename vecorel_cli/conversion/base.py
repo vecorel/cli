@@ -63,11 +63,6 @@ class BaseConverter(LoggerMixin):
 
     index_as_id: bool = False
 
-    # Rows with null values in schema-required properties are dropped up to this
-    # share of all rows; above it the conversion fails. Rows with an empty or
-    # missing geometry are always dropped, regardless of this share.
-    max_dropped_share: float = 0.01
-
     # Move properties that hold one value for every row into the collection metadata.
     # A conversion that writes one part of a dataset must not: "one value for every
     # row" is then judged over the part rather than over the dataset, so a property
@@ -131,7 +126,7 @@ class BaseConverter(LoggerMixin):
         """Warn when the column that becomes `id` does not identify a feature.
         Runs before geometries are exploded, so it judges what the converter
         assigned rather than the split parts of one source feature. Null ids
-        are not counted here; they are dropped under a bounded rule afterwards.
+        are not counted here; they fail the required-value check afterwards.
         """
         sources = [
             k for k, v in columns.items() if "id" in (v if isinstance(v, (list, tuple)) else [v])
@@ -160,13 +155,18 @@ class BaseConverter(LoggerMixin):
         )
 
     def _drop_incomplete_rows(self, gdf, columns):
-        """Drop rows that can never validate. Rows with null values in a
-        schema-required property are dropped up to ``max_dropped_share``;
-        above it the conversion fails, as quietly dropping large parts of a
-        dataset would hide that the converter needs fixing (and the writer
-        rejects nulls in the non-nullable required fields anyway). Rows with
-        an empty or missing geometry are always dropped: they cannot survive
-        the geometry processing anyway and would break the Hilbert sort."""
+        """Fail on rows that can never validate, drop rows without a geometry.
+
+        A null in a schema-required property is an error, whatever the count:
+        the writer rejects nulls in the non-nullable required fields anyway,
+        and silently dropping rows would make that data-quality decision for
+        the user. The converter has to handle each case explicitly — fix the
+        mapping, fill values in ``column_migrations``, or exclude the rows
+        with a ``column_filters`` entry (vecorel/cli#33).
+
+        Rows with an empty or missing geometry are always dropped and the
+        count is reported: they cannot survive the geometry processing anyway
+        and would break the Hilbert sort."""
         collection = self.create_collection(self.id.strip())
         schemas = collection.merge_schemas({})
         collection_only = set(collection.get_collection_only_properties())
@@ -174,46 +174,32 @@ class BaseConverter(LoggerMixin):
             r for r in schemas.get("required", []) if r != "geometry" and r not in collection_only
         ]
 
-        # One combined mask, so max_dropped_share bounds the total share
-        invalid = pd.Series(False, index=gdf.index)
         reasons = []
-
         # This runs before columns are renamed, so look up the source column
         for key in required:
             for src, dst in columns.items():
                 targets = dst if isinstance(dst, (list, tuple)) else [dst]
                 if key in targets and src in gdf.columns:
-                    nulls = gdf[src].isna()
-                    if nulls.any():
-                        reasons.append(f"{int(nulls.sum())} without a value for {key} ({src})")
-                        invalid |= nulls
+                    nulls = int(gdf[src].isna().sum())
+                    if nulls:
+                        reasons.append(f"{nulls} without a value for {key} ({src})")
 
-        if invalid.any():
-            share = invalid.mean()
-            details = "; ".join(reasons)
-            if share > self.max_dropped_share:
-                raise ValueError(
-                    f"{int(invalid.sum())} of {len(gdf)} rows ({share:.1%}) have no value for "
-                    f"a required property ({details}); fix the converter instead of dropping them"
-                )
-            self.warning(
-                f"Dropping {int(invalid.sum())} of {len(gdf)} rows that can never "
-                f"validate ({details})"
+        if reasons:
+            raise ValueError(
+                f"Rows have no value for a required property ({'; '.join(reasons)} "
+                f"of {len(gdf)} rows). Handle them in the converter: fix the mapping, "
+                "fill the values in column_migrations, or exclude the rows with a "
+                "column_filters entry."
             )
-            gdf = gdf[~invalid]
 
         if gdf.active_geometry_name is not None:
             geom = gdf.geometry
             blank = geom.isna() | geom.is_empty
             if blank.any():
-                share = blank.mean()
-                message = (
+                self.warning(
                     f"Dropping {int(blank.sum())} of {len(gdf)} rows with an empty "
                     f"or missing geometry"
                 )
-                if share > self.max_dropped_share:
-                    message += f" ({share:.1%}, exceeds max_dropped_share) — fix the converter"
-                self.warning(message)
                 gdf = gdf[~blank]
 
         return gdf
@@ -600,7 +586,13 @@ class BaseConverter(LoggerMixin):
         if not original_geometries:
             gdf.geometry = gdf.geometry.make_valid()
             gdf = gdf.explode()
+            parts = len(gdf)
             gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
+            if len(gdf) < parts:
+                self.warning(
+                    f"Dropping {parts - len(gdf)} of {parts} geometry parts that are "
+                    "no valid polygons after repair"
+                )
             if gdf.geometry.array.has_z.any():
                 self.info("Removing Z geometry dimension")
                 gdf.geometry = gdf.geometry.force_2d()
