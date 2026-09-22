@@ -5,6 +5,7 @@ import inspect
 import json
 import os
 import re
+import shutil
 import sys
 import tarfile
 import zipfile
@@ -15,6 +16,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Callable, Generator, Optional, Sequence
 
 import geopandas as gpd
+import multivolumefile
 import numpy as np
 import pandas as pd
 import py7zr
@@ -281,7 +283,14 @@ class BaseConverter(LoggerMixin):
         if self.avoid_range_request and "block_size" not in kwargs:
             kwargs["block_size"] = 0
 
+        # Multi-volume 7z archives (.7z.001, .7z.002, ...) are one 7z stream split
+        # across several URIs; they must be downloaded and extracted together.
+        uris, volume_groups = self._group_multivolume_7z(uris)
+
         paths = []
+        for group in volume_groups.values():
+            paths.extend(self._download_multivolume_7z(group, cache_folder, **kwargs))
+
         for uri, target in uris.items():
             is_archive = isinstance(target, list)
             if is_archive:
@@ -359,6 +368,57 @@ class BaseConverter(LoggerMixin):
                 pass
             raise
         cache_fs.mv(part_file, cache_file)
+
+    @staticmethod
+    def _group_multivolume_7z(uris):
+        """Split URIs into the regular ones and the multi-volume 7z parts
+        (.7z.001, .7z.002, ...), grouping the parts that belong to one archive
+        (same URI up to the volume number). Returns (regular, groups) where
+        groups maps the archive URI (without the volume suffix) to its parts.
+        """
+        regular = {}
+        groups = {}
+        for uri, target in uris.items():
+            # the parts of a multi-volume archive are given archive-style, with a
+            # list of target paths (the plain-string download below is not grouped)
+            if isinstance(target, list) and re.search(r"\.7z\.\d{3}$", uri):
+                archive = re.sub(r"\.\d{3}$", "", uri)
+                groups.setdefault(archive, {})[uri] = target
+            else:
+                regular[uri] = target
+        return regular, groups
+
+    def _download_multivolume_7z(self, volumes, cache_folder=None, **kwargs):
+        """Download and extract a multi-volume 7z archive. The parts (.7z.001,
+        .7z.002, ...) form one 7z stream; py7zr reads them together through
+        multivolumefile, so they are downloaded as plain files and extracted in
+        one go. Only the parts that carry target paths contribute output files.
+        """
+        # download the parts as plain files; the returned paths locate the cache,
+        # which get_cache() cannot on its own when cache_folder is a temp directory
+        parts = self.download_files(
+            {uri: name_from_uri(uri) for uri in volumes}, cache_folder, **kwargs
+        )
+        _, cache_folder = self.get_cache(cache_folder)
+        first = min(volumes, key=lambda uri: int(re.search(r"\.(\d{3})$", uri).group(1)))
+        archive = re.sub(r"\.\d{3}$", "", parts[0][0])  # <path>/<name>.7z.001 -> .7z
+        name = os.path.basename(archive)
+        folder = os.path.join(cache_folder, "extracted." + os.path.splitext(name)[0])
+        if not os.path.exists(folder):
+            self.info(f"Extracting {len(volumes)} volumes of {name}")
+            tmp_folder = folder + ".part"
+            if os.path.exists(tmp_folder):
+                shutil.rmtree(tmp_folder)
+            try:
+                with multivolumefile.MultiVolume(archive, mode="rb", ext_digits=3) as volume:
+                    with py7zr.SevenZipFile(volume, "r") as sz_file:
+                        sz_file.extractall(tmp_folder)
+            except BaseException:
+                shutil.rmtree(tmp_folder, ignore_errors=True)
+                raise
+            os.rename(tmp_folder, folder)
+        targets = [target for uri in volumes for target in volumes[uri]]
+        return [(os.path.join(folder, target), first) for target in targets]
 
     def get_urls(self):
         urls = self.sources

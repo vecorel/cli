@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- `download_files()` now handles multi-volume 7z archives: URIs ending in `.7z.001`,
+  `.7z.002`, ... that share a name are downloaded together and extracted as one 7z
+  stream, with the target paths read from whichever part carries them (fiboa/cli#312).
+
 ## [v0.2.20] - 2026-09-17
 
 - `BaseConverter.convert()` chooses a default variant when none is given, before
