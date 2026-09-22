@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Conversions no longer drop rows with missing required values (`max_dropped_share`
+  is removed): any row without a value for a required property fails the conversion,
+  so each dataset handles such rows explicitly (#33).
+- Conversions report how many geometry parts the geometry repair removed;
+  previously they vanished silently (#33).
 - `download_files()` now handles multi-volume 7z archives: URIs ending in `.7z.001`,
   `.7z.002`, ... that share a name are downloaded together and extracted as one 7z
   stream, with the target paths read from whichever part carries them (fiboa/cli#312).

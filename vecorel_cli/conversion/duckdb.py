@@ -278,7 +278,7 @@ class DuckDBBaseConverter(BaseConverter):
             f"SET temp_directory = {_sql_path(os.path.join(os.path.dirname(output_file) or '.', '.duckdb_tmp'))}"
         )
 
-        # Same bounded null-value drop, empty-geometry drop and id uniqueness
+        # Same required-value check, empty-geometry drop and id uniqueness
         # check as in the GeoDataFrame-based codepath, in one scan
         schemas = collection.merge_schemas({})
         collection_only = set(collection.get_collection_only_properties())
@@ -298,9 +298,19 @@ class DuckDBBaseConverter(BaseConverter):
             stats.append('count("id")')
             stats.append('count(DISTINCT "id")')
         blank_cond = None
+        repair_cond = None
         if "geometry" in selected_targets:
             blank_cond = '"geometry" IS NULL OR ST_IsEmpty("geometry")'
             stats.append(f"count(*) FILTER (WHERE {blank_cond})")
+            if not original_geometries:
+                # Only an invalid or non-polygonal geometry can lose parts in
+                # the repair below; count them here so the repair report can
+                # run ST_MakeValid over just those rows instead of everything
+                repair_cond = (
+                    'NOT ST_IsValid("geometry") OR '
+                    "ST_GeometryType(\"geometry\") NOT IN ('POLYGON', 'MULTIPOLYGON')"
+                )
+                stats.append(f"count(*) FILTER (WHERE NOT ({blank_cond}) AND ({repair_cond}))")
         if len(stats) > 1:
             values = list(
                 con.execute(f"SELECT {', '.join(stats)} FROM ({source_query})").fetchone()
@@ -317,25 +327,44 @@ class DuckDBBaseConverter(BaseConverter):
                         "that identifies a feature, or build one from the source's key columns."
                     )
             blanks = values.pop(0) if blank_cond else 0
+            repairs = values.pop(0) if repair_cond else 0
             if invalid:
-                share = invalid / total
-                if share > self.max_dropped_share:
-                    raise ValueError(
-                        f"{invalid} of {total} rows ({share:.1%}) have no value for a required "
-                        f"property ({null_cond}); fix the converter instead of dropping them"
-                    )
-                self.warning(
-                    f"Dropping {invalid} of {total} rows without a value for a "
-                    f"required property ({null_cond})"
+                # A null in a required property is an error, whatever the count:
+                # the writer rejects nulls in the non-nullable required fields
+                # anyway, and silently dropping rows would make that data-quality
+                # decision for the user (vecorel/cli#33)
+                raise ValueError(
+                    f"{invalid} of {total} rows have no value for a required property "
+                    f"({null_cond}). Handle them in the converter: fix the mapping, "
+                    "fill the values in column_migrations, or exclude the rows with "
+                    "a column_filters entry."
                 )
-                source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({null_cond})"
             if blanks:
-                share = blanks / total
-                message = f"Dropping {blanks} of {total} rows with an empty or missing geometry"
-                if share > self.max_dropped_share:
-                    message += f" ({share:.1%}, exceeds max_dropped_share) — fix the converter"
-                self.warning(message)
+                self.warning(f"Dropping {blanks} of {total} rows with an empty or missing geometry")
                 source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({blank_cond})"
+            if repairs:
+                parts, kept = con.execute(
+                    f"""
+                    WITH bad AS (
+                      SELECT ST_MakeValid(geometry) AS geometry
+                      FROM ({source_query}) WHERE {repair_cond}
+                    ),
+                    parts AS (
+                      SELECT UNNEST(ST_Dump(geometry), recursive := true) FROM bad
+                    )
+                    SELECT
+                      count(*),
+                      count(*) FILTER (
+                        WHERE ST_GeometryType(geom) = 'POLYGON' AND ST_IsValid(geom)
+                      )
+                    FROM parts
+                    """
+                ).fetchone()
+                if kept < parts:
+                    self.warning(
+                        f"Dropping {parts - kept} of {parts} geometry parts from "
+                        f"{repairs} repaired geometries that are no valid polygons"
+                    )
         if original_geometries:
             query = source_query
         else:
