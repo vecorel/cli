@@ -73,10 +73,16 @@ def test_duckdb_converter(tmp_folder):
     Converter().convert(dest, input_files={src: "source.parquet"})
 
     result = gpd.read_parquet(dest)
-    # multi is split in two, bowtie is repaired into two valid polygons,
-    # the point is dropped and the Z dimension is removed
-    assert sorted(result["id"]) == ["bowtie", "bowtie", "multi", "multi", "square", "with_z"]
-    assert set(result.geometry.geom_type) == {"Polygon"}
+    # multi stays one multi-part feature, the bowtie is repaired into a valid
+    # MultiPolygon, the point is dropped and the Z dimension is removed
+    assert sorted(result["id"]) == ["bowtie", "multi", "square", "with_z"]
+    types = dict(zip(result["id"], result.geometry.geom_type))
+    assert types == {
+        "square": "Polygon",
+        "multi": "MultiPolygon",
+        "bowtie": "MultiPolygon",
+        "with_z": "Polygon",
+    }
     assert result.geometry.is_valid.all()
     assert not result.geometry.has_z.any()
 
@@ -101,17 +107,68 @@ def test_duckdb_converter(tmp_folder):
     assert validation.errors == []
 
 
-def test_duckdb_converter_index_as_id(tmp_folder):
+def test_duckdb_converter_numbers_rows_without_an_id_mapping(tmp_folder):
     src = _source_file(tmp_folder)
     dest = tmp_folder / "converted.parquet"
 
-    IndexConverter = type("IndexConverter", (DuckDBBaseConverter,), {**CONFIG, "index_as_id": True})
+    columns = {"geometry": "geometry", "name": "name"}
+    IndexConverter = type("IndexConverter", (DuckDBBaseConverter,), {**CONFIG, "columns": columns})
     IndexConverter().convert(dest, input_files={src: "source.parquet"})
 
     result = gpd.read_parquet(dest)
-    # row numbers are assigned before geometries are split,
-    # so the parts of one source feature share an id (like the default codepath)
-    assert sorted(result["id"]) == ["0", "1", "1", "2", "2", "3"]
+    # one row number per source feature; the point row is dropped afterwards
+    assert sorted(result["id"]) == ["0", "1", "2", "3"]
+
+
+def test_duckdb_converter_composes_id_from_id_columns(tmp_folder):
+    src = _source_file(tmp_folder)
+    dest = tmp_folder / "converted.parquet"
+
+    Composed = type(
+        "ComposedConverter",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name"},
+            "id_columns": ("id", "name"),
+            "id_separator": ":",
+        },
+    )
+    Composed().convert(dest, input_files={src: "source.parquet"})
+
+    result = gpd.read_parquet(dest)
+    assert sorted(result["id"]) == ["bowtie:c", "multi:b", "square:a", "with_z:d"]
+
+
+def test_duckdb_converter_extracts_polygons_from_collections(tmp_folder):
+    """make_valid() can emit a GeometryCollection of polygons plus line/point
+    debris; only the polygonal parts may survive, and a feature without any
+    is dropped (like the GeoDataFrame-based codepath)."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["collection", "debris"],
+            "name": ["a", "b"],
+            "geometry": [
+                shapely.GeometryCollection(
+                    [
+                        shapely.Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+                        shapely.LineString([(0, 2), (1, 2)]),
+                    ]
+                ),
+                shapely.GeometryCollection([shapely.LineString([(2, 2), (3, 2)])]),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "collections.parquet"
+    gdf.to_parquet(src)
+    dest = tmp_folder / "converted.parquet"
+
+    Converter().convert(dest, input_files={str(src): src.name})
+
+    result = gpd.read_parquet(dest)
+    assert result["id"].tolist() == ["collection"]
+    assert result.geometry.geom_type.tolist() == ["MultiPolygon"]
 
 
 def test_duckdb_converter_source_crs(tmp_folder):
@@ -131,7 +188,7 @@ def test_duckdb_converter_source_crs(tmp_folder):
     pq.write_table(table.replace_schema_metadata(metadata), src2)
 
     Converter().convert(dest, input_files={src1: "a.parquet", src2: "b.parquet"})
-    assert len(gpd.read_parquet(dest)) == 12
+    assert len(gpd.read_parquet(dest)) == 8
 
     src3 = str(tmp_folder / "source3.parquet")
     gpd.read_parquet(src1).to_crs("EPSG:3857").to_parquet(src3)
@@ -282,8 +339,13 @@ def test_merge_parquet_sees_an_id_that_repeats_across_parts(tmp_folder, capsys):
     # loguru's default sink is bound to stderr at import, so point it at stdout
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
-    Converter().merge_parquet(parts, tmp_folder / "dup_merged.parquet")
+    dest = tmp_folder / "dup_merged.parquet"
+    Converter().merge_parquet(parts, dest)
     assert "'id' is not unique" in capsys.readouterr().out
+    # the repeats are numbered, so the merged file is still valid
+    ids = gpd.read_parquet(dest)["id"]
+    assert ids.is_unique
+    assert sorted(ids[ids.str.startswith("same")]) == ["same~1", "same~2"]
 
 
 def test_merge_parquet_rejects_empty_input(tmp_folder):
@@ -359,7 +421,11 @@ def test_merge_parquet_unions_parts_that_differ(tmp_folder):
 def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
     """Each part numbered its own rows from zero, so the merge has to check what
     convert() is allowed to take for granted."""
-    IndexConverter = type("IndexConverter", (DuckDBBaseConverter,), {**CONFIG, "index_as_id": True})
+    IndexConverter = type(
+        "IndexConverter",
+        (DuckDBBaseConverter,),
+        {**CONFIG, "columns": {"geometry": "geometry", "name": "name"}},
+    )
     parts = []
     for index in range(2):
         gdf = gpd.GeoDataFrame(
@@ -386,8 +452,10 @@ def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
 
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
-    IndexConverter().merge_parquet(parts, tmp_folder / "idx_merged.parquet")
+    dest = tmp_folder / "idx_merged.parquet"
+    IndexConverter().merge_parquet(parts, dest)
     assert "'id' is not unique" in capsys.readouterr().out
+    assert gpd.read_parquet(dest)["id"].is_unique
 
 
 def _null_id_source(folder):
@@ -460,15 +528,15 @@ def test_blank_geometry_is_dropped_and_reported(tmp_folder, cls, capsys):
 
 
 @pytest.mark.parametrize("cls", [Converter, PandasConverter], ids=["duckdb", "pandas"])
-def test_dropped_geometry_parts_are_reported(tmp_folder, cls, capsys):
-    """The polygon-only filter after geometry repair must say what it removed."""
+def test_rows_without_a_polygonal_geometry_are_reported(tmp_folder, cls, capsys):
+    """The polygonal filter after geometry repair must say what it removed."""
     src = _source_file(tmp_folder)
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
     cls().convert(tmp_folder / "converted.parquet", input_files={src: "source.parquet"})
-    # the point survives repair as a part that is no polygon
+    # the point row has nothing polygonal to keep
     out = capsys.readouterr().out
-    assert "geometry parts" in out, out
+    assert "Dropping 1 of 5 rows without a polygonal geometry" in out, out
 
 
 def test_merge_parquet_keeps_a_crs_duckdb_would_drop(tmp_folder):

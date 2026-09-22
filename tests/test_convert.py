@@ -127,6 +127,167 @@ def test_hilbert_sort_falls_back_without_area_of_use():
     assert len(out) == 3
 
 
+CONFIG = {
+    "id": "test",
+    "short_name": "Test",
+    "title": "Test dataset",
+    "description": "Test dataset",
+    "license": "CC0-1.0",
+    "columns": {
+        "geometry": "geometry",
+        "id": "id",
+        "name": "name",
+    },
+    "missing_schemas": {
+        "properties": {
+            "name": {"type": "string"},
+        }
+    },
+}
+
+
+def test_rows_are_numbered_when_no_column_is_mapped_to_id(tmp_folder):
+    """A converter that maps nothing to `id` gets the row number as id, counted
+    over all source files (vecorel/cli#47)."""
+    import shapely
+
+    files = {}
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index * 4, 0, index * 4 + 1, 1),
+                    shapely.box(index * 4 + 2, 0, index * 4 + 3, 1),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        path = tmp_folder / f"src_{index}.parquet"
+        gdf.to_parquet(path)
+        files[str(path)] = path.name
+
+    columns = {"geometry": "geometry", "name": "name"}
+    Converter = type("IndexConverter", (BaseConverter,), {**CONFIG, "columns": columns})
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files=files)
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["0", "1", "2", "3"]
+
+
+def test_id_is_composed_from_id_columns(tmp_folder):
+    """`id_columns` joins the named columns into `id` after the column migrations
+    ran; integer-typed float columns must not render as '4.0'."""
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {
+            "region": ["A", "B"],
+            "block": [7.0, 40.0],  # float-typed integers, as nullable int columns often read
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "source.parquet"
+    gdf.to_parquet(src)
+
+    Converter = type(
+        "ComposedConverter",
+        (BaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name"},
+            "id_columns": ("region", "block"),
+            "id_separator": ":",
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files={str(src): "source.parquet"})
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["A:7", "B:40"]
+
+
+def test_features_keep_their_row_when_repaired(tmp_folder):
+    """Multi-part geometries are not split into one row per polygon: features keep
+    the geometry modeling of the source, so their ids and attributes stay 1:1 with
+    it. A repaired invalid polygon stays one feature as a MultiPolygon, and rows
+    without a polygonal geometry are dropped."""
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["square", "multi", "bowtie", "point", "collection", "debris"],
+            "name": ["a", "b", "c", "d", "e", "f"],
+            "geometry": [
+                shapely.Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+                shapely.MultiPolygon(
+                    [
+                        shapely.Polygon([(2, 0), (2, 1), (3, 1), (3, 0)]),
+                        shapely.Polygon([(4, 0), (4, 1), (5, 1), (5, 0)]),
+                    ]
+                ),
+                shapely.Polygon([(6, 0), (7, 1), (7, 0), (6, 1)]),
+                shapely.Point(10, 0),
+                # what make_valid() can emit: the polygonal part must survive alone
+                shapely.GeometryCollection(
+                    [
+                        shapely.Polygon([(8, 0), (8, 1), (9, 1), (9, 0)]),
+                        shapely.LineString([(8, 2), (9, 2)]),
+                    ]
+                ),
+                shapely.GeometryCollection([shapely.LineString([(10, 2), (11, 2)])]),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "source.parquet"
+    gdf.to_parquet(src)
+
+    Converter = type("KeepConverter", (BaseConverter,), dict(CONFIG))
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files={str(src): "source.parquet"})
+
+    result = gpd.read_parquet(dest)
+    types = dict(zip(result["id"], result.geometry.geom_type))
+    assert types == {
+        "square": "Polygon",
+        "multi": "MultiPolygon",
+        "bowtie": "MultiPolygon",
+        "collection": "MultiPolygon",
+    }
+    assert result.geometry.is_valid.all()
+
+
+def test_duplicate_ids_get_numbered(tmp_folder):
+    """id must be unique within a file; when the source repeats ids (here across
+    two input files), the repeats get a ~<n> suffix (vecorel/cli#47)."""
+    import shapely
+
+    files = {}
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": ["same", f"other-{index}"],
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index * 4, 0, index * 4 + 1, 1),
+                    shapely.box(index * 4 + 2, 0, index * 4 + 3, 1),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        path = tmp_folder / f"dup_src_{index}.parquet"
+        gdf.to_parquet(path)
+        files[str(path)] = path.name
+
+    Converter = type("DupConverter", (BaseConverter,), dict(CONFIG))
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files=files)
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["other-0", "other-1", "same~1", "same~2"]
+
+
 def test_not_existing_converter(tmp_folder):
     with pytest.raises(Exception, match="Converter 'not_existing' not found"):
         converter = ConvertData("not_existing")

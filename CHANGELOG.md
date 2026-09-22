@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `download_files()` now handles multi-volume 7z archives: URIs ending in `.7z.001`,
   `.7z.002`, ... that share a name are downloaded together and extracted as one 7z
   stream, with the target paths read from whichever part carries them (fiboa/cli#312).
+- Converters no longer split multi-part geometries into one row per polygon (#47).
+  Features keep the geometry modeling of the source, so ids, row counts and attribute
+  values (such as an area) stay 1:1 with it. Rows without a polygonal geometry
+  are dropped with a warning. Use `vec improve --explode-geometries` when single polygons
+  are needed.
+- Converters now guarantee unique ids (#47): ids that repeat — a source without unique
+  ids, or rows repeating across merged parts — are numbered with a `~<n>` suffix
+  (`id~1`, `id~2`, ...).
+- Converters number the rows (over all source files) as `id` when no column is mapped
+  to `id`, or when the mapped column is missing from the data (#47). The `index_as_id`
+  flag and the `"id": "id"` mapping it required are removed; previously the per-file
+  numbering also repeated ids after a multi-file read.
+- Add `id_columns` (with `id_separator`, default `-`): composes `id` by joining the
+  named columns, after the column migrations ran. Integer-typed float columns are cast
+  losslessly, so an id part does not render as `4.0`.
+- `vec improve --explode-geometries` numbers the ids of the parts it creates (`~<n>`),
+  so the result keeps unique ids.
 
 ## [v0.2.20] - 2026-09-17
 

@@ -16,6 +16,23 @@ from ..const import SUPPORTED_PROTOCOLS, USER_AGENT
 file_cache = {}
 
 
+def suffix_duplicate_ids(gdf):
+    """Number the ids that appear on several rows (id~1, id~2, ...), which turns
+    the id column into strings. Null ids are left alone. Returns the frame and
+    the number of affected rows."""
+    if "id" not in gdf.columns:
+        return gdf, 0
+    duplicated = gdf["id"].duplicated(keep=False) & gdf["id"].notna()
+    count = int(duplicated.sum())
+    if count == 0:
+        return gdf, 0
+    ids = gdf["id"].astype("string")
+    # dropna=False keeps the counter an integer when null ids are present
+    part = ids.groupby(ids, sort=False, dropna=False).cumcount().add(1)
+    gdf["id"] = ids.mask(duplicated, ids + "~" + part.astype("string"))
+    return gdf, count
+
+
 def load_file(uri: Union[Path, URL, str]) -> dict:
     """Load files from various sources"""
     if isinstance(uri, Path):

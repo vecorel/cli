@@ -79,7 +79,6 @@ class DuckDBBaseConverter(BaseConverter):
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")
 
-        self._check_id_mapping()
         self._require_one_source_of_urls()
         self._prewarm_schemas()
 
@@ -116,9 +115,9 @@ class DuckDBBaseConverter(BaseConverter):
         con.load_extension("spatial")
 
         # Skip mapped columns that the source doesn't carry, like the
-        # GeoDataFrame-based codepath does
+        # GeoDataFrame-based codepath does; the types feed the id composition
         available = {
-            row[0]
+            row[0]: row[1]
             for row in con.execute(
                 "DESCRIBE SELECT * FROM read_parquet(?, union_by_name=true)", [sources]
             ).fetchall()
@@ -129,11 +128,6 @@ class DuckDBBaseConverter(BaseConverter):
         selected_targets = []
         for k, v in self.columns.items():
             targets = list(v) if isinstance(v, (list, tuple)) else [v]
-            if k == "id" and self.index_as_id:
-                # 0-based, like the index the GeoDataFrame-based codepath assigns
-                selections.append('(row_number() OVER () - 1) AS "id"')
-                selected_targets.append("id")
-                continue
             if k not in available:
                 self.warning(f"Column '{k}' not found in dataset, removing from schema")
                 continue
@@ -141,6 +135,26 @@ class DuckDBBaseConverter(BaseConverter):
             for target in targets:
                 selections.append(f'{expr} as "{target}"')
                 selected_targets.append(target)
+
+        # id: composed from id_columns, the column mapped to it, or the row number
+        # (0-based, like the GeoDataFrame-based codepath)
+        ids_are_generated = False
+        if self.id_columns:
+            missing = [c for c in self.id_columns if c not in available]
+            if missing:
+                raise ValueError(
+                    f"{type(self).__name__}: id_columns {', '.join(missing)} not in the data"
+                )
+            joined = f" || {_sql_literal(self.id_separator)} || ".join(
+                self._stringify_sql(c, available[c]) for c in self.id_columns
+            )
+            selections.append(f'({joined}) AS "id"')
+            selected_targets.append("id")
+        elif "id" not in selected_targets:
+            self.info("No column is mapped to 'id'; numbering the rows")
+            selections.append('(row_number() OVER () - 1) AS "id"')
+            selected_targets.append("id")
+            ids_are_generated = True
 
         collection = self.create_collection(cid)
         collection["collection"] = cid
@@ -202,12 +216,20 @@ class DuckDBBaseConverter(BaseConverter):
             collection,
             targets=selected_targets,
             source_crs=source_crs,
-            ids_are_generated=self.index_as_id,
+            ids_are_generated=ids_are_generated,
             compression=compression,
             compression_level=compression_level,
             geoparquet_version=geoparquet_version,
             original_geometries=original_geometries,
         )
+
+    @staticmethod
+    def _stringify_sql(column, sql_type):
+        """A string form for id parts that does not render an integer-typed float
+        column as '4.0', like _stringify in the GeoDataFrame-based codepath."""
+        if sql_type in ("FLOAT", "DOUBLE", "REAL"):
+            return f'CAST(CAST("{column}" AS BIGINT) AS VARCHAR)'
+        return f'CAST("{column}" AS VARCHAR)'
 
     def _common_crs(self, con, sources: list):
         """The CRS the sources declare, refusing a set that does not agree on one.
@@ -303,8 +325,8 @@ class DuckDBBaseConverter(BaseConverter):
             blank_cond = '"geometry" IS NULL OR ST_IsEmpty("geometry")'
             stats.append(f"count(*) FILTER (WHERE {blank_cond})")
             if not original_geometries:
-                # Only an invalid or non-polygonal geometry can lose parts in
-                # the repair below; count them here so the repair report can
+                # Only an invalid or non-polygonal geometry can end up without a
+                # polygonal part; count them here so the drop report below can
                 # run ST_MakeValid over just those rows instead of everything
                 repair_cond = (
                     'NOT ST_IsValid("geometry") OR '
@@ -324,7 +346,8 @@ class DuckDBBaseConverter(BaseConverter):
                     self.warning(
                         f"{type(self).__name__}: 'id' is not unique — {non_null - distinct:,} "
                         f"of {non_null:,} rows repeat an id, so it cannot be `id`. Map a column "
-                        "that identifies a feature, or build one from the source's key columns."
+                        "that identifies a feature, or build one from the source's key columns. "
+                        "The repeating ids get a ~<n> suffix in the output."
                     )
             blanks = values.pop(0) if blank_cond else 0
             repairs = values.pop(0) if repair_cond else 0
@@ -343,46 +366,36 @@ class DuckDBBaseConverter(BaseConverter):
                 self.warning(f"Dropping {blanks} of {total} rows with an empty or missing geometry")
                 source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({blank_cond})"
             if repairs:
-                parts, kept = con.execute(
+                # a row is dropped when the repair leaves nothing polygonal,
+                # like the geometry query below (and the GeoDataFrame codepath)
+                dropped = con.execute(
                     f"""
-                    WITH bad AS (
-                      SELECT ST_MakeValid(geometry) AS geometry
-                      FROM ({source_query}) WHERE {repair_cond}
-                    ),
-                    parts AS (
-                      SELECT UNNEST(ST_Dump(geometry), recursive := true) FROM bad
-                    )
-                    SELECT
-                      count(*),
-                      count(*) FILTER (
-                        WHERE ST_GeometryType(geom) = 'POLYGON' AND ST_IsValid(geom)
-                      )
-                    FROM parts
+                    SELECT count(*) FROM ({source_query})
+                    WHERE ({repair_cond})
+                      AND ST_IsEmpty(ST_CollectionExtract(ST_MakeValid(geometry), 3))
                     """
-                ).fetchone()
-                if kept < parts:
+                ).fetchone()[0]
+                if dropped:
                     self.warning(
-                        f"Dropping {parts - kept} of {parts} geometry parts from "
-                        f"{repairs} repaired geometries that are no valid polygons"
+                        f"Dropping {dropped} of {total - blanks} rows without "
+                        "a polygonal geometry"
                     )
         if original_geometries:
             query = source_query
         else:
             # Mirror the geometry handling of the GeoDataFrame-based codepath:
-            # make geometries valid, split multi-part geometries, keep only
-            # valid polygons, and remove the Z dimension
+            # make geometries valid, keep only their polygonal parts, and
+            # remove the Z dimension
             query = f"""
               WITH src AS ({source_query}),
               valid AS (
-                SELECT * REPLACE (ST_MakeValid(geometry) AS geometry) FROM src
-              ),
-              parts AS (
-                SELECT * EXCLUDE (geometry), UNNEST(ST_Dump(geometry), recursive := true)
-                FROM valid
+                SELECT * REPLACE (ST_CollectionExtract(ST_MakeValid(geometry), 3) AS geometry)
+                FROM src
               )
-              SELECT * EXCLUDE (geom, path), ST_Force2D(geom) AS geometry
-              FROM parts
-              WHERE ST_GeometryType(geom) = 'POLYGON' AND ST_IsValid(geom)
+              SELECT * REPLACE (ST_Force2D(geometry) AS geometry)
+              FROM valid
+              WHERE ST_GeometryType(geometry) IN ('POLYGON', 'MULTIPOLYGON')
+                AND NOT ST_IsEmpty(geometry)
             """
 
         # No ORDER BY here: ST_Hilbert without bounds is meaningless (whole
@@ -402,6 +415,11 @@ class DuckDBBaseConverter(BaseConverter):
         """,
             [output_file, compression, collection_json],
         )
+
+        if "id" in selected_targets:
+            self._suffix_duplicate_ids_in_file(
+                con, output_file, compression, collection_json, row_group_size
+            )
 
         # Sort against the same CRS-derived Hilbert grid as the
         # GeoDataFrame-based codepath
@@ -441,6 +459,62 @@ class DuckDBBaseConverter(BaseConverter):
         )
 
         return output_file
+
+    def _suffix_duplicate_ids_in_file(
+        self, con, output_file, compression, collection_json, row_group_size
+    ):
+        """Number the ids that appear on several rows (id~1, id~2, ...), like the
+        GeoDataFrame-based codepath, when the source does not provide unique ids
+        (the pre-write check only warns). Runs on the written file, so the id
+        column keeps its type when nothing repeats; the rewrite may reorder rows,
+        which the Hilbert sort afterwards puts right."""
+        total, duplicated = con.execute(
+            f"""
+            SELECT coalesce(sum(n), 0), coalesce(sum(n) FILTER (WHERE n > 1), 0)
+            FROM (
+                SELECT count(*) AS n FROM read_parquet({_sql_path(output_file)})
+                WHERE "id" IS NOT NULL GROUP BY "id"
+            )
+            """
+        ).fetchone()
+        if not duplicated:
+            return
+        self.warning(
+            f"{duplicated:,} of {total:,} rows repeat an id; the ids are numbered "
+            "(id~1, id~2, ...) to keep them unique — the id column becomes a string"
+        )
+        directory = os.path.dirname(output_file) or "."
+        tmp_path = None
+        try:
+            with NamedTemporaryFile("wb", delete=False, dir=directory, suffix=".parquet") as tmp:
+                tmp_path = tmp.name
+            con.execute(
+                f"""
+                COPY (
+                  SELECT * EXCLUDE (file_row_number) REPLACE (
+                    CASE WHEN count(*) OVER (PARTITION BY "id") > 1
+                         THEN CAST("id" AS VARCHAR) || '~' || CAST(
+                              row_number() OVER (PARTITION BY "id" ORDER BY file_row_number)
+                              AS VARCHAR)
+                         ELSE CAST("id" AS VARCHAR)
+                    END AS "id")
+                  FROM read_parquet({_sql_path(output_file)}, file_row_number=true)
+                ) TO ? (
+                    FORMAT parquet,
+                    ROW_GROUP_SIZE {row_group_size},
+                    compression ?,
+                    KV_METADATA {{
+                        collection: ?,
+                    }}
+                )
+            """,
+                [tmp_path, compression, collection_json],
+            )
+            os.replace(tmp_path, output_file)
+        except Exception:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def merge_parquet(self, paths: list, output_file, collection=None, **kwargs) -> str:
         """Combine Vecorel GeoParquet files into one, checked and sorted over the
