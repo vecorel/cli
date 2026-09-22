@@ -1,3 +1,7 @@
+import io
+
+import multivolumefile
+import py7zr
 import pytest
 
 import vecorel_cli.conversion.base as base
@@ -57,3 +61,52 @@ def test_successful_download_is_cached(tmp_folder, monkeypatch):
     BaseConverter().download_files(URI, cache_folder=str(tmp_folder))
 
     assert calls == [URI], "a completed download must be reused"
+
+
+@pytest.mark.parametrize("explicit_cache", [True, False])
+def test_multivolume_7z_is_downloaded_and_extracted(explicit_cache, tmp_folder, monkeypatch):
+    """Multi-volume 7z archives (.7z.001, .7z.002, ...) are one 7z stream split
+    across several URIs; the parts must be fetched and extracted together, with
+    the target paths taken from whichever part carries them. Works with an
+    explicit cache folder and with the default temporary one."""
+    arcname = "nested/PARCELLES.gpkg"
+    payload = b"crop fields payload " * 200
+
+    # a real multi-volume 7z that the fake download server will serve part by part;
+    # size the volumes off the whole archive so it always spans about three parts
+    measure = io.BytesIO()
+    with py7zr.SevenZipFile(measure, "w") as sz_file:
+        sz_file.writestr(payload, arcname)
+    volume_size = len(measure.getvalue()) // 3 + 1
+
+    source = tmp_folder / "source"
+    source.mkdir()
+    with multivolumefile.MultiVolume(
+        str(source / "data.7z"), mode="wb", volume=volume_size, ext_digits=3
+    ) as volume:
+        with py7zr.SevenZipFile(volume, "w") as sz_file:
+            sz_file.writestr(payload, arcname)
+    parts = sorted(p.name for p in source.iterdir())
+    assert len(parts) > 1, "the payload must span several volumes for this test"
+
+    def stream(fs, src_uri, dst_file, chunk_size=None):
+        dst_file.write((source / src_uri.rsplit("/", 1)[-1]).read_bytes())
+
+    monkeypatch.setattr(base, "stream_file", stream)
+
+    base_url = "https://example.invalid/rpg/data.7z"
+    # only the first part names the target file, the rest carry the empty list
+    uris = {f"{base_url}.{i:03d}": ([arcname] if i == 1 else []) for i in range(1, len(parts) + 1)}
+
+    cache_folder = str(tmp_folder) if explicit_cache else None
+    paths = BaseConverter().download_files(uris, cache_folder=cache_folder)
+
+    assert len(paths) == 1
+    extracted, uri = paths[0]
+    assert uri == f"{base_url}.001", "the source is reported as the first volume"
+    with open(extracted, "rb") as f:
+        assert f.read() == payload
+    if explicit_cache:
+        # every volume was cached under its own name
+        for part in parts:
+            assert (tmp_folder / part).exists()
