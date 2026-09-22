@@ -16810,7 +16810,7 @@ packages:
 - pypi: ./
   name: vecorel-cli
   version: 0.2.20
-  sha256: 9696d81c6a18acdf41b2e520639ed2ccc66e0a5ad31f81c0eb43a62eb0c95394
+  sha256: 7646943a23c94891dc2337b190e088ac6efb74dc9b55cd853e0f375b72d3e021
   requires_dist:
   - pyyaml>=6.0,<7.0
   - click>=8.1,<9.0
@@ -16820,6 +16820,7 @@ packages:
   - numpy>=2.0,<3.0
   - pyarrow>=21.0,<24.0
   - py7zr>=1.0,<2.0
+  - multivolumefile>=0.2.3,<1.0
   - fsspec>=2025.7.0
   - jsonschema[format]>=4.20,<5.0
   - aiohttp>=3.13.5,<4.0
