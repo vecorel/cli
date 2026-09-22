@@ -5,6 +5,7 @@ import inspect
 import json
 import os
 import re
+import shutil
 import sys
 import tarfile
 import zipfile
@@ -399,16 +400,24 @@ class BaseConverter(LoggerMixin):
             {uri: name_from_uri(uri) for uri in volumes}, cache_folder, **kwargs
         )
         _, cache_folder = self.get_cache(cache_folder)
-        first = next(iter(volumes))
+        first = min(volumes, key=lambda uri: int(re.search(r"\.(\d{3})$", uri).group(1)))
         archive = re.sub(r"\.\d{3}$", "", parts[0][0])  # <path>/<name>.7z.001 -> .7z
         name = os.path.basename(archive)
         folder = os.path.join(cache_folder, "extracted." + os.path.splitext(name)[0])
         if not os.path.exists(folder):
             self.info(f"Extracting {len(volumes)} volumes of {name}")
-            with multivolumefile.MultiVolume(archive, mode="rb", ext_digits=3) as volume:
-                with py7zr.SevenZipFile(volume, "r") as sz_file:
-                    sz_file.extractall(folder)
-        targets = next((volumes[uri] for uri in volumes if volumes[uri]), [])
+            tmp_folder = folder + ".part"
+            if os.path.exists(tmp_folder):
+                shutil.rmtree(tmp_folder)
+            try:
+                with multivolumefile.MultiVolume(archive, mode="rb", ext_digits=3) as volume:
+                    with py7zr.SevenZipFile(volume, "r") as sz_file:
+                        sz_file.extractall(tmp_folder)
+            except BaseException:
+                shutil.rmtree(tmp_folder, ignore_errors=True)
+                raise
+            os.rename(tmp_folder, folder)
+        targets = [target for uri in volumes for target in volumes[uri]]
         return [(os.path.join(folder, target), first) for target in targets]
 
     def get_urls(self):
