@@ -126,7 +126,10 @@ class DuckDBBaseConverter(BaseConverter):
         source_crs = self._common_crs(con, [sources] if isinstance(sources, str) else sources)
         selections = []
         selected_targets = []
-        for k, v in self.columns.items():
+        # id_columns wins over an (often inherited) mapping to `id`; two selections
+        # would otherwise produce two columns named `id`
+        columns = self._drop_id_targets(self.columns) if self.id_columns else self.columns
+        for k, v in columns.items():
             targets = list(v) if isinstance(v, (list, tuple)) else [v]
             if k not in available:
                 self.warning(f"Column '{k}' not found in dataset, removing from schema")
@@ -140,14 +143,43 @@ class DuckDBBaseConverter(BaseConverter):
         # (0-based, like the GeoDataFrame-based codepath)
         ids_are_generated = False
         if self.id_columns:
-            missing = [c for c in self.id_columns if c not in available]
-            if missing:
-                raise ValueError(
-                    f"{type(self).__name__}: id_columns {', '.join(missing)} not in the data"
-                )
-            joined = f" || {_sql_literal(self.id_separator)} || ".join(
-                self._stringify_sql(c, available[c]) for c in self.id_columns
-            )
+            parts = []
+            for c in self.id_columns:
+                if c in (self.column_additions or {}):
+                    # constants are added before the id is composed in the
+                    # GeoDataFrame-based codepath, so they can be id parts here too,
+                    # with the same formatting for integer-valued floats
+                    if c in self.column_migrations:
+                        raise ValueError(
+                            f"{type(self).__name__}: id_columns '{c}' is a constant with "
+                            "a column migration, which this codepath cannot compose"
+                        )
+                    value = self.column_additions[c]
+                    if value is None:
+                        # str() would bake the literal "None" into every id; the
+                        # GeoDataFrame-based codepath fails on the null ids too
+                        raise ValueError(f"id_columns: '{c}' is a null constant")
+                    if isinstance(value, float):
+                        if not value.is_integer():
+                            raise ValueError(f"id_columns: '{c}' has decimal values")
+                        value = int(value)
+                    parts.append(_sql_literal(str(value)))
+                elif c in self.column_migrations:
+                    # the id is composed after the column migrations ran; probe the
+                    # migrated type so integer-valued floats format the same way
+                    expr = f"({self.column_migrations[c]})"
+                    sql_type = con.execute(
+                        f"DESCRIBE SELECT {expr} AS part FROM read_parquet(?, union_by_name=true)",
+                        [sources],
+                    ).fetchone()[1]
+                    parts.append(self._stringify_sql(expr, sql_type, c))
+                elif c in available:
+                    parts.append(self._stringify_sql(f'"{c}"', available[c], c))
+                else:
+                    raise ValueError(
+                        f"{type(self).__name__}: id_columns '{c}' not in the data"
+                    )
+            joined = f" || {_sql_literal(self.id_separator)} || ".join(parts)
             selections.append(f'({joined}) AS "id"')
             selected_targets.append("id")
         elif "id" not in selected_targets:
@@ -165,6 +197,10 @@ class DuckDBBaseConverter(BaseConverter):
         if self.column_additions:
             context = collection.get_collection_context()
             for key, value in self.column_additions.items():
+                if key == "id" and self.id_columns:
+                    # the composed id stays authoritative, like in the
+                    # GeoDataFrame-based codepath
+                    continue
                 # constants override equally named source columns
                 if key in selected_targets:
                     keep = [i for i, t in enumerate(selected_targets) if t != key]
@@ -224,12 +260,22 @@ class DuckDBBaseConverter(BaseConverter):
         )
 
     @staticmethod
-    def _stringify_sql(column, sql_type):
+    def _stringify_sql(expr, sql_type, label):
         """A string form for id parts that does not render an integer-typed float
-        column as '4.0', like _stringify in the GeoDataFrame-based codepath."""
+        as '4.0'; a true decimal value is rejected, like _stringify in the
+        GeoDataFrame-based codepath."""
         if sql_type in ("FLOAT", "DOUBLE", "REAL"):
-            return f'CAST(CAST("{column}" AS BIGINT) AS VARCHAR)'
-        return f'CAST("{column}" AS VARCHAR)'
+            message = _sql_literal(f"id_columns: '{label}' has decimal values")
+            return (
+                f"CASE WHEN ({expr}) IS NULL THEN NULL "
+                f"WHEN trunc({expr}) = ({expr}) "
+                f"THEN CAST(CAST(({expr}) AS BIGINT) AS VARCHAR) "
+                f"ELSE error({message}) END"
+            )
+        if sql_type == "BOOLEAN":
+            # DuckDB renders true/false; match the GeoDataFrame-based codepath
+            return f"CASE WHEN ({expr}) THEN 'True' WHEN NOT ({expr}) THEN 'False' END"
+        return f"CAST(({expr}) AS VARCHAR)"
 
     def _common_crs(self, con, sources: list):
         """The CRS the sources declare, refusing a set that does not agree on one.
@@ -386,14 +432,22 @@ class DuckDBBaseConverter(BaseConverter):
             # Mirror the geometry handling of the GeoDataFrame-based codepath:
             # make geometries valid, keep only their polygonal parts, and
             # remove the Z dimension
+            # The members of a collection may overlap each other — a collection is
+            # valid that way — but a MultiPolygon assembled from them is not, so
+            # an extraction needs a second ST_MakeValid.
             query = f"""
               WITH src AS ({source_query}),
               valid AS (
-                SELECT * REPLACE (ST_CollectionExtract(ST_MakeValid(geometry), 3) AS geometry)
-                FROM src
+                SELECT * REPLACE (ST_MakeValid(geometry) AS geometry) FROM src
+              ),
+              polygonal AS (
+                SELECT * REPLACE (
+                  CASE WHEN ST_GeometryType(geometry) = 'GEOMETRYCOLLECTION'
+                       THEN ST_MakeValid(ST_CollectionExtract(geometry, 3))
+                       ELSE geometry END AS geometry) FROM valid
               )
               SELECT * REPLACE (ST_Force2D(geometry) AS geometry)
-              FROM valid
+              FROM polygonal
               WHERE ST_GeometryType(geometry) IN ('POLYGON', 'MULTIPOLYGON')
                 AND NOT ST_IsEmpty(geometry)
             """
@@ -467,54 +521,62 @@ class DuckDBBaseConverter(BaseConverter):
         GeoDataFrame-based codepath, when the source does not provide unique ids
         (the pre-write check only warns). Runs on the written file, so the id
         column keeps its type when nothing repeats; the rewrite may reorder rows,
-        which the Hilbert sort afterwards puts right."""
-        total, duplicated = con.execute(
-            f"""
-            SELECT coalesce(sum(n), 0), coalesce(sum(n) FILTER (WHERE n > 1), 0)
-            FROM (
-                SELECT count(*) AS n FROM read_parquet({_sql_path(output_file)})
-                WHERE "id" IS NOT NULL GROUP BY "id"
-            )
-            """
-        ).fetchone()
-        if not duplicated:
-            return
-        self.warning(
-            f"{duplicated:,} of {total:,} rows repeat an id; the ids are numbered "
-            "(id~1, id~2, ...) to keep them unique — the id column becomes a string"
-        )
-        directory = os.path.dirname(output_file) or "."
-        tmp_path = None
-        try:
-            with NamedTemporaryFile("wb", delete=False, dir=directory, suffix=".parquet") as tmp:
-                tmp_path = tmp.name
-            con.execute(
+        which the Hilbert sort afterwards puts right. A numbered id can collide
+        with one the source already carries (x~1), so this repeats until nothing
+        repeats."""
+        reported = False
+        while True:
+            total, duplicated = con.execute(
                 f"""
-                COPY (
-                  SELECT * EXCLUDE (file_row_number) REPLACE (
-                    CASE WHEN count(*) OVER (PARTITION BY "id") > 1
-                         THEN CAST("id" AS VARCHAR) || '~' || CAST(
-                              row_number() OVER (PARTITION BY "id" ORDER BY file_row_number)
-                              AS VARCHAR)
-                         ELSE CAST("id" AS VARCHAR)
-                    END AS "id")
-                  FROM read_parquet({_sql_path(output_file)}, file_row_number=true)
-                ) TO ? (
-                    FORMAT parquet,
-                    ROW_GROUP_SIZE {row_group_size},
-                    compression ?,
-                    KV_METADATA {{
-                        collection: ?,
-                    }}
+                SELECT coalesce(sum(n), 0), coalesce(sum(n) FILTER (WHERE n > 1), 0)
+                FROM (
+                    SELECT count(*) AS n FROM read_parquet({_sql_path(output_file)})
+                    WHERE "id" IS NOT NULL GROUP BY "id"
                 )
-            """,
-                [tmp_path, compression, collection_json],
-            )
-            os.replace(tmp_path, output_file)
-        except Exception:
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-            raise
+                """
+            ).fetchone()
+            if not duplicated:
+                return
+            if not reported:
+                self.warning(
+                    f"{duplicated:,} of {total:,} rows repeat an id; the ids are numbered "
+                    "(id~1, id~2, ...) to keep them unique — the id column becomes a string"
+                )
+                reported = True
+            directory = os.path.dirname(output_file) or "."
+            tmp_path = None
+            try:
+                with NamedTemporaryFile(
+                    "wb", delete=False, dir=directory, suffix=".parquet"
+                ) as tmp:
+                    tmp_path = tmp.name
+                con.execute(
+                    f"""
+                    COPY (
+                      SELECT * EXCLUDE (file_row_number) REPLACE (
+                        CASE WHEN count(*) OVER (PARTITION BY "id") > 1
+                             THEN CAST("id" AS VARCHAR) || '~' || CAST(
+                                  row_number() OVER (PARTITION BY "id" ORDER BY file_row_number)
+                                  AS VARCHAR)
+                             ELSE CAST("id" AS VARCHAR)
+                        END AS "id")
+                      FROM read_parquet({_sql_path(output_file)}, file_row_number=true)
+                    ) TO ? (
+                        FORMAT parquet,
+                        ROW_GROUP_SIZE {row_group_size},
+                        compression ?,
+                        KV_METADATA {{
+                            collection: ?,
+                        }}
+                    )
+                """,
+                    [tmp_path, compression, collection_json],
+                )
+                os.replace(tmp_path, output_file)
+            except Exception:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
     def merge_parquet(self, paths: list, output_file, collection=None, **kwargs) -> str:
         """Combine Vecorel GeoParquet files into one, checked and sorted over the

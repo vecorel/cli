@@ -22,14 +22,21 @@ def suffix_duplicate_ids(gdf):
     the number of affected rows."""
     if "id" not in gdf.columns:
         return gdf, 0
-    duplicated = gdf["id"].duplicated(keep=False) & gdf["id"].notna()
+    # compare as strings: a mixed-type column can hide repeats (1 vs "1")
+    # that the writer merges later
+    ids = gdf["id"].astype("string")
+    duplicated = ids.duplicated(keep=False) & ids.notna()
     count = int(duplicated.sum())
     if count == 0:
         return gdf, 0
-    ids = gdf["id"].astype("string")
-    # dropna=False keeps the counter an integer when null ids are present
-    part = ids.groupby(ids, sort=False, dropna=False).cumcount().add(1)
-    gdf["id"] = ids.mask(duplicated, ids + "~" + part.astype("string"))
+    # a numbered id can collide with one the source already carries (x~1),
+    # so number again until nothing repeats
+    while duplicated.any():
+        # dropna=False keeps the counter an integer when null ids are present
+        part = ids.groupby(ids, sort=False, dropna=False).cumcount().add(1)
+        ids = ids.mask(duplicated, ids + "~" + part.astype("string"))
+        duplicated = ids.duplicated(keep=False) & ids.notna()
+    gdf["id"] = ids
     return gdf, count
 
 

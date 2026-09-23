@@ -36,6 +36,10 @@ from ..vecorel.typing import Sources
 from ..vecorel.util import get_fs, name_from_uri, stream_file, suffix_duplicate_ids
 from .flatdict import FlatDict
 
+# a source column named `id` moves here when the converter generates its own id,
+# so a mapping of the source column to another target keeps the source values
+SOURCE_ID_COLUMN = "__source_id"
+
 
 class BaseConverter(LoggerMixin):
     command = None
@@ -125,6 +129,10 @@ class BaseConverter(LoggerMixin):
             composed = parts[0]
             for part in parts[1:]:
                 composed = composed + self.id_separator + part
+            # id_columns wins over an (often inherited) mapping to `id`; two mappings
+            # would otherwise produce two columns named `id` after the rename
+            columns = self._drop_id_targets(columns)
+            gdf, columns = self._preserve_source_id(gdf, columns)
             gdf["id"] = composed
             columns["id"] = "id"
             return gdf, columns
@@ -140,9 +148,37 @@ class BaseConverter(LoggerMixin):
             )
         else:
             self.info("No column is mapped to 'id'; numbering the rows")
+        gdf, columns = self._preserve_source_id(gdf, columns)
         gdf["id"] = range(len(gdf))
         columns["id"] = "id"
         return gdf, columns
+
+    @staticmethod
+    def _preserve_source_id(gdf, columns):
+        """Move a source column named `id` out of the way of a generated id, so
+        that a mapping of it to another target keeps the source values."""
+        if "id" not in gdf.columns:
+            return gdf, columns
+        name = SOURCE_ID_COLUMN
+        while name in gdf.columns or name in columns:
+            name += "_"
+        gdf = gdf.rename(columns={"id": name})
+        columns = {(name if key == "id" else key): value for key, value in columns.items()}
+        return gdf, columns
+
+    @staticmethod
+    def _drop_id_targets(columns):
+        """The mappings without those to `id`, keeping the other targets of a
+        multi-target mapping."""
+        cleaned = {}
+        for key, value in columns.items():
+            if isinstance(value, (list, tuple)):
+                targets = [t for t in value if t != "id"]
+                if targets:
+                    cleaned[key] = targets
+            elif value != "id":
+                cleaned[key] = value
+        return cleaned
 
     @staticmethod
     def _stringify(column):
@@ -202,12 +238,19 @@ class BaseConverter(LoggerMixin):
         """The polygonal parts of a GeometryCollection as one MultiPolygon, or None
         when there are none (like ST_CollectionExtract in the DuckDB codepath)."""
         parts = []
-        for part in shapely.get_parts(geometry):
-            if isinstance(part, shapely.Polygon):
-                parts.append(part)
-            elif isinstance(part, shapely.MultiPolygon):
-                parts.extend(shapely.get_parts(part))
-        return shapely.MultiPolygon(parts) if parts else None
+        pending = [geometry]
+        while pending:
+            for part in shapely.get_parts(pending.pop()):
+                if isinstance(part, shapely.Polygon):
+                    parts.append(part)
+                elif isinstance(part, (shapely.MultiPolygon, shapely.GeometryCollection)):
+                    pending.append(part)
+        if not parts:
+            return None
+        collected = shapely.MultiPolygon(parts)
+        # the members of a collection may overlap each other — a collection is
+        # valid that way — but a MultiPolygon is not
+        return collected if collected.is_valid else shapely.make_valid(collected)
 
     def _drop_incomplete_rows(self, gdf, columns):
         """Fail on rows that can never validate, drop rows without a geometry.

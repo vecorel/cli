@@ -121,6 +121,9 @@ def test_duckdb_converter_numbers_rows_without_an_id_mapping(tmp_folder):
 
 
 def test_duckdb_converter_composes_id_from_id_columns(tmp_folder):
+    """The composed id wins over the mapping to `id` in CONFIG, uses the migrated
+    value of a part and accepts a constant from column_additions, like the
+    GeoDataFrame-based codepath."""
     src = _source_file(tmp_folder)
     dest = tmp_folder / "converted.parquet"
 
@@ -128,16 +131,210 @@ def test_duckdb_converter_composes_id_from_id_columns(tmp_folder):
         "ComposedConverter",
         (DuckDBBaseConverter,),
         {
-            **CONFIG,
-            "columns": {"geometry": "geometry", "name": "name"},
-            "id_columns": ("id", "name"),
+            **CONFIG,  # keeps the '"id": "id"' mapping that id_columns must override
+            "id_columns": ("campaign", "id", "name"),
             "id_separator": ":",
+            "column_migrations": {"name": 'upper("name")'},
+            # the float constant must format as 2026, not 2026.0
+            "column_additions": {"campaign": 2026.0},
         },
     )
     Composed().convert(dest, input_files={src: "source.parquet"})
 
     result = gpd.read_parquet(dest)
-    assert sorted(result["id"]) == ["bowtie:c", "multi:b", "square:a", "with_z:d"]
+    assert sorted(result["id"]) == [
+        "2026:bowtie:C",
+        "2026:multi:B",
+        "2026:square:A",
+        "2026:with_z:D",
+    ]
+    assert sorted(result["name"]) == ["A", "B", "C", "D"]
+
+
+def test_duckdb_converter_migrated_float_id_parts_format_as_integers(tmp_folder):
+    """A column migration that returns DOUBLE must not put '4.0' into the id;
+    the GeoDataFrame-based codepath formats integer-valued floats as '4'."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "block": [7.0, 40.0],
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "floats.parquet"
+    gdf.to_parquet(src)
+
+    Composed = type(
+        "MigratedFloatConverter",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name"},
+            "id_columns": ("block", "name"),
+            "id_separator": "_",
+            "column_migrations": {"block": 'round("block")'},
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+    Composed().convert(dest, input_files={str(src): src.name})
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["40_b", "7_a"]
+
+
+def test_boolean_id_parts_spell_the_same_in_both_codepaths(tmp_folder):
+    """DuckDB renders a BOOLEAN as true/false, pandas as True/False; the same
+    id_columns configuration must produce identical ids on both paths."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "flag": [True, False],
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "flags.parquet"
+    gdf.to_parquet(src)
+
+    config = {
+        **CONFIG,
+        "columns": {"geometry": "geometry", "name": "name"},
+        "id_columns": ("flag", "name"),
+        "id_separator": "_",
+    }
+    results = []
+    for base in (DuckDBBaseConverter, BaseConverter):
+        dest = tmp_folder / f"{base.__name__}.parquet"
+        type("BoolConverter", (base,), dict(config))().convert(
+            dest, input_files={str(src): src.name}
+        )
+        results.append(sorted(gpd.read_parquet(dest)["id"]))
+
+    assert results[0] == results[1] == ["False_b", "True_a"]
+
+
+def test_an_id_constant_loses_against_id_columns(tmp_folder):
+    """A column_additions entry named `id` must not replace the composed id
+    (in the DuckDB path the additions pass would strip that selection)."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "constant_id.parquet"
+    gdf.to_parquet(src)
+
+    config = {
+        **CONFIG,
+        "columns": {"geometry": "geometry", "name": "name"},
+        "id_columns": ("name",),
+        "column_additions": {"id": "constant"},
+    }
+    for base in (DuckDBBaseConverter, BaseConverter):
+        dest = tmp_folder / f"{base.__name__}.parquet"
+        type("ConstantIdConverter", (base,), dict(config))().convert(
+            dest, input_files={str(src): src.name}
+        )
+        assert sorted(gpd.read_parquet(dest)["id"]) == ["a", "b"], base.__name__
+
+
+def test_duckdb_converter_rejects_a_null_constant_id_part(tmp_folder):
+    """str(None) would bake the literal "None" into every id; fail like the
+    GeoDataFrame-based codepath, which fails on the null ids."""
+    gdf = gpd.GeoDataFrame(
+        {"name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]}, crs="EPSG:4326"
+    )
+    src = tmp_folder / "null_constant.parquet"
+    gdf.to_parquet(src)
+
+    Composed = type(
+        "NullConstantConverter",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name"},
+            "id_columns": ("campaign", "name"),
+            "column_additions": {"campaign": None},
+        },
+    )
+    with pytest.raises(ValueError, match="null constant"):
+        Composed().convert(tmp_folder / "converted.parquet", input_files={str(src): src.name})
+
+
+def test_duckdb_converter_rejects_a_migrated_constant_id_part(tmp_folder):
+    """A migration expression references a column that a constant never becomes
+    in this codepath; fail loudly instead of diverging from the GeoDataFrame
+    path, which migrates the added column."""
+    gdf = gpd.GeoDataFrame(
+        {"name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]}, crs="EPSG:4326"
+    )
+    src = tmp_folder / "constant.parquet"
+    gdf.to_parquet(src)
+
+    Composed = type(
+        "MigratedConstantConverter",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name"},
+            "id_columns": ("campaign", "name"),
+            "column_additions": {"campaign": "2026"},
+            "column_migrations": {"campaign": 'upper("campaign")'},
+        },
+    )
+    with pytest.raises(ValueError, match="cannot compose"):
+        Composed().convert(tmp_folder / "converted.parquet", input_files={str(src): src.name})
+
+
+def test_duckdb_converter_rejects_decimal_id_parts(tmp_folder):
+    """A float id part with true decimals must fail instead of being rounded
+    into an id that can collide with a genuine integer id."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "block": [4.5, 5.0],
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "decimals.parquet"
+    gdf.to_parquet(src)
+
+    Composed = type(
+        "DecimalConverter",
+        (DuckDBBaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name"},
+            "id_columns": ("block",),
+        },
+    )
+    with pytest.raises(Exception, match="decimal values"):
+        Composed().convert(tmp_folder / "converted.parquet", input_files={str(src): src.name})
+
+
+def test_duckdb_converter_numbered_ids_avoid_existing_ids(tmp_folder):
+    """A numbered id must not collide with an id the source already carries:
+    x, x, x~1 must not end as x~1 twice."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["x", "x", "x~1"],
+            "name": ["a", "b", "c"],
+            "geometry": [shapely.box(n, 0, n + 1, 1) for n in range(3)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "collisions.parquet"
+    gdf.to_parquet(src)
+    dest = tmp_folder / "converted.parquet"
+
+    Converter().convert(dest, input_files={str(src): src.name})
+
+    ids = gpd.read_parquet(dest)["id"]
+    assert ids.is_unique, ids.tolist()
+    assert len(ids) == 3
 
 
 def test_duckdb_converter_extracts_polygons_from_collections(tmp_folder):
@@ -146,8 +343,8 @@ def test_duckdb_converter_extracts_polygons_from_collections(tmp_folder):
     is dropped (like the GeoDataFrame-based codepath)."""
     gdf = gpd.GeoDataFrame(
         {
-            "id": ["collection", "debris"],
-            "name": ["a", "b"],
+            "id": ["collection", "debris", "overlap", "nested"],
+            "name": ["a", "b", "c", "d"],
             "geometry": [
                 shapely.GeometryCollection(
                     [
@@ -156,6 +353,15 @@ def test_duckdb_converter_extracts_polygons_from_collections(tmp_folder):
                     ]
                 ),
                 shapely.GeometryCollection([shapely.LineString([(2, 2), (3, 2)])]),
+                # members of a collection may overlap; the row must survive as a
+                # valid geometry instead of becoming an invalid MultiPolygon
+                shapely.GeometryCollection([shapely.box(4, 0, 6, 2), shapely.box(5, 1, 7, 3)]),
+                shapely.GeometryCollection(
+                    [
+                        shapely.GeometryCollection([shapely.box(8, 0, 9, 1)]),
+                        shapely.LineString([(8, 2), (9, 2)]),
+                    ]
+                ),
             ],
         },
         crs="EPSG:4326",
@@ -167,8 +373,9 @@ def test_duckdb_converter_extracts_polygons_from_collections(tmp_folder):
     Converter().convert(dest, input_files={str(src): src.name})
 
     result = gpd.read_parquet(dest)
-    assert result["id"].tolist() == ["collection"]
-    assert result.geometry.geom_type.tolist() == ["MultiPolygon"]
+    assert sorted(result["id"]) == ["collection", "nested", "overlap"]
+    assert result.geometry.is_valid.all()
+    assert set(result.geometry.geom_type) <= {"Polygon", "MultiPolygon"}
 
 
 def test_duckdb_converter_source_crs(tmp_folder):
