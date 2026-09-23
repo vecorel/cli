@@ -1,10 +1,34 @@
+import geopandas as gpd
 import pytest
+import shapely
 
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.improve import ImproveData
 from vecorel_cli.vecorel.extensions import GEOMETRY_METRICS
 
-# todo: add test for fix-geometries and explode-geometries
+# todo: add test for fix-geometries
+
+
+def test_improve_explode_geometries():
+    """Exploding puts every polygon on its own row; the parts share their source
+    feature's id, so they are numbered — without colliding with an id the data
+    already carries (x~1)."""
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["x", "x~1"],
+            "geometry": [
+                shapely.MultiPolygon([shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)]),
+                shapely.box(4, 0, 5, 1),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+
+    result, _ = ImproveData().improve(gdf, collection=None, explode_geometries=True)
+
+    assert len(result) == 3
+    assert set(result.geometry.geom_type) == {"Polygon"}
+    assert result["id"].is_unique, result["id"].tolist()
 
 
 def test_improve_compression(tmp_parquet_file):

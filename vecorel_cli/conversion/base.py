@@ -17,9 +17,9 @@ from typing import Any, Callable, Generator, Optional, Sequence
 
 import geopandas as gpd
 import multivolumefile
-import numpy as np
 import pandas as pd
 import py7zr
+import shapely
 import rarfile
 from fsspec import AbstractFileSystem
 from fsspec.implementations.local import LocalFileSystem
@@ -33,8 +33,12 @@ from ..vecorel.collection import Collection
 from ..vecorel.hilbert import hilbert_sort_geodataframe
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
-from ..vecorel.util import get_fs, name_from_uri, stream_file
+from ..vecorel.util import get_fs, name_from_uri, stream_file, suffix_duplicate_ids
 from .flatdict import FlatDict
+
+# a source column named `id` moves here when the converter generates its own id,
+# so a mapping of the source column to another target keeps the source values
+SOURCE_ID_COLUMN = "__source_id"
 
 
 class BaseConverter(LoggerMixin):
@@ -63,7 +67,10 @@ class BaseConverter(LoggerMixin):
     missing_schemas: dict[str, Any] = {}
     extensions: set[str] = set()
 
-    index_as_id: bool = False
+    # Compose `id` by joining these columns (after the column migrations ran).
+    # Without them, `id` is the column that `columns` maps to it, or the row number.
+    id_columns: Optional[Sequence[str]] = None
+    id_separator: str = "-"
 
     # Move properties that hold one value for every row into the collection metadata.
     # A conversion that writes one part of a dataset must not: "one value for every
@@ -108,27 +115,85 @@ class BaseConverter(LoggerMixin):
             return max(keys)
         return keys[0]
 
-    def _check_id_mapping(self):
-        """Warn before converting when nothing is mapped to the required `id` property.
-        Unmapped columns are dropped, which also removes the column filled by
-        `index_as_id` unless the converter maps `"id": "id"`."""
-        targets = set()
-        for value in list(self.columns.values()) + list(self.column_additions or {}):
-            targets.update(value if isinstance(value, (list, tuple)) else [value])
-        if "id" not in targets:
-            hint = (
-                ' — `index_as_id = True` is set, so add \'"id": "id"\' to columns'
-                if self.index_as_id
-                else " — map a unique source column to it, or set index_as_id = True"
-                ' and add \'"id": "id"\' to columns'
+    def _ensure_id(self, gdf, columns):
+        """Make sure something becomes the required `id` property: the id composed
+        from `id_columns`, the column that `columns` maps to it, or the row number.
+        Runs after the migrations, so composed ids are built from migrated values."""
+        if self.id_columns:
+            missing = [c for c in self.id_columns if c not in gdf.columns]
+            if missing:
+                raise ValueError(
+                    f"{type(self).__name__}: id_columns {', '.join(missing)} not in the data"
+                )
+            parts = [self._stringify(gdf[c]) for c in self.id_columns]
+            composed = parts[0]
+            for part in parts[1:]:
+                composed = composed + self.id_separator + part
+            # id_columns wins over an (often inherited) mapping to `id`; two mappings
+            # would otherwise produce two columns named `id` after the rename
+            columns = self._drop_id_targets(columns)
+            gdf, columns = self._preserve_source_id(gdf, columns)
+            gdf["id"] = composed
+            columns["id"] = "id"
+            return gdf, columns
+        sources = [
+            k for k, v in columns.items() if "id" in (v if isinstance(v, (list, tuple)) else [v])
+        ]
+        if any(k in gdf.columns for k in sources):
+            return gdf, columns
+        if sources:
+            self.warning(
+                f"{type(self).__name__}: none of the columns mapped to 'id' "
+                f"({', '.join(sources)}) is in this source; numbering the rows instead"
             )
-            self.warning(f"{type(self).__name__} maps no column to 'id'{hint}")
+        else:
+            self.info("No column is mapped to 'id'; numbering the rows")
+        gdf, columns = self._preserve_source_id(gdf, columns)
+        gdf["id"] = range(len(gdf))
+        columns["id"] = "id"
+        return gdf, columns
+
+    @staticmethod
+    def _preserve_source_id(gdf, columns):
+        """Move a source column named `id` out of the way of a generated id, so
+        that a mapping of it to another target keeps the source values."""
+        if "id" not in gdf.columns:
+            return gdf, columns
+        name = SOURCE_ID_COLUMN
+        while name in gdf.columns or name in columns:
+            name += "_"
+        gdf = gdf.rename(columns={"id": name})
+        columns = {(name if key == "id" else key): value for key, value in columns.items()}
+        return gdf, columns
+
+    @staticmethod
+    def _drop_id_targets(columns):
+        """The mappings without those to `id`, keeping the other targets of a
+        multi-target mapping."""
+        cleaned = {}
+        for key, value in columns.items():
+            if isinstance(value, (list, tuple)):
+                targets = [t for t in value if t != "id"]
+                if targets:
+                    cleaned[key] = targets
+            elif value != "id":
+                cleaned[key] = value
+        return cleaned
+
+    @staticmethod
+    def _stringify(column):
+        """A string form for id parts that does not render an integer-typed float
+        column as '4.0'; a column with true decimals is rejected by the cast."""
+        if pd.api.types.is_float_dtype(column):
+            column = column.astype("Int64")
+        return column.astype("string")
 
     def _check_unique_ids(self, gdf, columns):
         """Warn when the column that becomes `id` does not identify a feature.
-        Runs before geometries are exploded, so it judges what the converter
-        assigned rather than the split parts of one source feature. Null ids
-        are not counted here; they fail the required-value check afterwards.
+        The repeats are numbered in the output by _suffix_duplicate_ids; this
+        check names the source column so the converter itself can be fixed.
+        Null ids are not counted here; they fail the required-value check
+        afterwards.
         """
         sources = [
             k for k, v in columns.items() if "id" in (v if isinstance(v, (list, tuple)) else [v])
@@ -152,9 +217,40 @@ class BaseConverter(LoggerMixin):
         self.warning(
             f"{type(self).__name__}: '{column}' is not unique — {duplicated:,} of {len(ids):,} "
             f"rows repeat an id (one appears {worst:,} times), so it cannot be `id`. Map a column "
-            "that identifies a feature, build one from the source's key columns, or use the row "
-            "index (index_as_id) only when the conversion reads a single file."
+            "that identifies a feature, compose one from the source's key columns (id_columns), "
+            "or map nothing to number the rows. The repeating ids get a ~<n> suffix in the output."
         )
+
+    def _suffix_duplicate_ids(self, gdf: GeoDataFrame) -> GeoDataFrame:
+        """The source may not provide unique ids, or a processing step may repeat
+        them; _check_unique_ids pointed at the source column, this makes sure a
+        written file never carries a duplicate id."""
+        gdf, count = suffix_duplicate_ids(gdf)
+        if count:
+            self.warning(
+                f"{count:,} of {len(gdf):,} rows repeat an id; the ids are numbered "
+                "(id~1, id~2, ...) to keep them unique — the id column becomes a string"
+            )
+        return gdf
+
+    @staticmethod
+    def _polygonal(geometry):
+        """The polygonal parts of a GeometryCollection as one MultiPolygon, or None
+        when there are none (like ST_CollectionExtract in the DuckDB codepath)."""
+        parts = []
+        pending = [geometry]
+        while pending:
+            for part in shapely.get_parts(pending.pop()):
+                if isinstance(part, shapely.Polygon):
+                    parts.append(part)
+                elif isinstance(part, (shapely.MultiPolygon, shapely.GeometryCollection)):
+                    pending.append(part)
+        if not parts:
+            return None
+        collected = shapely.MultiPolygon(parts)
+        # the members of a collection may overlap each other — a collection is
+        # valid that way — but a MultiPolygon is not
+        return collected if collected.is_valid else shapely.make_valid(collected)
 
     def _drop_incomplete_rows(self, gdf, columns):
         """Fail on rows that can never validate, drop rows without a geometry.
@@ -551,7 +647,6 @@ class BaseConverter(LoggerMixin):
         if self.bbox is not None and len(self.bbox) != 4:
             raise ValueError("If provided, the bounding box must consist of 4 numbers")
 
-        self._check_id_mapping()
         self._require_one_source_of_urls()
         self._prewarm_schemas()
 
@@ -579,8 +674,8 @@ class BaseConverter(LoggerMixin):
         hash_before = self._hash_df(gdf.head())
         self.info(gdf.head().to_string())
 
-        if self.index_as_id:
-            gdf["id"] = gdf.index
+        # pd.concat kept each source file's own index; renumber so that masks align
+        gdf = gdf.reset_index(drop=True)
 
         # 1. Run global migration
         self.info("Applying global migrations")
@@ -610,6 +705,7 @@ class BaseConverter(LoggerMixin):
 
         gdf = self.post_migrate(gdf)
 
+        gdf, columns = self._ensure_id(gdf, columns)
         self._check_unique_ids(gdf, columns)
         gdf = self._drop_incomplete_rows(gdf, columns)
 
@@ -645,17 +741,24 @@ class BaseConverter(LoggerMixin):
         # This was previously in step 4, but some datasets have a geometry column that is not named "geometry"
         if not original_geometries:
             gdf.geometry = gdf.geometry.make_valid()
-            gdf = gdf.explode()
-            parts = len(gdf)
-            gdf = gdf[np.logical_and(gdf.geometry.type == "Polygon", gdf.geometry.is_valid)]
-            if len(gdf) < parts:
-                self.warning(
-                    f"Dropping {parts - len(gdf)} of {parts} geometry parts that are "
-                    "no valid polygons after repair"
+            # make_valid() can return a collection of polygons plus line/point slivers
+            collections = gdf.geometry.geom_type == "GeometryCollection"
+            if collections.any():
+                gdf.loc[collections, gdf.geometry.name] = gdf.geometry[collections].apply(
+                    self._polygonal
                 )
+            keep = gdf.geometry.geom_type.isin(("Polygon", "MultiPolygon")) & gdf.geometry.is_valid
+            if not keep.all():
+                self.warning(
+                    f"Dropping {len(gdf) - int(keep.sum())} of {len(gdf)} rows without "
+                    "a polygonal geometry"
+                )
+                gdf = gdf[keep]
             if gdf.geometry.array.has_z.any():
                 self.info("Removing Z geometry dimension")
                 gdf.geometry = gdf.geometry.force_2d()
+
+        gdf = self._suffix_duplicate_ids(gdf)
 
         # Sort by Hilbert distance against the CRS's total bounds. This gives
         # row groups good spatial locality, and — crucially — produces the same

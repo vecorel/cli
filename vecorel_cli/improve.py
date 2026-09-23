@@ -17,6 +17,7 @@ from .encoding.auto import create_encoding
 from .registry import Registry
 from .vecorel.collection import Collection
 from .vecorel.extensions import GEOMETRY_METRICS
+from .vecorel.util import suffix_duplicate_ids
 
 
 class ImproveData(BaseCommand):
@@ -140,7 +141,14 @@ class ImproveData(BaseCommand):
         """
         Explode the geometries in the GeoDataFrame.
         """
-        return gdf.explode()
+        gdf = gdf.explode(ignore_index=True)
+        gdf, count = suffix_duplicate_ids(gdf)
+        if count:
+            self.warning(
+                f"{count:,} rows share an id after exploding; the ids are numbered "
+                "(id~1, id~2, ...) to keep them unique"
+            )
+        return gdf
 
     def rename_warnings(self, gdf: GeoDataFrame, rename: dict) -> None:
         """

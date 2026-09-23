@@ -127,6 +127,240 @@ def test_hilbert_sort_falls_back_without_area_of_use():
     assert len(out) == 3
 
 
+CONFIG = {
+    "id": "test",
+    "short_name": "Test",
+    "title": "Test dataset",
+    "description": "Test dataset",
+    "license": "CC0-1.0",
+    "columns": {
+        "geometry": "geometry",
+        "id": "id",
+        "name": "name",
+    },
+    "missing_schemas": {
+        "properties": {
+            "name": {"type": "string"},
+        }
+    },
+}
+
+
+def test_rows_are_numbered_when_no_column_is_mapped_to_id(tmp_folder):
+    """A converter that maps nothing to `id` gets the row number as id, counted
+    over all source files (vecorel/cli#47). A source column named `id` that is
+    mapped to another target must not be overwritten by the numbering."""
+    import shapely
+
+    files = {}
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": [f"legacy-{index}-1", f"legacy-{index}-2"],
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index * 4, 0, index * 4 + 1, 1),
+                    shapely.box(index * 4 + 2, 0, index * 4 + 3, 1),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        path = tmp_folder / f"src_{index}.parquet"
+        gdf.to_parquet(path)
+        files[str(path)] = path.name
+
+    Converter = type(
+        "IndexConverter",
+        (BaseConverter,),
+        {
+            **CONFIG,
+            "columns": {"geometry": "geometry", "name": "name", "id": "legacy"},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "legacy": {"type": "string"}}
+            },
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files=files)
+
+    result = gpd.read_parquet(dest).sort_values("id")
+    assert result["id"].tolist() == ["0", "1", "2", "3"]
+    assert result["legacy"].tolist() == ["legacy-0-1", "legacy-0-2", "legacy-1-1", "legacy-1-2"]
+
+
+def test_id_is_composed_from_id_columns(tmp_folder):
+    """`id_columns` joins the named columns into `id` after the column migrations
+    ran; integer-typed float columns must not render as '4.0'. It also wins over
+    a mapping to `id` (often inherited), which would otherwise produce two
+    columns named `id` after the rename — without overwriting a source column
+    named `id` that is mapped to another target."""
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["source-1", "source-2"],
+            "region": ["A", "B"],
+            "block": [7.0, 40.0],  # float-typed integers, as nullable int columns often read
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "source.parquet"
+    gdf.to_parquet(src)
+
+    Converter = type(
+        "ComposedConverter",
+        (BaseConverter,),
+        {
+            **CONFIG,
+            # the mapping to `id` must lose against id_columns, but `source_id`
+            # must still receive the source's own `id` values
+            "columns": {**CONFIG["columns"], "id": ("id", "source_id")},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "source_id": {"type": "string"}}
+            },
+            "id_columns": ("campaign", "region", "block"),
+            "id_separator": ":",
+            "column_additions": {"campaign": 2026.0},  # must format as 2026, not 2026.0
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files={str(src): "source.parquet"})
+
+    result = gpd.read_parquet(dest).sort_values("id")
+    assert result["id"].tolist() == ["2026:A:7", "2026:B:40"]
+    assert result["source_id"].tolist() == ["source-1", "source-2"]
+
+
+def test_preserve_source_id_avoids_taken_names():
+    """The name the source id moves to must be free in the frame and the mapping."""
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {"id": ["a"], "__source_id": ["b"], "geometry": [shapely.box(0, 0, 1, 1)]},
+        crs="EPSG:4326",
+    )
+    columns = {"id": "legacy", "__source_id": "other", "geometry": "geometry"}
+
+    gdf, columns = BaseConverter()._preserve_source_id(gdf, columns)
+
+    assert not gdf.columns.duplicated().any()
+    assert columns["__source_id"] == "other"
+    assert columns["__source_id_"] == "legacy"
+    assert gdf["__source_id_"].tolist() == ["a"]
+    assert gdf["__source_id"].tolist() == ["b"]
+
+
+def test_suffix_duplicate_ids_avoids_existing_ids_and_compares_as_strings():
+    """A numbered id must not collide with an id the source already carries
+    (x, x, x~1), and repeats hidden by mixed types (1 vs "1") must be caught:
+    the writer merges both into the string "1"."""
+    import shapely
+
+    from vecorel_cli.vecorel.util import suffix_duplicate_ids
+
+    box = shapely.box(0, 0, 1, 1)
+    gdf = gpd.GeoDataFrame({"id": ["x", "x", "x~1"], "geometry": [box] * 3}, crs="EPSG:4326")
+    gdf, count = suffix_duplicate_ids(gdf)
+    assert count == 2
+    assert gdf["id"].is_unique, gdf["id"].tolist()
+
+    gdf = gpd.GeoDataFrame({"id": [1, "1"], "geometry": [box] * 2}, crs="EPSG:4326")
+    gdf, count = suffix_duplicate_ids(gdf)
+    assert count == 2
+    assert sorted(gdf["id"]) == ["1~1", "1~2"]
+
+
+def test_features_keep_their_row_when_repaired(tmp_folder):
+    """Multi-part geometries are not split into one row per polygon: features keep
+    the geometry modeling of the source, so their ids and attributes stay 1:1 with
+    it. A repaired invalid polygon stays one feature as a MultiPolygon, and rows
+    without a polygonal geometry are dropped."""
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["square", "multi", "bowtie", "point", "collection", "debris", "overlap", "nested"],
+            "name": ["a", "b", "c", "d", "e", "f", "g", "h"],
+            "geometry": [
+                shapely.Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
+                shapely.MultiPolygon(
+                    [
+                        shapely.Polygon([(2, 0), (2, 1), (3, 1), (3, 0)]),
+                        shapely.Polygon([(4, 0), (4, 1), (5, 1), (5, 0)]),
+                    ]
+                ),
+                shapely.Polygon([(6, 0), (7, 1), (7, 0), (6, 1)]),
+                shapely.Point(10, 0),
+                # what make_valid() can emit: the polygonal part must survive alone
+                shapely.GeometryCollection(
+                    [
+                        shapely.Polygon([(8, 0), (8, 1), (9, 1), (9, 0)]),
+                        shapely.LineString([(8, 2), (9, 2)]),
+                    ]
+                ),
+                shapely.GeometryCollection([shapely.LineString([(10, 2), (11, 2)])]),
+                # members of a collection may overlap; the row must survive as a
+                # valid geometry instead of becoming an invalid MultiPolygon
+                shapely.GeometryCollection([shapely.box(12, 0, 14, 2), shapely.box(13, 1, 15, 3)]),
+                shapely.GeometryCollection(
+                    [
+                        shapely.GeometryCollection([shapely.box(16, 0, 17, 1)]),
+                        shapely.LineString([(16, 2), (17, 2)]),
+                    ]
+                ),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "source.parquet"
+    gdf.to_parquet(src)
+
+    Converter = type("KeepConverter", (BaseConverter,), dict(CONFIG))
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files={str(src): "source.parquet"})
+
+    result = gpd.read_parquet(dest)
+    types = dict(zip(result["id"], result.geometry.geom_type))
+    assert sorted(types) == ["bowtie", "collection", "multi", "nested", "overlap", "square"]
+    assert types["square"] == "Polygon"
+    assert types["multi"] == "MultiPolygon"
+    assert types["bowtie"] == "MultiPolygon"
+    assert types["collection"] == "MultiPolygon"
+    assert types["nested"] == "MultiPolygon"
+    assert result.geometry.is_valid.all()
+
+
+def test_duplicate_ids_get_numbered(tmp_folder):
+    """id must be unique within a file; when the source repeats ids (here across
+    two input files), the repeats get a ~<n> suffix (vecorel/cli#47)."""
+    import shapely
+
+    files = {}
+    for index in range(2):
+        gdf = gpd.GeoDataFrame(
+            {
+                "id": ["same", f"other-{index}"],
+                "name": ["a", "b"],
+                "geometry": [
+                    shapely.box(index * 4, 0, index * 4 + 1, 1),
+                    shapely.box(index * 4 + 2, 0, index * 4 + 3, 1),
+                ],
+            },
+            crs="EPSG:4326",
+        )
+        path = tmp_folder / f"dup_src_{index}.parquet"
+        gdf.to_parquet(path)
+        files[str(path)] = path.name
+
+    Converter = type("DupConverter", (BaseConverter,), dict(CONFIG))
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files=files)
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["other-0", "other-1", "same~1", "same~2"]
+
+
 def test_not_existing_converter(tmp_folder):
     with pytest.raises(Exception, match="Converter 'not_existing' not found"):
         converter = ConvertData("not_existing")
