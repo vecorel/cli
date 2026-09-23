@@ -3,11 +3,41 @@ import io
 import multivolumefile
 import py7zr
 import pytest
+from fsspec.implementations.local import LocalFileSystem
 
 import vecorel_cli.conversion.base as base
 from vecorel_cli.conversion.base import BaseConverter
+from vecorel_cli.vecorel.util import stream_file
 
 URI = "https://example.invalid/data/fields.gml"
+
+
+class _FakeStreamFile:
+    """Minimal stand-in for an fsspec HTTP streaming file: yields ``data`` and
+    exposes the response headers on ``.r.headers`` like ``HTTPStreamFile``."""
+
+    def __init__(self, data, headers):
+        self._buf = io.BytesIO(data)
+        self.r = type("_Resp", (), {"headers": headers})()
+
+    def read(self, size=-1):
+        return self._buf.read(size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._buf.close()
+        return False
+
+
+class _FakeSourceFS:
+    def __init__(self, data, headers):
+        self._data = data
+        self._headers = headers
+
+    def open(self, src_uri, mode="rb", block_size=0, **kwargs):
+        return _FakeStreamFile(self._data, self._headers)
 
 
 def test_failed_download_leaves_no_cache_file(tmp_folder, monkeypatch):
@@ -61,6 +91,58 @@ def test_successful_download_is_cached(tmp_folder, monkeypatch):
     BaseConverter().download_files(URI, cache_folder=str(tmp_folder))
 
     assert calls == [URI], "a completed download must be reused"
+
+
+def test_stream_file_rejects_truncated_response():
+    """A body shorter than the promised Content-Length is a failed download (#46)."""
+    fs = _FakeSourceFS(b"partial", {"Content-Length": "2823630848"})
+    dst = io.BytesIO()
+    with pytest.raises(OSError, match="Incomplete download"):
+        stream_file(fs, URI, dst)
+
+
+def test_stream_file_accepts_matching_content_length():
+    body = b"complete body"
+    fs = _FakeSourceFS(body, {"Content-Length": str(len(body))})
+    dst = io.BytesIO()
+    stream_file(fs, URI, dst)
+    assert dst.getvalue() == body
+
+
+def test_stream_file_skips_check_for_compressed_response():
+    """A compressed body is decoded while streaming, so the decoded byte count
+    legitimately differs from the compressed Content-Length; no false failure."""
+    body = b"decoded payload longer than the header"
+    fs = _FakeSourceFS(body, {"Content-Length": "5", "Content-Encoding": "gzip"})
+    dst = io.BytesIO()
+    stream_file(fs, URI, dst)
+    assert dst.getvalue() == body
+
+
+def test_stream_file_without_content_length_is_accepted():
+    body = b"chunked body of unknown length"
+    fs = _FakeSourceFS(body, {})
+    dst = io.BytesIO()
+    stream_file(fs, URI, dst)
+    assert dst.getvalue() == body
+
+
+def test_truncated_download_is_not_cached(tmp_folder, monkeypatch):
+    """A truncated download must not be promoted into the cache where a later run
+    would treat it as a complete file (#46)."""
+    source_fs = _FakeSourceFS(b"partial", {"Content-Length": "999"})
+
+    def fake_get_fs(uri, **kwargs):
+        if str(uri).startswith(("http://", "https://")):
+            return source_fs
+        return LocalFileSystem()
+
+    monkeypatch.setattr(base, "get_fs", fake_get_fs)
+
+    with pytest.raises(OSError, match="Incomplete download"):
+        BaseConverter().download_files(URI, cache_folder=str(tmp_folder))
+
+    assert list(tmp_folder.iterdir()) == [], "a truncated download must not be cached"
 
 
 @pytest.mark.parametrize("explicit_cache", [True, False])

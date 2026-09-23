@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix: a download that ends before its `Content-Length` is reached now fails instead
+  of caching the partial file, which a later run would otherwise reuse as if it were
+  complete (#46).
 - Conversions no longer drop rows with missing required values (`max_dropped_share`
   is removed): any row without a value for a required property fails the conversion,
   so each dataset handles such rows explicitly (#33).

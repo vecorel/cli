@@ -43,11 +43,39 @@ def load_file(uri: Union[Path, URL, str]) -> dict:
 
 def stream_file(fs, src_uri, dst_file, chunk_size=10 * 1024 * 1024):
     with fs.open(src_uri, mode="rb", block_size=0) as f:
+        expected_size = _expected_content_length(f)
+        written = 0
         while True:
             chunk = f.read(chunk_size)
             if not chunk:
                 break
             dst_file.write(chunk)
+            written += len(chunk)
+    # A truncated response (e.g. the connection dropped mid-download) must be
+    # treated as a failure so the caller does not promote the partial file into
+    # the cache and later mistake it for a complete download (#46).
+    if expected_size is not None and written != expected_size:
+        raise OSError(
+            f"Incomplete download of {src_uri}: "
+            f"received {written} of {expected_size} bytes"
+        )
+
+
+def _expected_content_length(f) -> Optional[int]:
+    """The Content-Length the server promised for an open HTTP file, or None
+    when it is unknown or would not match the bytes we read.
+
+    A compressed body is transparently decoded while streaming, so its decoded
+    byte count legitimately differs from the Content-Length of the compressed
+    payload; in that case we cannot use the header to detect truncation.
+    """
+    headers = getattr(getattr(f, "r", None), "headers", None)
+    if not headers or headers.get("Content-Encoding"):
+        return None
+    try:
+        return int(headers["Content-Length"])
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
