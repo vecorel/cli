@@ -176,9 +176,7 @@ class DuckDBBaseConverter(BaseConverter):
                 elif c in available:
                     parts.append(self._stringify_sql(f'"{c}"', available[c], c))
                 else:
-                    raise ValueError(
-                        f"{type(self).__name__}: id_columns '{c}' not in the data"
-                    )
+                    raise ValueError(f"{type(self).__name__}: id_columns '{c}' not in the data")
             joined = f" || {_sql_literal(self.id_separator)} || ".join(parts)
             selections.append(f'({joined}) AS "id"')
             selected_targets.append("id")
@@ -423,8 +421,7 @@ class DuckDBBaseConverter(BaseConverter):
                 ).fetchone()[0]
                 if dropped:
                     self.warning(
-                        f"Dropping {dropped} of {total - blanks} rows without "
-                        "a polygonal geometry"
+                        f"Dropping {dropped} of {total - blanks} rows without a polygonal geometry"
                     )
         if original_geometries:
             query = source_query

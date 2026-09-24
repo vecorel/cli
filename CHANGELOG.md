@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-09-24
+
 - Fix: a download that ends before its `Content-Length` is reached now fails instead
   of caching the partial file, which a later run would otherwise reuse as if it were
   complete (#46).
@@ -199,7 +201,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.2.20...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.3.0...main>
+[v0.3.0]: <https://github.com/vecorel/cli/compare/v0.2.20...v0.3.0>
 [v0.2.20]: <https://github.com/vecorel/cli/compare/v0.2.19...v0.2.20>
 [v0.2.19]: <https://github.com/vecorel/cli/compare/v0.2.18...v0.2.19>
 [v0.2.18]: <https://github.com/vecorel/cli/compare/v0.2.17...v0.2.18>

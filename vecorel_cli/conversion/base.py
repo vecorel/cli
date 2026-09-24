@@ -19,8 +19,8 @@ import geopandas as gpd
 import multivolumefile
 import pandas as pd
 import py7zr
-import shapely
 import rarfile
+import shapely
 from fsspec import AbstractFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from geopandas import GeoDataFrame

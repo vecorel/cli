@@ -281,7 +281,16 @@ def test_features_keep_their_row_when_repaired(tmp_folder):
 
     gdf = gpd.GeoDataFrame(
         {
-            "id": ["square", "multi", "bowtie", "point", "collection", "debris", "overlap", "nested"],
+            "id": [
+                "square",
+                "multi",
+                "bowtie",
+                "point",
+                "collection",
+                "debris",
+                "overlap",
+                "nested",
+            ],
             "name": ["a", "b", "c", "d", "e", "f", "g", "h"],
             "geometry": [
                 shapely.Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),

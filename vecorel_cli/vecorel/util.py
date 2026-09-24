@@ -80,8 +80,7 @@ def stream_file(fs, src_uri, dst_file, chunk_size=10 * 1024 * 1024):
     # the cache and later mistake it for a complete download (#46).
     if expected_size is not None and written != expected_size:
         raise OSError(
-            f"Incomplete download of {src_uri}: "
-            f"received {written} of {expected_size} bytes"
+            f"Incomplete download of {src_uri}: received {written} of {expected_size} bytes"
         )
 
 

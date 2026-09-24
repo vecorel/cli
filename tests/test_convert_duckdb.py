@@ -243,9 +243,7 @@ def test_an_id_constant_loses_against_id_columns(tmp_folder):
 def test_duckdb_converter_rejects_a_null_constant_id_part(tmp_folder):
     """str(None) would bake the literal "None" into every id; fail like the
     GeoDataFrame-based codepath, which fails on the null ids."""
-    gdf = gpd.GeoDataFrame(
-        {"name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]}, crs="EPSG:4326"
-    )
+    gdf = gpd.GeoDataFrame({"name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]}, crs="EPSG:4326")
     src = tmp_folder / "null_constant.parquet"
     gdf.to_parquet(src)
 
@@ -267,9 +265,7 @@ def test_duckdb_converter_rejects_a_migrated_constant_id_part(tmp_folder):
     """A migration expression references a column that a constant never becomes
     in this codepath; fail loudly instead of diverging from the GeoDataFrame
     path, which migrates the added column."""
-    gdf = gpd.GeoDataFrame(
-        {"name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]}, crs="EPSG:4326"
-    )
+    gdf = gpd.GeoDataFrame({"name": ["a"], "geometry": [shapely.box(0, 0, 1, 1)]}, crs="EPSG:4326")
     src = tmp_folder / "constant.parquet"
     gdf.to_parquet(src)
 
