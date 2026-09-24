@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix: ZIP archives compressed with Deflate64 are extracted through `inflate64` (a
+  dependency of py7zr, now declared). They required `zipfile-deflate64`, which was
+  not declared and has no wheels for Python 3.11+.
+
 ## [v0.3.0] - 2026-09-24
 
 - Fix: a download that ends before its `Content-Length` is reached now fails instead

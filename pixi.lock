@@ -31645,7 +31645,7 @@ packages:
 - pypi: ./
   name: vecorel-cli
   version: 0.3.0
-  sha256: 6d8b4596d0e2ff27e9b759a38ed470199afecb01550c584f433e0913bceb3a41
+  sha256: 9bd6cc8cdd22b31a6f24cf5c537595fa48ef920454b4701d1b33f1e8a5779f30
   requires_dist:
   - pyyaml>=6.0,<7.0
   - click>=8.1,<9.0
@@ -31655,6 +31655,7 @@ packages:
   - numpy>=2.0,<3.0
   - pyarrow>=21.0,<24.0
   - py7zr>=1.0,<2.0
+  - inflate64>=1.0,<2.0
   - multivolumefile>=0.2.3,<1.0
   - fsspec>=2025.7.0
   - jsonschema[format]>=4.20,<5.0

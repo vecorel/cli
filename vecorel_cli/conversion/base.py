@@ -34,6 +34,7 @@ from ..vecorel.hilbert import hilbert_sort_geodataframe
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
 from ..vecorel.util import get_fs, name_from_uri, stream_file, suffix_duplicate_ids
+from .deflate64 import deflate64_zip
 from .flatdict import FlatDict
 
 # a source column named `id` moves here when the converter generates its own id,
@@ -399,16 +400,8 @@ class BaseConverter(LoggerMixin):
 
             if must_extract:
                 if zipfile.is_zipfile(cache_file):
-                    try:
-                        with zipfile.ZipFile(cache_file, "r") as zip_file:
-                            zip_file.extractall(zip_folder)
-                    except NotImplementedError as e:
-                        if str(e) != "That compression method is not supported":
-                            raise e
-                        import zipfile_deflate64
-
-                        with zipfile_deflate64.ZipFile(cache_file, "r") as zip_file:
-                            zip_file.extractall(zip_folder)
+                    with deflate64_zip(), zipfile.ZipFile(cache_file, "r") as zip_file:
+                        zip_file.extractall(zip_folder)
                 elif py7zr.is_7zfile(cache_file):
                     with py7zr.SevenZipFile(cache_file, "r") as sz_file:
                         sz_file.extractall(zip_folder)
