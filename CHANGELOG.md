@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.3.1] - 2026-09-24
+
 - Fix: ZIP archives compressed with Deflate64 are extracted through `inflate64` (a
   dependency of py7zr, now declared). They required `zipfile-deflate64`, which was
   not declared and has no wheels for Python 3.11+.
@@ -205,7 +207,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.3.0...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.3.1...main>
+[v0.3.1]: <https://github.com/vecorel/cli/compare/v0.3.0...v0.3.1>
 [v0.3.0]: <https://github.com/vecorel/cli/compare/v0.2.20...v0.3.0>
 [v0.2.20]: <https://github.com/vecorel/cli/compare/v0.2.19...v0.2.20>
 [v0.2.19]: <https://github.com/vecorel/cli/compare/v0.2.18...v0.2.19>
