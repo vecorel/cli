@@ -11,6 +11,7 @@ import shapely
 from loguru import logger
 
 from vecorel_cli.cli.logger import LoggerMixin
+from vecorel_cli.encoding.geojson import GeoJSON
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.merge import MergeDatasets
 from vecorel_cli.validate import ValidateData
@@ -60,6 +61,28 @@ def test_merge(tmp_parquet_file: Path):
         "id",
         "inspire:id",
     ]
+
+
+def test_merge_excludes_without_reading_twice(tmp_parquet_file: Path, monkeypatch):
+    reads = []
+    read = GeoJSON.read
+
+    def spy(self, num=None, **kwargs):
+        if num is None:
+            reads.append(self.uri)
+        return read(self, num=num, **kwargs)
+
+    monkeypatch.setattr(GeoJSON, "read", spy)
+    MergeDatasets().merge(
+        source=["tests/data-files/inspire.parquet", "tests/data-files/admin.json"],
+        target=tmp_parquet_file,
+        excludes=["foo"],
+    )
+
+    assert len(reads) == 1
+    columns = GeoParquet(tmp_parquet_file).get_properties()
+    assert "foo" not in columns
+    assert "admin:country_code" in columns
 
 
 def test_merge_invalid_file(tmp_folder):

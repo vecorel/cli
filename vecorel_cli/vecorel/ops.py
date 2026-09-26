@@ -16,9 +16,17 @@ def merge(
     properties=None,
     schema_map: SchemaMapping = {},
     log: Optional[LoggerMixin] = None,
+    excludes: Optional[list[str]] = None,
 ) -> tuple[GeoDataFrame, Collection]:
     frames = [item.read(properties=properties, schema_map=schema_map) for item in encodings]
     collections = [item.get_collection() for item in encodings]
+    if excludes:
+        if properties is None:
+            properties = set()
+            for gdf, collection in zip(frames, collections):
+                properties |= set(gdf.columns) | set(collection.keys())
+        properties = list(set(properties) - set(excludes))
+        frames = [gdf.drop(columns=[c for c in excludes if c in gdf.columns]) for gdf in frames]
     merged_collection = merge_collections(collections, properties=properties, log=log)
 
     data = []
@@ -31,7 +39,8 @@ def merge(
         ]
         gdf = item.hydrate_from_collection(gdf, schema_map=schema_map, keys=keys)
 
-        if "collection" not in gdf.columns or gdf["collection"].isna().any():
+        keep_collection = properties is None or "collection" in properties
+        if keep_collection and ("collection" not in gdf.columns or gdf["collection"].isna().any()):
             cid = get_collection_id(collection, item.uri)
             if "collection" in gdf.columns:
                 gdf["collection"] = gdf["collection"].fillna(cid)
@@ -54,7 +63,8 @@ def merge(
 
     if log and "id" in merged.columns:
         with_id = merged[merged["id"].notna()]
-        duplicates = int(with_id.duplicated(subset=["collection", "id"]).sum())
+        key = [c for c in ("collection", "id") if c in merged.columns]
+        duplicates = int(with_id.duplicated(subset=key).sum())
         if duplicates:
             log.warning(f"{duplicates} rows repeat an id within their collection")
 

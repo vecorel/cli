@@ -103,10 +103,6 @@ class MergeDatasets(BaseCommand):
         properties = None
         if includes:
             properties = list(set(Registry.core_properties) | set(includes))
-        if excludes:
-            if properties is None:
-                properties = self.get_available_properties(encodings)
-            properties = list(set(properties) - set(excludes))
 
         blocker = self.get_duckdb_blocker(encodings, target, crs)
         if engine == "duckdb" and blocker:
@@ -114,6 +110,11 @@ class MergeDatasets(BaseCommand):
 
         if engine == "duckdb" or (engine == "auto" and blocker is None):
             from .conversion.duckdb import DuckDBBaseConverter
+
+            if excludes:
+                if properties is None:
+                    properties = self.get_available_properties(encodings)
+                properties = list(set(properties) - set(excludes))
 
             self.info("Merging with DuckDB")
             DuckDBBaseConverter().merge_parquet(
@@ -126,7 +127,9 @@ class MergeDatasets(BaseCommand):
         else:
             if engine == "auto":
                 self.info(f"Merging in memory, as {blocker}")
-            gdf, collection = merge_(encodings, crs=crs, properties=properties, log=self)
+            gdf, collection = merge_(
+                encodings, crs=crs, properties=properties, log=self, excludes=excludes
+            )
             target.set_collection(collection)
             target.write(gdf, properties=properties)
 
