@@ -12,6 +12,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from ..cli.logger import LoggerMixin
 from ..encoding.geojson import VecorelJSONEncoder
 from ..encoding.geoparquet import GeoParquet
 from ..parquet.types import get_pyarrow_type
@@ -72,15 +73,25 @@ def _to_arrow_value(value, dtype):
     return value
 
 
-def _constants_table(constants: dict, props: dict) -> pa.Table:
+def _constants_table(constants: dict, props: dict, log: Optional[LoggerMixin] = None) -> pa.Table:
     """A single row with the given values, typed by the property schemas where available."""
     arrays = []
     for key, value in constants.items():
         schema = props.get(key) or {}
+        dtype = schema.get("type")
         try:
-            pa_type = get_pyarrow_type(schema) if schema.get("type") else None
-            arrays.append(pa.array([_to_arrow_value(value, schema.get("type"))], type=pa_type))
+            pa_type = get_pyarrow_type(schema) if dtype else None
         except Exception:
+            # a schema that has no pyarrow type, e.g. an object with additionalProperties
+            pa_type = None
+        if pa_type is None:
+            arrays.append(pa.array([_to_arrow_value(value, dtype)]))
+            continue
+        try:
+            arrays.append(pa.array([_to_arrow_value(value, dtype)], type=pa_type))
+        except (ValueError, TypeError, OverflowError) as e:
+            if log:
+                log.warning(f"Constant '{key}' doesn't fit its type {dtype}, keeping it as is: {e}")
             arrays.append(pa.array([value]))
     return pa.table(arrays, names=list(constants.keys()))
 
@@ -723,7 +734,7 @@ class DuckDBBaseConverter(BaseConverter):
                 # A registered table rather than SQL literals, so arrays, objects and
                 # temporal values keep their types
                 table = f"constants_{i}"
-                con.register(table, _constants_table(constants, props))
+                con.register(table, _constants_table(constants, props, log=self))
                 query += f", {table}.*"
                 source += f" CROSS JOIN {table}"
             selects.append(f"{query} FROM {source}")
