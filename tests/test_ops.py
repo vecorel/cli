@@ -1,7 +1,7 @@
 import pytest
 
 from vecorel_cli.vecorel.collection import Collection
-from vecorel_cli.vecorel.ops import merge_collections
+from vecorel_cli.vecorel.ops import merge_collections, warn_missing_required
 from vecorel_cli.vecorel.schemas import Schemas, VecorelSchema
 
 
@@ -146,4 +146,36 @@ def test_merge_collections_warns_about_collection_only_properties():
     # x is not collection-only, so it goes back into the features, which the caller handles
     assert log.warnings == [
         "Collection-only properties differ between the datasets and are removed: producer"
+    ]
+
+
+def test_warn_missing_required_collection_only_properties(tmp_path):
+    class Log:
+        warnings = []
+
+        def warning(self, message):
+            self.warnings.append(message)
+
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ext = "https://example.com/producer/v0.1.0/schema.yaml"
+    path = tmp_path / "schema.yaml"
+    path.write_text(
+        "$schema: https://vecorel.org/sdl/v0.2.0/schema.json\n"
+        "required: [producer]\n"
+        "collection: {producer: true}\n"
+        "properties: {producer: {type: string}}\n"
+    )
+    schema_map = {ext: path}
+    properties = ["id", "geometry", "collection"]
+    collections = [
+        Collection({"schemas": {"c1": [core, ext]}, "producer": "A"}),
+        Collection({"schemas": {"c2": [core, ext]}, "producer": "A"}),
+    ]
+    merged = merge_collections(collections, properties=properties)
+    assert "producer" not in merged
+
+    log = Log()
+    warn_missing_required(merged, properties, schema_map, log)
+    assert log.warnings == [
+        "Required properties are not included, the merged file will be invalid: producer"
     ]

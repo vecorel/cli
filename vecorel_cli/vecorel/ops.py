@@ -93,7 +93,8 @@ def warn_missing_required(
 ):
     schema = collection.merge_schemas(schema_map=schema_map)
     collection_only = set(collection.get_collection_only_properties(schema_map=schema_map))
-    missing = set(schema.get("required", [])) - set(properties) - collection_only - {"geometry"}
+    in_collection = collection_only & set(collection.keys())
+    missing = set(schema.get("required", [])) - set(properties) - in_collection - {"geometry"}
     if missing:
         log.warning(
             f"Required properties are not included, the merged file will be invalid: {', '.join(sorted(missing))}"
