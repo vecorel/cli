@@ -330,8 +330,18 @@ class Schemas(dict):
     def get_all(self) -> list[CollectionSchemas]:
         return list(self.values())
 
-    def add_all(self, schemas: "Schemas"):
-        self.update(schemas)
+    def add_all(self, schemas: Union[RawSchemas, "Schemas"]):
+        """Add the schemas of other collections, uniting the lists of a collection that exists already."""
+        for collection, schema_list in schemas.items():
+            merged = CollectionSchemas(
+                set(self.get(collection, set())) | set(schema_list), collection
+            )
+            cores = {s for s in merged if re.match(Schemas.spec_pattern, s)}
+            if len(cores) > 1:
+                raise ValueError(
+                    f"Collection '{collection}' has conflicting core schemas: {', '.join(sorted(cores))}"
+                )
+            self[collection] = merged
 
     def is_empty(self) -> bool:
         return len(self) == 0

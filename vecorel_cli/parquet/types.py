@@ -166,7 +166,7 @@ def get_pyarrow_type(schema):
         elif len(pattern_properties) > 0:
             if len(pattern_properties) > 1:
                 raise Exception("Multiple pattern properties are not supported")
-            _, subschema = pattern_properties.popitem()
+            subschema = next(iter(pattern_properties.values()))
             values = get_pyarrow_type(subschema)
             return pa.map_(pa.string(), values)
         else:

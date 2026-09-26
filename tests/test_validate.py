@@ -108,3 +108,50 @@ def test_validate(test):
                 assert error == expect
 
         assert not result.is_valid()
+
+
+def _write_collections(path, collections, columns, schemas):
+    import geopandas as gpd
+    import shapely
+
+    from vecorel_cli.encoding.geoparquet import GeoParquet
+
+    n = len(collections)
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": [str(i) for i in range(n)],
+            "collection": collections,
+            **columns,
+            "geometry": [shapely.box(i, 0, i + 1, 1) for i in range(n)],
+        },
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(path)
+    gp.set_collection({"schemas": schemas})
+    gp.write(gdf, dehydrate=False)
+
+
+def test_validate_rejects_features_without_a_known_collection(tmp_parquet_file):
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    _write_collections(tmp_parquet_file, ["a", None, "x"], {}, {"a": [core], "b": [core]})
+
+    errors = [str(e) for e in ValidateData().validate(tmp_parquet_file).errors]
+    assert errors == [
+        "collection: 1 rows have no collection",
+        "collection: Not found in schemas: x",
+    ]
+
+
+def test_validate_checks_required_properties_per_collection(tmp_parquet_file):
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    admin = "https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"
+    schemas = {"a": [core, admin], "b": [core]}
+    columns = {"admin:country_code": ["DE", None, None]}
+    _write_collections(tmp_parquet_file, ["a", "a", "b"], columns, schemas)
+
+    errors = [str(e) for e in ValidateData().validate(tmp_parquet_file).errors]
+    assert errors == ["admin:country_code: Required field has no value for collection 'a'"]
+
+    columns = {"admin:country_code": ["DE", "DE", None]}
+    _write_collections(tmp_parquet_file, ["a", "a", "b"], columns, schemas)
+    assert ValidateData().validate(tmp_parquet_file).errors == []

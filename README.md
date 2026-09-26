@@ -121,7 +121,16 @@ Check `vec describe --help` for more details.
 
 Merges multiple Vecorel datasets to a combined Vecorel dataset:
 
-- `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -e https://vecorel.org/hcat-extension/v0.1.0/schema.yaml -i ec:hcat_name -i ec:hcat_code -i ec:translated_name`
+- `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet`
+- Only the core properties and some additional properties: `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -i ec:hcat_name -i ec:hcat_code`
+- All properties except for some: `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -e ec:translated_name`
+
+The merged dataset is in EPSG:4326 by default. Use `--crs` to choose another CRS,
+or `--crs first` to keep the CRS of the first dataset.
+
+Local GeoParquet files that are all in the target CRS are merged with DuckDB, so they don't need to fit into memory.
+All other datasets (e.g. GeoJSON or datasets that need to be reprojected) are merged in memory.
+Use `--engine` to choose the engine explicitly.
 
 Check `vec merge --help` for more details.
 

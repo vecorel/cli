@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Optional, Union
 
+import pandas as pd
 from fsspec import AbstractFileSystem
 from geopandas import GeoDataFrame
 from yarl import URL
@@ -124,7 +125,11 @@ class BaseEncoding(LoggerMixin):
             if key in collection_only:
                 continue
             if key not in data.columns:
-                data[key] = value
+                if isinstance(value, (list, dict)):
+                    # pandas would spread a list over the rows and align a dict to the index
+                    data[key] = pd.Series([value] * len(data), index=data.index, dtype=object)
+                else:
+                    data[key] = value
                 collection.pop(key, None)
 
         return data
@@ -153,6 +158,10 @@ class BaseEncoding(LoggerMixin):
                 # Skip properties that should always be in the feature or collection
                 continue
             if properties and key not in properties:
+                continue
+
+            # All-null columns can't be expressed in JSON reliably (NaN, NA), keep them as they are
+            if data[key].isna().all():
                 continue
 
             # todo: This only works for scalar values, how to handle dicts, etc?

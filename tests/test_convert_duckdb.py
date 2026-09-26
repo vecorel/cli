@@ -664,6 +664,65 @@ def test_merge_parquet_hydrates_constants_the_parts_disagree_on(tmp_folder):
     assert ValidateData().validate(dest, num=100, schema_map={}).errors == []
 
 
+def _collection_part(folder, cid, ids, area=None):
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ids,
+            "name": ["a"] * len(ids),
+            "geometry": [shapely.box(i, 0, i + 1, 1) for i in range(len(ids))],
+        },
+        crs="EPSG:4326",
+    )
+    src = folder / f"c_src_{cid}_{len(ids)}.parquet"
+    gdf.to_parquet(src)
+    config = {**CONFIG, "id": cid}
+    if area is not None:
+        config["column_additions"] = {"area": area}
+        config["missing_schemas"] = {
+            "properties": {"name": {"type": "string"}, "area": {"type": "double"}}
+        }
+    part = folder / f"c_part_{cid}_{len(ids)}.parquet"
+    type("Part", (DuckDBBaseConverter,), config)().convert(part, input_files={str(src): src.name})
+    return part
+
+
+def test_merge_parquet_numbers_ids_per_collection(tmp_folder):
+    """Ids only have to be unique per collection, so only repeats within one get numbered."""
+    parts = [
+        _collection_part(tmp_folder, "a", ["1", "2"]),
+        _collection_part(tmp_folder, "b", ["1", "2"]),
+        _collection_part(tmp_folder, "b", ["1"]),
+    ]
+    dest = tmp_folder / "per_collection.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    table = pq.read_table(dest, columns=["collection", "id"])
+    assert sorted(zip(table.column("collection").to_pylist(), table.column("id").to_pylist())) == [
+        ("a", "1"),
+        ("a", "2"),
+        ("b", "1~1"),
+        ("b", "1~2"),
+        ("b", "2"),
+    ]
+    assert ValidateData().validate(dest, num=100, schema_map={}).errors == []
+
+
+def test_merge_parquet_hydrates_nan_as_null(tmp_folder):
+    """A NaN in the collection comes from a column without values, so it's a null."""
+    parts = [
+        _collection_part(tmp_folder, "a", ["1"], area=float("nan")),
+        _collection_part(tmp_folder, "b", ["2"], area=1.5),
+    ]
+    dest = tmp_folder / "nan.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    table = pq.read_table(dest, columns=["id", "area"])
+    assert dict(zip(table.column("id").to_pylist(), table.column("area").to_pylist())) == {
+        "1": None,
+        "2": 1.5,
+    }
+
+
 def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
     """Each part numbered its own rows from zero, so the merge has to check what
     convert() is allowed to take for granted."""

@@ -1,3 +1,5 @@
+import base64
+import datetime
 import json
 import os
 from pathlib import Path
@@ -6,12 +8,15 @@ from typing import Optional
 
 import duckdb
 import numpy as np
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..encoding.geojson import VecorelJSONEncoder
 from ..encoding.geoparquet import GeoParquet
+from ..parquet.types import get_pyarrow_type
 from ..vecorel.hilbert import hilbert_keys_for_table, hilbert_reference_bounds
+from ..vecorel.ops import get_collection_id, merge_collections, warn_missing_required
 from .base import BaseConverter
 
 
@@ -20,6 +25,11 @@ from .base import BaseConverter
 def _sql_path(path) -> str:
     escaped = str(path).replace("'", "''")
     return f"'{escaped}'"
+
+
+def _sql_name(name) -> str:
+    escaped = str(name).replace('"', '""')
+    return f'"{escaped}"'
 
 
 # A COPY statement binds its own parameters before those of its subquery, so a value
@@ -43,6 +53,36 @@ def _sql_literal(value) -> str:
         raise ValueError(f"Cannot use {value!r} as a constant column; it is not a scalar")
     escaped = value.replace("'", "''")
     return f"'{escaped}'"
+
+
+# Collection metadata is JSON, so temporal and binary values are encoded as strings
+def _to_arrow_value(value, dtype):
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    if isinstance(value, str):
+        if dtype == "date-time":
+            ts = pd.Timestamp(value)
+            return (
+                ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+            ).to_pydatetime()
+        if dtype == "date":
+            return datetime.date.fromisoformat(value[:10])
+        if dtype == "binary":
+            return base64.b64decode(value)
+    return value
+
+
+def _constants_table(constants: dict, props: dict) -> pa.Table:
+    """A single row with the given values, typed by the property schemas where available."""
+    arrays = []
+    for key, value in constants.items():
+        schema = props.get(key) or {}
+        try:
+            pa_type = get_pyarrow_type(schema) if schema.get("type") else None
+            arrays.append(pa.array([_to_arrow_value(value, schema.get("type"))], type=pa_type))
+        except Exception:
+            arrays.append(pa.array([value]))
+    return pa.table(arrays, names=list(constants.keys()))
 
 
 def _normalize_crs(crs):
@@ -317,13 +357,14 @@ class DuckDBBaseConverter(BaseConverter):
         compression_level: Optional[int] = None,
         geoparquet_version: Optional[str] = None,
         original_geometries: bool = False,
+        suffix_duplicate_ids: bool = True,
     ) -> str:
         """Write the rows a SELECT returns as a Vecorel GeoParquet file: drop rows
         that no required property or geometry survives, report an id that is not
         unique, normalize the geometries, sort into Hilbert order and package.
 
         `targets` names the properties the query returns, which is what the checks
-        run over.
+        run over. Ids only need to be unique per collection.
         """
         compression = compression or "zstd"
         if compression == "zstd" and compression_level is None:
@@ -346,23 +387,40 @@ class DuckDBBaseConverter(BaseConverter):
 
         # Same required-value check, empty-geometry drop and id uniqueness
         # check as in the GeoDataFrame-based codepath, in one scan
-        schemas = collection.merge_schemas({})
         collection_only = set(collection.get_collection_only_properties())
-        required = [
-            r
-            for r in schemas.get("required", [])
-            if r != "geometry" and r not in collection_only and r in selected_targets
-        ]
+        has_collection_column = "collection" in selected_targets
+
+        def null_condition(schema):
+            required = [
+                r
+                for r in schema.get("required", [])
+                if r != "geometry" and r not in collection_only and r in selected_targets
+            ]
+            return " OR ".join(f'"{target}" IS NULL' for target in required) or None
+
+        schema_groups = collection.get_schemas()
+        if len(schema_groups) > 1 and has_collection_column:
+            # Each collection only requires what its own schemas require
+            custom_schemas = collection.get_custom_schemas()
+            conditions = ['"collection" IS NULL']
+            for cid, group in schema_groups.items():
+                cond = null_condition(group.merge_schemas(custom_schemas=custom_schemas))
+                if cond:
+                    conditions.append(f'("collection" = {_sql_literal(cid)} AND ({cond}))')
+            null_cond = " OR ".join(conditions)
+        else:
+            null_cond = null_condition(collection.merge_schemas({}))
         stats = ["count(*)"]
-        null_cond = None
-        if required:
-            null_cond = " OR ".join(f'"{target}" IS NULL' for target in required)
+        if null_cond:
             stats.append(f"count(*) FILTER (WHERE {null_cond})")
         # row numbers are unique by construction
         check_ids = "id" in selected_targets and not ids_are_generated
         if check_ids:
+            id_key = (
+                'struct_pack(c := "collection", i := "id")' if has_collection_column else '"id"'
+            )
             stats.append('count("id")')
-            stats.append('count(DISTINCT "id")')
+            stats.append(f'count(DISTINCT {id_key}) FILTER (WHERE "id" IS NOT NULL)')
         blank_cond = None
         repair_cond = None
         if "geometry" in selected_targets:
@@ -386,12 +444,16 @@ class DuckDBBaseConverter(BaseConverter):
             if check_ids:
                 non_null = values.pop(0)
                 distinct = values.pop(0)
-                if distinct < non_null:
+                if distinct < non_null and suffix_duplicate_ids:
                     self.warning(
                         f"{type(self).__name__}: 'id' is not unique — {non_null - distinct:,} "
                         f"of {non_null:,} rows repeat an id, so it cannot be `id`. Map a column "
                         "that identifies a feature, or build one from the source's key columns. "
                         "The repeating ids get a ~<n> suffix in the output."
+                    )
+                elif distinct < non_null:
+                    self.warning(
+                        f"{non_null - distinct:,} of {non_null:,} rows repeat an id within their collection"
                     )
             blanks = values.pop(0) if blank_cond else 0
             repairs = values.pop(0) if repair_cond else 0
@@ -467,7 +529,7 @@ class DuckDBBaseConverter(BaseConverter):
             [output_file, compression, collection_json],
         )
 
-        if "id" in selected_targets:
+        if "id" in selected_targets and suffix_duplicate_ids:
             self._suffix_duplicate_ids_in_file(
                 con, output_file, compression, collection_json, row_group_size
             )
@@ -514,13 +576,15 @@ class DuckDBBaseConverter(BaseConverter):
     def _suffix_duplicate_ids_in_file(
         self, con, output_file, compression, collection_json, row_group_size
     ):
-        """Number the ids that appear on several rows (id~1, id~2, ...), like the
+        """Number the ids that appear on several rows of a collection (id~1, id~2, ...), like the
         GeoDataFrame-based codepath, when the source does not provide unique ids
         (the pre-write check only warns). Runs on the written file, so the id
         column keeps its type when nothing repeats; the rewrite may reorder rows,
         which the Hilbert sort afterwards puts right. A numbered id can collide
         with one the source already carries (x~1), so this repeats until nothing
         repeats."""
+        names = pq.read_schema(output_file).names
+        key = '"collection", "id"' if "collection" in names else '"id"'
         reported = False
         while True:
             total, duplicated = con.execute(
@@ -528,7 +592,7 @@ class DuckDBBaseConverter(BaseConverter):
                 SELECT coalesce(sum(n), 0), coalesce(sum(n) FILTER (WHERE n > 1), 0)
                 FROM (
                     SELECT count(*) AS n FROM read_parquet({_sql_path(output_file)})
-                    WHERE "id" IS NOT NULL GROUP BY "id"
+                    WHERE "id" IS NOT NULL GROUP BY {key}
                 )
                 """
             ).fetchone()
@@ -551,9 +615,9 @@ class DuckDBBaseConverter(BaseConverter):
                     f"""
                     COPY (
                       SELECT * EXCLUDE (file_row_number) REPLACE (
-                        CASE WHEN count(*) OVER (PARTITION BY "id") > 1
+                        CASE WHEN count(*) OVER (PARTITION BY {key}) > 1
                              THEN CAST("id" AS VARCHAR) || '~' || CAST(
-                                  row_number() OVER (PARTITION BY "id" ORDER BY file_row_number)
+                                  row_number() OVER (PARTITION BY {key} ORDER BY file_row_number)
                                   AS VARCHAR)
                              ELSE CAST("id" AS VARCHAR)
                         END AS "id")
@@ -575,18 +639,23 @@ class DuckDBBaseConverter(BaseConverter):
                     os.unlink(tmp_path)
                 raise
 
-    def merge_parquet(self, paths: list, output_file, collection=None, **kwargs) -> str:
+    def merge_parquet(
+        self, paths: list, output_file, collection=None, properties=None, **kwargs
+    ) -> str:
         """Combine Vecorel GeoParquet files into one, checked and sorted over the
         whole set rather than per file.
 
         The parts are written by a converter, so they need no column mapping and
         their geometries are already valid polygons; pass `original_geometries=False`
-        to run the geometry step anyway.
+        to run the geometry step anyway. `properties` restricts the properties that
+        are merged. The bbox is always recomputed, as not all parts may have one.
         """
         if not paths:
             raise ValueError("No paths to merge")
         paths = [str(path) for path in paths]
         kwargs.setdefault("original_geometries", True)
+        if properties is not None:
+            properties = set(properties) | {"geometry"}
 
         con = duckdb.connect()
         con.install_extension("spatial")
@@ -596,41 +665,49 @@ class DuckDBBaseConverter(BaseConverter):
 
         collections = [GeoParquet(path).get_collection() for path in paths]
         if collection is None:
-            from ..vecorel.ops import merge_collections
-
-            collection = merge_collections(collections)
-
-        # A part keeps its constants in its collection; one the merged collection does not
-        # carry, because the parts disagree on it, goes back into the rows, as `vec merge` does
-        hydrate = sorted(
-            {
-                key
-                for part in collections
-                for key in part.keys()
-                if key not in collection and key not in part.get_collection_only_properties()
-            }
-            - {"schemas"}
-        )
+            collection = merge_collections(collections, properties=properties, log=self)
+            if properties is not None:
+                warn_missing_required(collection, properties, {}, self)
+        props = collection.merge_schemas({}).get("properties", {})
 
         # union by name, because a converter drops a column a source file does not have,
         # so two parts of one dataset can legitimately differ; the targets then come from
         # the union rather than from whichever part happens to be first
-        if hydrate:
-            selects = []
-            for path, part in zip(paths, collections):
-                names = pq.read_schema(path).names
-                literals = [
-                    f'{_sql_literal(part.get(key))} AS "{key}"'
-                    for key in hydrate
-                    if key not in names
-                ]
-                selects.append(
-                    f"SELECT {', '.join(['*', *literals])} FROM read_parquet({_sql_path(path)})"
-                )
-            source_query = " UNION ALL BY NAME ".join(selects)
-        else:
-            sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
-            source_query = f"SELECT * FROM read_parquet({sources}, union_by_name=true)"
+        selects = []
+        for i, (path, part) in enumerate(zip(paths, collections)):
+            names = pq.read_schema(path).names
+            collection_only = set(part.get_collection_only_properties())
+            # A part keeps its constants in its collection; one the merged collection does not
+            # carry, because the parts disagree on it, goes back into the rows, as `vec merge` does
+            constants = {
+                key: value
+                for key, value in part.items()
+                if key not in collection
+                and key not in collection_only
+                and key != "schemas"
+                and key not in names
+                and (properties is None or key in properties)
+            }
+            # Features of multiple collections must state their collection
+            if "collection" not in collection and "collection" not in names:
+                constants["collection"] = get_collection_id(part, path)
+
+            columns = [
+                _sql_name(name)
+                for name in names
+                if name != "bbox" and (properties is None or name in properties)
+            ]
+            query = f"SELECT {', '.join(columns)}"
+            source = f"read_parquet({_sql_path(path)})"
+            if constants:
+                # A registered table rather than SQL literals, so arrays, objects and
+                # temporal values keep their types
+                table = f"constants_{i}"
+                con.register(table, _constants_table(constants, props))
+                query += f", {table}.*"
+                source += f" CROSS JOIN {table}"
+            selects.append(f"{query} FROM {source}")
+        source_query = " UNION ALL BY NAME ".join(selects)
         targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
 
         return self.write_query(
