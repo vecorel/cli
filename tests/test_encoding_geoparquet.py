@@ -148,3 +148,64 @@ def test_read_keeps_integers_that_have_a_null(tmp_parquet_file):
     from vecorel_cli.validate import ValidateData
 
     assert ValidateData().validate(tmp_parquet_file).errors == []
+
+
+def test_write_keeps_all_null_columns_in_the_data(tmp_parquet_file):
+    # NaN and NA aren't valid JSON, so they can't move to the collection
+    from geopandas import GeoDataFrame
+    from shapely.geometry import box
+
+    gdf = GeoDataFrame(
+        {
+            "id": ["1", "2"],
+            "code": pd.array([None, None], dtype="Int64"),
+            "area": [np.nan, np.nan],
+            "name": [None, None],
+            "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            "collection": "c",
+        }
+    )
+    gp.write(gdf)
+
+    collection = GeoParquet(tmp_parquet_file).get_collection()
+    assert not {"code", "area", "name"} & set(collection)
+    assert {"code", "area", "name"} <= set(pq.read_schema(tmp_parquet_file).names)
+
+
+def test_get_pyarrow_type_keeps_the_schema():
+    from vecorel_cli.parquet.types import get_pyarrow_type
+
+    schema = {"type": "object", "patternProperties": {".*": {"type": "string"}}}
+    assert get_pyarrow_type(schema) == pa.map_(pa.string(), pa.string())
+    assert get_pyarrow_type(schema) == pa.map_(pa.string(), pa.string())
+
+
+def test_read_hydrates_array_and_object_constants(tmp_parquet_file):
+    from geopandas import GeoDataFrame
+    from shapely.geometry import box
+
+    gdf = GeoDataFrame(
+        {"id": ["1", "2", "3"], "geometry": [box(0, 0, 1, 1)] * 3},
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            "collection": "c",
+            "tags": ["a", "b"],
+            "attrs": {"k": "v"},
+        }
+    )
+    gp.write(gdf, dehydrate=False)
+
+    data = GeoParquet(tmp_parquet_file).read(hydrate=True)
+    assert list(data["tags"]) == [["a", "b"]] * 3
+    assert list(data["attrs"]) == [{"k": "v"}] * 3

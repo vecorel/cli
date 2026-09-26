@@ -1,3 +1,5 @@
+import pytest
+
 from vecorel_cli.vecorel.collection import Collection
 from vecorel_cli.vecorel.ops import merge_collections
 from vecorel_cli.vecorel.schemas import Schemas, VecorelSchema
@@ -92,3 +94,40 @@ def test_merge_collections_keeps_collection_properties():
     merged = merge_collections([collection1], properties=["only_in_first"])
     assert "source_name" not in merged
     assert merged.get("only_in_first") == "x"
+
+
+def test_merge_collections_unites_schemas_of_a_collection():
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ext = "https://example.com/ext.yaml"
+    merged = merge_collections(
+        [Collection({"schemas": {"c1": [core, ext]}}), Collection({"schemas": {"c1": [core]}})]
+    )
+    assert merged.get_schemas() == Schemas({"c1": [core, ext]})
+
+    other_core = "https://vecorel.org/specification/v0.2.0/schema.yaml"
+    with pytest.raises(ValueError, match="conflicting core schemas"):
+        merge_collections(
+            [Collection({"schemas": {"c1": [core]}}), Collection({"schemas": {"c1": [other_core]}})]
+        )
+
+
+def test_merge_collections_warns_about_collection_only_properties():
+    class Log:
+        warnings = []
+
+        def warning(self, message):
+            self.warnings.append(message)
+
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    custom = {"properties": {"producer": {"type": "string"}}, "collection": {"producer": True}}
+    collections = [
+        Collection({"schemas": {"c1": [core]}, "schemas:custom": custom, "producer": "A", "x": 1}),
+        Collection({"schemas": {"c2": [core]}, "schemas:custom": custom, "producer": "B", "x": 2}),
+    ]
+    log = Log()
+    merged = merge_collections(collections, log=log)
+    assert "producer" not in merged
+    # x is not collection-only, so it goes back into the features, which the caller handles
+    assert log.warnings == [
+        "Collection-only properties differ between the datasets and are removed: producer"
+    ]
