@@ -621,6 +621,49 @@ def test_merge_parquet_unions_parts_that_differ(tmp_folder):
     assert sorted(x for x in table.column("id").to_pylist()) == ["0", "1"]
 
 
+def test_merge_parquet_hydrates_constants_the_parts_disagree_on(tmp_folder):
+    """Each part keeps its constants in its collection; one the parts disagree on
+    goes back into the rows, as `vec merge` does, and a shared one stays put."""
+    parts = []
+    for index, region in enumerate(("north", "south")):
+        gdf = gpd.GeoDataFrame(
+            {"id": [f"{index}"], "name": ["a"], "geometry": [shapely.box(index, 0, index + 1, 1)]},
+            crs="EPSG:4326",
+        )
+        src = tmp_folder / f"h_src_{index}.parquet"
+        gdf.to_parquet(src)
+        Part = type(
+            "Part",
+            (DuckDBBaseConverter,),
+            {
+                **CONFIG,
+                "column_additions": {"region": region, "country": "NL"},
+                "missing_schemas": {
+                    "properties": {
+                        "name": {"type": "string"},
+                        "region": {"type": "string"},
+                        "country": {"type": "string"},
+                    }
+                },
+            },
+        )
+        part = tmp_folder / f"h_part_{index}.parquet"
+        Part().convert(part, input_files={str(src): src.name})
+        assert "region" in json.loads(pq.read_schema(part).metadata[b"collection"])
+        parts.append(part)
+
+    dest = tmp_folder / "hydrated.parquet"
+    Converter().merge_parquet(parts, dest)
+
+    table = pq.read_table(dest)
+    rows = dict(zip(table.column("id").to_pylist(), table.column("region").to_pylist()))
+    assert rows == {"0": "north", "1": "south"}
+    collection = json.loads(table.schema.metadata[b"collection"])
+    assert "region" not in collection
+    assert collection["country"] == "NL" and "country" not in table.schema.names
+    assert ValidateData().validate(dest, num=100, schema_map={}).errors == []
+
+
 def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):
     """Each part numbered its own rows from zero, so the merge has to check what
     convert() is allowed to take for granted."""
