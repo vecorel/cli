@@ -17,13 +17,19 @@ def merge(
     schema_map: SchemaMapping = {},
     log: Optional[LoggerMixin] = None,
 ) -> tuple[GeoDataFrame, Collection]:
-    data = []
-    collections = []
+    frames = [item.read(properties=properties, schema_map=schema_map) for item in encodings]
+    collections = [item.get_collection() for item in encodings]
+    merged_collection = merge_collections(collections, properties=properties, log=log)
 
-    for item in encodings:
-        # Load the dataset
-        gdf = item.read(hydrate=True, properties=properties, schema_map=schema_map)
-        collection = item.get_collection()
+    data = []
+    for item, gdf, collection in zip(encodings, frames, collections):
+        # Only what the merged collection doesn't carry goes back into the rows
+        keys = [
+            key
+            for key in collection
+            if key not in merged_collection and (properties is None or key in properties)
+        ]
+        gdf = item.hydrate_from_collection(gdf, schema_map=schema_map, keys=keys)
 
         if "collection" not in gdf.columns or gdf["collection"].isna().any():
             cid = get_collection_id(collection, item.uri)
@@ -39,9 +45,7 @@ def merge(
             # Change the CRS if necessary
             gdf.to_crs(crs=crs, inplace=True)
 
-        # Add data to lists
         data.append(gdf)
-        collections.append(collection)
 
     # Concatenate all GeoDataFrames to a single GeoDataFrame
     merged = GeoDataFrame(pd.concat(data, ignore_index=True))
@@ -54,12 +58,10 @@ def merge(
         if duplicates:
             log.warning(f"{duplicates} rows repeat an id within their collection")
 
-    # Merge all collections
-    collection = merge_collections(collections, properties=properties, log=log)
     if log and properties is not None:
-        warn_missing_required(collection, properties, schema_map, log)
+        warn_missing_required(merged_collection, properties, schema_map, log)
 
-    return merged, collection
+    return merged, merged_collection
 
 
 def get_collection_id(collection: Collection, source=None) -> str:

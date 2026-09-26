@@ -183,6 +183,20 @@ def test_merge_hydrates_array_and_object_constants(tmp_folder, engine):
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("with_schema", [False, True])
+def test_merge_keeps_shared_array_constants_in_the_collection(tmp_folder, engine, with_schema):
+    custom = {"properties": {"tags": {"type": "array", "items": {"type": "string"}}}}
+    custom = custom if with_schema else None
+    a = _part(tmp_folder, "a", "a", 2, collection={"tags": ["x", "y"]}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"tags": ["x", "y"]}, custom=custom)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, collection = _read(out)
+    assert collection["tags"] == ["x", "y"]
+    assert all("tags" not in row for row in rows)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_merge_hydrates_date_time_constants(tmp_folder, engine):
     custom = {"properties": {"dt": {"type": "date-time"}}}
     a = _part(tmp_folder, "a", "a", 2, collection={"dt": "2020-01-01T00:00:00Z"}, custom=custom)
