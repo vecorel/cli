@@ -46,6 +46,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Validation checks the schemas of all collections, not only the first one.
 - Validation no longer fails with a `KeyError` for GeoParquet files with multiple
   collections, but without a collection column.
+- The in-memory merge keeps constants that all datasets share in the collection, instead
+  of failing on or moving array and object constants into the rows.
+- `vec merge` with DuckDB keeps rows without a required value (with a warning) and
+  rows with an empty geometry, like the in-memory merge.
+- `merge_parquet` warns about a constant that doesn't fit the type of its schema.
+- Merging rejects two versions of the same schema in one collection.
+- `vec merge --exclude` no longer reads datasets other than GeoParquet twice.
+- Merging warns when `--include` drops a required collection-only property.
+- Merging accepts features again whose collection can't be determined.
 
 ## [v0.3.1] - 2026-09-24
 
