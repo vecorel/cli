@@ -110,6 +110,22 @@ def test_merge_collections_unites_schemas_of_a_collection():
             [Collection({"schemas": {"c1": [core]}}), Collection({"schemas": {"c1": [other_core]}})]
         )
 
+    fiboa = "https://fiboa.org/specification/v{}/schema.yaml"
+    with pytest.raises(ValueError, match="conflicting versions of a schema"):
+        merge_collections(
+            [
+                Collection({"schemas": {"c1": [core, fiboa.format("0.2.0")]}}),
+                Collection({"schemas": {"c1": [core, fiboa.format("0.3.0")]}}),
+            ]
+        )
+    # other collections may use another version
+    merge_collections(
+        [
+            Collection({"schemas": {"c1": [core, fiboa.format("0.2.0")]}}),
+            Collection({"schemas": {"c2": [core, fiboa.format("0.3.0")]}}),
+        ]
+    )
+
 
 def test_merge_collections_warns_about_collection_only_properties():
     class Log:
