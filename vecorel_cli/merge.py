@@ -121,6 +121,7 @@ class MergeDatasets(BaseCommand):
                 target.uri,
                 properties=properties,
                 suffix_duplicate_ids=False,
+                strict=False,
             )
         else:
             if engine == "auto":

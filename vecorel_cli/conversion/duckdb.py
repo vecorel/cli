@@ -358,6 +358,7 @@ class DuckDBBaseConverter(BaseConverter):
         geoparquet_version: Optional[str] = None,
         original_geometries: bool = False,
         suffix_duplicate_ids: bool = True,
+        strict: bool = True,
     ) -> str:
         """Write the rows a SELECT returns as a Vecorel GeoParquet file: drop rows
         that no required property or geometry survives, report an id that is not
@@ -365,6 +366,8 @@ class DuckDBBaseConverter(BaseConverter):
 
         `targets` names the properties the query returns, which is what the checks
         run over. Ids only need to be unique per collection.
+        Without `strict`, a missing required value is only reported and empty
+        geometries are kept, as the in-memory merge does.
         """
         compression = compression or "zstd"
         if compression == "zstd" and compression_level is None:
@@ -390,11 +393,11 @@ class DuckDBBaseConverter(BaseConverter):
         collection_only = set(collection.get_collection_only_properties())
         has_collection_column = "collection" in selected_targets
 
-        def null_condition(schema):
+        def null_condition(schema, skip=("geometry",)):
             required = [
                 r
                 for r in schema.get("required", [])
-                if r != "geometry" and r not in collection_only and r in selected_targets
+                if r not in skip and r not in collection_only and r in selected_targets
             ]
             return " OR ".join(f'"{target}" IS NULL' for target in required) or None
 
@@ -404,7 +407,8 @@ class DuckDBBaseConverter(BaseConverter):
             custom_schemas = collection.get_custom_schemas()
             conditions = ['"collection" IS NULL']
             for cid, group in schema_groups.items():
-                cond = null_condition(group.merge_schemas(custom_schemas=custom_schemas))
+                schema = group.merge_schemas(custom_schemas=custom_schemas)
+                cond = null_condition(schema, skip=("geometry", "collection"))
                 if cond:
                     conditions.append(f'("collection" = {_sql_literal(cid)} AND ({cond}))')
             null_cond = " OR ".join(conditions)
@@ -457,7 +461,12 @@ class DuckDBBaseConverter(BaseConverter):
                     )
             blanks = values.pop(0) if blank_cond else 0
             repairs = values.pop(0) if repair_cond else 0
-            if invalid:
+            if invalid and not strict:
+                self.warning(
+                    f"{invalid} of {total} rows have no value for a required property, "
+                    "the merged file will be invalid"
+                )
+            elif invalid:
                 # A null in a required property is an error, whatever the count:
                 # the writer rejects nulls in the non-nullable required fields
                 # anyway, and silently dropping rows would make that data-quality
@@ -468,7 +477,7 @@ class DuckDBBaseConverter(BaseConverter):
                     "fill the values in column_migrations, or exclude the rows with "
                     "a column_filters entry."
                 )
-            if blanks:
+            if blanks and strict:
                 self.warning(f"Dropping {blanks} of {total} rows with an empty or missing geometry")
                 source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({blank_cond})"
             if repairs:

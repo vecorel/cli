@@ -349,6 +349,34 @@ def test_merge_excludes_the_collection(tmp_folder, engine, log):
     assert "the merged file will be invalid: collection" in log()
 
 
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_rows_without_a_required_value(tmp_folder, engine):
+    a = _part(
+        tmp_folder, "a", "a", 2, columns={"admin:country_code": ["DE", "DE"]}, schemas=[CORE, ADMIN]
+    )
+    a = _with_nullable_column(a, "admin:country_code", ["DE", None])
+    b = _part(
+        tmp_folder, "b", "b", 2, columns={"admin:country_code": ["FR", "FR"]}, schemas=[CORE, ADMIN]
+    )
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, _ = _read(out)
+    assert [r["admin:country_code"] for r in rows] == ["DE", None, "FR", "FR"]
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_empty_geometries(tmp_folder, engine):
+    a = _part(tmp_folder, "a", "a", 2)
+    b = _part(tmp_folder, "b", "b", 2)
+    gp = GeoParquet(b)
+    gdf = gp.read()
+    gdf.loc[0, "geometry"] = shapely.Polygon()
+    gp.write(gdf, dehydrate=False)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    assert pq.read_metadata(out).num_rows == 4
+
+
 def test_merge_ignores_null_ids_for_duplicates(tmp_folder, log):
     a = _with_nullable_column(_part(tmp_folder, "a", "a", 2), "id", [None, None])
     b = _part(tmp_folder, "b", "b", 2)
