@@ -49,7 +49,8 @@ def merge(
     merged.dropna(axis=1, how="all", inplace=True)
 
     if log and "id" in merged.columns:
-        duplicates = int(merged.duplicated(subset=["collection", "id"]).sum())
+        with_id = merged[merged["id"].notna()]
+        duplicates = int(with_id.duplicated(subset=["collection", "id"]).sum())
         if duplicates:
             log.warning(f"{duplicates} rows repeat an id within their collection")
 

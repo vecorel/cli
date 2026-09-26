@@ -29,8 +29,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   datasets, it unites them.
 - Merging warns about collection-only properties that differ between the datasets
   and have to be removed.
-- Merging fills in the collection of datasets that only list a single collection in
-  `schemas`.
+- Merging fills in missing collection values of datasets that only list a single
+  collection in `schemas`.
 - Merging hydrates array and object constants correctly, instead of spreading them
   over the rows, dropping them (`vec merge`) or failing (`merge_parquet`).
 - `merge_parquet` checks and numbers repeating ids per collection instead of across
@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Validation checks that all features in GeoParquet files have a collection that is
   listed in `schemas`, and the required properties per collection.
 - Validation checks the schemas of all collections, not only the first one.
+- Validation no longer fails with a `KeyError` for GeoParquet files with multiple
+  collections, but without a collection column.
 
 ## [v0.3.1] - 2026-09-24
 

@@ -24,7 +24,8 @@ class MergeDatasets(BaseCommand):
 
     This simply appends the datasets to each other.
     Ids that repeat within a collection are reported, but not changed.
-    A collection column is added so that the source of each row is known.
+    Each feature keeps its collection, which is stored in a column if the
+    datasets have multiple collections.
 
     Local GeoParquet files that are all in the target CRS are merged with DuckDB,
     which doesn't need to fit the data into memory. All other datasets are merged in memory.

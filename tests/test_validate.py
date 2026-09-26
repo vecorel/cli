@@ -142,6 +142,24 @@ def test_validate_rejects_features_without_a_known_collection(tmp_parquet_file):
     ]
 
 
+def test_validate_reports_a_missing_collection_column(tmp_parquet_file):
+    import geopandas as gpd
+    import shapely
+
+    from vecorel_cli.encoding.geoparquet import GeoParquet
+
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    gdf = gpd.GeoDataFrame(
+        {"id": ["1", "2"], "geometry": [shapely.box(0, 0, 1, 1)] * 2}, crs="EPSG:4326"
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection({"schemas": {"a": [core], "b": [core]}})
+    gp.write(gdf, dehydrate=False)
+
+    errors = [str(e) for e in ValidateData().validate(tmp_parquet_file).errors]
+    assert errors == ["collection: Required field is missing"]
+
+
 def test_validate_checks_required_properties_per_collection(tmp_parquet_file):
     core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
     admin = "https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"

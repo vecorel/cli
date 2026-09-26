@@ -105,9 +105,10 @@ class GeoParquetValidator(Validator):
 
             # Validate data of the column
             issues = []
-            if validate_data and not has_multiple_collections:
+            # Without a collection column the rows can't be grouped, which is reported above
+            if validate_data and (not has_multiple_collections or "collection" not in columns):
                 issues = validate_column(data[key], prop_schema)
-            elif validate_data and has_multiple_collections:
+            elif validate_data:
                 # Validate data for each collection separately
                 for cid, cschema in schemas.items():
                     vecorel_schema = cschema.merge_schemas(

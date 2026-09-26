@@ -4,6 +4,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 import shapely
@@ -102,6 +103,18 @@ def _part(
     gp = GeoParquet(path)
     gp.set_collection(meta)
     gp.write(gdf, dehydrate=False, geoparquet_version=geoparquet_version)
+    return path
+
+
+def _with_nullable_column(path, name, values):
+    """Rewrites a column as nullable with the given values, as other tools could write it."""
+    table = pq.read_table(path)
+    metadata = table.schema.metadata
+    index = table.schema.get_field_index(name)
+    if index >= 0:
+        table = table.remove_column(index)
+    table = table.append_column(pa.field(name, pa.string()), pa.array(values, pa.string()))
+    pq.write_table(table.replace_schema_metadata(metadata), path)
     return path
 
 
@@ -299,6 +312,34 @@ def test_merge_fills_a_missing_collection(tmp_folder, engine):
     rows, _ = _read(out)
     assert [r["collection"] for r in rows] == ["a", "a", "b", "b"]
     assert _errors(out) == []
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_fills_missing_collection_values(tmp_folder, engine):
+    a = _with_nullable_column(_part(tmp_folder, "a", "a", 2), "collection", ["a", None])
+    b = _part(tmp_folder, "b", "b", 2)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, _ = _read(out)
+    assert [r["collection"] for r in rows] == ["a", "a", "b", "b"]
+    assert _errors(out) == []
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_excludes_the_collection(tmp_folder, engine, log):
+    a = _part(tmp_folder, "a", "a", 2)
+    b = _part(tmp_folder, "b", "b", 2)
+    out = _merge(tmp_folder, [a, b], engine, excludes=["collection"])
+
+    assert "collection" not in pq.read_schema(out).names
+    assert "the merged file will be invalid: collection" in log()
+
+
+def test_merge_ignores_null_ids_for_duplicates(tmp_folder, log):
+    a = _with_nullable_column(_part(tmp_folder, "a", "a", 2), "id", [None, None])
+    b = _part(tmp_folder, "b", "b", 2)
+    _merge(tmp_folder, [a, b], "geopandas")
+    assert "repeat an id" not in log()
 
 
 def test_merge_recomputes_the_bbox_of_geoparquet_1_0_parts(tmp_folder):

@@ -688,15 +688,26 @@ class DuckDBBaseConverter(BaseConverter):
                 and key not in names
                 and (properties is None or key in properties)
             }
-            # Features of multiple collections must state their collection
-            if "collection" not in collection and "collection" not in names:
+            keep_collection = properties is None or "collection" in properties
+            fill = None
+            if keep_collection and "collection" in names:
+                # Fill gaps like the in-memory merge does, if the part's collection is known
+                try:
+                    fill = get_collection_id(part, path)
+                except ValueError:
+                    pass
+            elif keep_collection and "collection" not in collection:
+                # Features of multiple collections must state their collection
                 constants["collection"] = get_collection_id(part, path)
 
-            columns = [
-                _sql_name(name)
-                for name in names
-                if name != "bbox" and (properties is None or name in properties)
-            ]
+            columns = []
+            for name in names:
+                if name == "bbox" or (properties is not None and name not in properties):
+                    continue
+                if name == "collection" and fill is not None:
+                    columns.append(f'coalesce("collection", {_sql_literal(fill)}) AS "collection"')
+                else:
+                    columns.append(_sql_name(name))
             query = f"SELECT {', '.join(columns)}"
             source = f"read_parquet({_sql_path(path)})"
             if constants:
