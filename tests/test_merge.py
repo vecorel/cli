@@ -363,6 +363,21 @@ def test_merge_fills_missing_collection_values(tmp_folder, engine):
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("values", [None, ["a", None]], ids=["no-column", "null-values"])
+def test_merge_accepts_a_collection_it_cannot_determine(tmp_folder, engine, values):
+    schemas = {"a": [CORE], "x": [CORE]}
+    a = _part(tmp_folder, "a", "a", 2, collection={"schemas": schemas}, with_collection=False)
+    if values:
+        a = _with_nullable_column(a, "collection", values)
+    b = _part(tmp_folder, "b", "b", 2)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, _ = _read(out)
+    assert [r["collection"] for r in rows][-2:] == ["b", "b"]
+    assert len(rows) == 4
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_merge_excludes_the_collection(tmp_folder, engine, log):
     a = _part(tmp_folder, "a", "a", 2)
     b = _part(tmp_folder, "b", "b", 2)

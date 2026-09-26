@@ -692,16 +692,10 @@ class DuckDBBaseConverter(BaseConverter):
                 and (properties is None or key in properties)
             }
             keep_collection = properties is None or "collection" in properties
-            fill = None
-            if keep_collection and "collection" in names:
-                # Fill gaps like the in-memory merge does, if the part's collection is known
-                try:
-                    fill = get_collection_id(part, path)
-                except ValueError:
-                    pass
-            elif keep_collection and "collection" not in collection:
+            fill = get_collection_id(part) if keep_collection else None
+            if fill is not None and "collection" not in names and "collection" not in collection:
                 # Features of multiple collections must state their collection
-                constants["collection"] = get_collection_id(part, path)
+                constants["collection"] = fill
 
             columns = []
             for name in names:

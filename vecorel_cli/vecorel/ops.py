@@ -40,12 +40,11 @@ def merge(
         gdf = item.hydrate_from_collection(gdf, schema_map=schema_map, keys=keys)
 
         keep_collection = properties is None or "collection" in properties
-        if keep_collection and ("collection" not in gdf.columns or gdf["collection"].isna().any()):
-            cid = get_collection_id(collection, item.uri)
-            if "collection" in gdf.columns:
-                gdf["collection"] = gdf["collection"].fillna(cid)
-            else:
-                gdf["collection"] = cid
+        cid = get_collection_id(collection) if keep_collection else None
+        if cid is not None and "collection" in gdf.columns:
+            gdf["collection"] = gdf["collection"].fillna(cid)
+        elif cid is not None:
+            gdf["collection"] = cid
 
         if not crs:
             # If no CRS is given, use the first CRS that is available as the base CRS
@@ -74,10 +73,11 @@ def merge(
     return merged, merged_collection
 
 
-def get_collection_id(collection: Collection, source=None) -> str:
+def get_collection_id(collection: Collection) -> Optional[str]:
     """
     The collection id of a dataset that doesn't state it for all features:
     the `collection` value in the collection metadata or the only collection in `schemas`.
+    None if neither determines it.
     """
     cid = collection.get("collection")
     if isinstance(cid, str) and len(cid) > 0:
@@ -85,7 +85,7 @@ def get_collection_id(collection: Collection, source=None) -> str:
     schemas = collection.get_schemas()
     if len(schemas) == 1:
         return next(iter(schemas.keys()))
-    raise ValueError(f"Can't determine the collection of the features in {source}")
+    return None
 
 
 def warn_missing_required(
