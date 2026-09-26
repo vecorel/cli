@@ -18,6 +18,7 @@ from ..encoding.geoparquet import GeoParquet
 from ..parquet.types import get_pyarrow_type
 from ..vecorel.hilbert import hilbert_keys_for_table, hilbert_reference_bounds
 from ..vecorel.ops import get_collection_id, merge_collections, warn_missing_required
+from ..vecorel.util import find_differing_crs
 from .base import BaseConverter
 
 
@@ -94,19 +95,6 @@ def _constants_table(constants: dict, props: dict, log: Optional[LoggerMixin] = 
                 log.warning(f"Constant '{key}' doesn't fit its type {dtype}, keeping it as is: {e}")
             arrays.append(pa.array([value]))
     return pa.table(arrays, names=list(constants.keys()))
-
-
-def _normalize_crs(crs):
-    """The comparable pyproj CRS for a GeoParquet crs value,
-    which defaults to OGC:CRS84 when missing."""
-    from pyproj import CRS
-
-    return CRS.from_user_input(crs if crs is not None else "OGC:CRS84")
-
-
-def _equal_crs(a, b) -> bool:
-    # GeoParquet coordinates are always x, y regardless of the CRS axis order
-    return a.equals(b, ignore_axis_order=True)
 
 
 # This converter is experimental, use with caution.
@@ -332,9 +320,8 @@ class DuckDBBaseConverter(BaseConverter):
         They are combined without reprojection, and DuckDB before 1.5 drops the CRS
         from the metadata, so it has to be read from the files themselves.
         """
-        source_crs = None
-        reference = None
-        for i, source in enumerate(sources):
+        crs_values = []
+        for source in sources:
             crs = None
             row = con.execute(
                 "SELECT value FROM parquet_kv_metadata(?) WHERE key = 'geo'", [source]
@@ -343,15 +330,14 @@ class DuckDBBaseConverter(BaseConverter):
                 geo = json.loads(bytes(row[0]))
                 primary = geo.get("primary_column", "")
                 crs = geo.get("columns", {}).get(primary, {}).get("crs")
-            if i == 0:
-                source_crs = crs
-                reference = _normalize_crs(crs)
-            elif not _equal_crs(_normalize_crs(crs), reference):
-                raise ValueError(
-                    f"The sources use different coordinate reference systems: {source} "
-                    "differs from the first source. Reproject the sources to a common CRS."
-                )
-        return source_crs
+            crs_values.append(crs)
+        differing = find_differing_crs(crs_values)
+        if differing is not None:
+            raise ValueError(
+                f"The sources use different coordinate reference systems: {sources[differing]} "
+                "differs from the first source. Reproject the sources to a common CRS."
+            )
+        return crs_values[0] if crs_values else None
 
     def write_query(
         self,

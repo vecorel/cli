@@ -14,6 +14,7 @@ from .encoding.base import BaseEncoding
 from .encoding.geoparquet import GeoParquet
 from .registry import Registry
 from .vecorel.ops import merge as merge_
+from .vecorel.util import find_differing_crs
 
 
 class MergeDatasets(BaseCommand):
@@ -154,20 +155,16 @@ class MergeDatasets(BaseCommand):
         The reason why the datasets can't be merged with DuckDB, None if they can.
         A `crs` of None stands for the CRS of the first dataset.
         """
-        from .conversion.duckdb import _equal_crs, _normalize_crs
-
         for encoding in [*encodings, target]:
             if not isinstance(encoding, GeoParquet) or not isinstance(encoding.uri, Path):
                 return "DuckDB only merges local GeoParquet files"
 
-        reference = _normalize_crs(crs) if crs else None
+        crs_values = []
         for encoding in encodings:
             geo = encoding.get_geoparquet_metadata() or {}
             column = geo.get("columns", {}).get(geo.get("primary_column"), {})
-            source_crs = _normalize_crs(column.get("crs"))
-            if reference is None:
-                reference = source_crs
-            elif not _equal_crs(source_crs, reference):
-                return "the datasets must be reprojected to a common CRS"
+            crs_values.append(column.get("crs"))
+        if find_differing_crs(crs_values, reference=crs or None) is not None:
+            return "the datasets must be reprojected to a common CRS"
 
         return None
