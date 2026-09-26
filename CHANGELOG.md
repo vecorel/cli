@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix: `merge_parquet` no longer drops a property that each part kept as a constant in
+  its collection but on which the parts disagree; it becomes a column again, as in
+  `vec merge`.
+
 ## [v0.3.1] - 2026-09-24
 
 - Fix: ZIP archives compressed with Deflate64 are extracted through `inflate64` (a

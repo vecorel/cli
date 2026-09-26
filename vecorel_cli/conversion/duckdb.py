@@ -594,17 +594,44 @@ class DuckDBBaseConverter(BaseConverter):
 
         source_crs = self._common_crs(con, paths)
 
-        # union_by_name, because a converter drops a column a source file does not have,
-        # so two parts of one dataset can legitimately differ; the targets then come from
-        # the union rather than from whichever part happens to be first
-        sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
-        source_query = f"SELECT * FROM read_parquet({sources}, union_by_name=true)"
-        targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
-
+        collections = [GeoParquet(path).get_collection() for path in paths]
         if collection is None:
             from ..vecorel.ops import merge_collections
 
-            collection = merge_collections([GeoParquet(path).get_collection() for path in paths])
+            collection = merge_collections(collections)
+
+        # A part keeps its constants in its collection; one the merged collection does not
+        # carry, because the parts disagree on it, goes back into the rows, as `vec merge` does
+        hydrate = sorted(
+            {
+                key
+                for part in collections
+                for key in part.keys()
+                if key not in collection and key not in part.get_collection_only_properties()
+            }
+            - {"schemas"}
+        )
+
+        # union by name, because a converter drops a column a source file does not have,
+        # so two parts of one dataset can legitimately differ; the targets then come from
+        # the union rather than from whichever part happens to be first
+        if hydrate:
+            selects = []
+            for path, part in zip(paths, collections):
+                names = pq.read_schema(path).names
+                literals = [
+                    f'{_sql_literal(part.get(key))} AS "{key}"'
+                    for key in hydrate
+                    if key not in names
+                ]
+                selects.append(
+                    f"SELECT {', '.join(['*', *literals])} FROM read_parquet({_sql_path(path)})"
+                )
+            source_query = " UNION ALL BY NAME ".join(selects)
+        else:
+            sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
+            source_query = f"SELECT * FROM read_parquet({sources}, union_by_name=true)"
+        targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
 
         return self.write_query(
             con,
