@@ -14,6 +14,7 @@ from .encoding.base import BaseEncoding
 from .encoding.geoparquet import GeoParquet
 from .registry import Registry
 from .vecorel.ops import merge as merge_
+from .vecorel.util import find_differing_crs
 
 
 class MergeDatasets(BaseCommand):
@@ -103,10 +104,6 @@ class MergeDatasets(BaseCommand):
         properties = None
         if includes:
             properties = list(set(Registry.core_properties) | set(includes))
-        if excludes:
-            if properties is None:
-                properties = self.get_available_properties(encodings)
-            properties = list(set(properties) - set(excludes))
 
         blocker = self.get_duckdb_blocker(encodings, target, crs)
         if engine == "duckdb" and blocker:
@@ -115,17 +112,25 @@ class MergeDatasets(BaseCommand):
         if engine == "duckdb" or (engine == "auto" and blocker is None):
             from .conversion.duckdb import DuckDBBaseConverter
 
+            if excludes:
+                if properties is None:
+                    properties = self.get_available_properties(encodings)
+                properties = list(set(properties) - set(excludes))
+
             self.info("Merging with DuckDB")
             DuckDBBaseConverter().merge_parquet(
                 [e.uri for e in encodings],
                 target.uri,
                 properties=properties,
                 suffix_duplicate_ids=False,
+                strict=False,
             )
         else:
             if engine == "auto":
                 self.info(f"Merging in memory, as {blocker}")
-            gdf, collection = merge_(encodings, crs=crs, properties=properties, log=self)
+            gdf, collection = merge_(
+                encodings, crs=crs, properties=properties, log=self, excludes=excludes
+            )
             target.set_collection(collection)
             target.write(gdf, properties=properties)
 
@@ -150,20 +155,16 @@ class MergeDatasets(BaseCommand):
         The reason why the datasets can't be merged with DuckDB, None if they can.
         A `crs` of None stands for the CRS of the first dataset.
         """
-        from .conversion.duckdb import _equal_crs, _normalize_crs
-
         for encoding in [*encodings, target]:
             if not isinstance(encoding, GeoParquet) or not isinstance(encoding.uri, Path):
                 return "DuckDB only merges local GeoParquet files"
 
-        reference = _normalize_crs(crs) if crs else None
+        crs_values = []
         for encoding in encodings:
             geo = encoding.get_geoparquet_metadata() or {}
             column = geo.get("columns", {}).get(geo.get("primary_column"), {})
-            source_crs = _normalize_crs(column.get("crs"))
-            if reference is None:
-                reference = source_crs
-            elif not _equal_crs(source_crs, reference):
-                return "the datasets must be reprojected to a common CRS"
+            crs_values.append(column.get("crs"))
+        if find_differing_crs(crs_values, reference=crs or None) is not None:
+            return "the datasets must be reprojected to a common CRS"
 
         return None

@@ -16,21 +16,35 @@ def merge(
     properties=None,
     schema_map: SchemaMapping = {},
     log: Optional[LoggerMixin] = None,
+    excludes: Optional[list[str]] = None,
 ) -> tuple[GeoDataFrame, Collection]:
+    frames = [item.read(properties=properties, schema_map=schema_map) for item in encodings]
+    collections = [item.get_collection() for item in encodings]
+    if excludes:
+        if properties is None:
+            properties = set()
+            for gdf, collection in zip(frames, collections):
+                properties |= set(gdf.columns) | set(collection.keys())
+        properties = list(set(properties) - set(excludes))
+        frames = [gdf.drop(columns=[c for c in excludes if c in gdf.columns]) for gdf in frames]
+    merged_collection = merge_collections(collections, properties=properties, log=log)
+
     data = []
-    collections = []
+    for item, gdf, collection in zip(encodings, frames, collections):
+        # Only what the merged collection doesn't carry goes back into the rows
+        keys = [
+            key
+            for key in collection
+            if key not in merged_collection and (properties is None or key in properties)
+        ]
+        gdf = item.hydrate_from_collection(gdf, schema_map=schema_map, keys=keys)
 
-    for item in encodings:
-        # Load the dataset
-        gdf = item.read(hydrate=True, properties=properties, schema_map=schema_map)
-        collection = item.get_collection()
-
-        if "collection" not in gdf.columns or gdf["collection"].isna().any():
-            cid = get_collection_id(collection, item.uri)
-            if "collection" in gdf.columns:
-                gdf["collection"] = gdf["collection"].fillna(cid)
-            else:
-                gdf["collection"] = cid
+        keep_collection = properties is None or "collection" in properties
+        cid = get_collection_id(collection) if keep_collection else None
+        if cid is not None and "collection" in gdf.columns:
+            gdf["collection"] = gdf["collection"].fillna(cid)
+        elif cid is not None:
+            gdf["collection"] = cid
 
         if not crs:
             # If no CRS is given, use the first CRS that is available as the base CRS
@@ -39,9 +53,7 @@ def merge(
             # Change the CRS if necessary
             gdf.to_crs(crs=crs, inplace=True)
 
-        # Add data to lists
         data.append(gdf)
-        collections.append(collection)
 
     # Concatenate all GeoDataFrames to a single GeoDataFrame
     merged = GeoDataFrame(pd.concat(data, ignore_index=True))
@@ -50,22 +62,22 @@ def merge(
 
     if log and "id" in merged.columns:
         with_id = merged[merged["id"].notna()]
-        duplicates = int(with_id.duplicated(subset=["collection", "id"]).sum())
+        key = [c for c in ("collection", "id") if c in merged.columns]
+        duplicates = int(with_id.duplicated(subset=key).sum())
         if duplicates:
             log.warning(f"{duplicates} rows repeat an id within their collection")
 
-    # Merge all collections
-    collection = merge_collections(collections, properties=properties, log=log)
     if log and properties is not None:
-        warn_missing_required(collection, properties, schema_map, log)
+        warn_missing_required(merged_collection, properties, schema_map, log)
 
-    return merged, collection
+    return merged, merged_collection
 
 
-def get_collection_id(collection: Collection, source=None) -> str:
+def get_collection_id(collection: Collection) -> Optional[str]:
     """
     The collection id of a dataset that doesn't state it for all features:
     the `collection` value in the collection metadata or the only collection in `schemas`.
+    None if neither determines it.
     """
     cid = collection.get("collection")
     if isinstance(cid, str) and len(cid) > 0:
@@ -73,7 +85,7 @@ def get_collection_id(collection: Collection, source=None) -> str:
     schemas = collection.get_schemas()
     if len(schemas) == 1:
         return next(iter(schemas.keys()))
-    raise ValueError(f"Can't determine the collection of the features in {source}")
+    return None
 
 
 def warn_missing_required(
@@ -81,7 +93,8 @@ def warn_missing_required(
 ):
     schema = collection.merge_schemas(schema_map=schema_map)
     collection_only = set(collection.get_collection_only_properties(schema_map=schema_map))
-    missing = set(schema.get("required", [])) - set(properties) - collection_only - {"geometry"}
+    in_collection = collection_only & set(collection.keys())
+    missing = set(schema.get("required", [])) - set(properties) - in_collection - {"geometry"}
     if missing:
         log.warning(
             f"Required properties are not included, the merged file will be invalid: {', '.join(sorted(missing))}"

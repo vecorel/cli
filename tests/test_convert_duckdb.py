@@ -9,7 +9,7 @@ import shapely
 from loguru import logger
 
 from vecorel_cli.conversion.base import BaseConverter
-from vecorel_cli.conversion.duckdb import DuckDBBaseConverter
+from vecorel_cli.conversion.duckdb import DuckDBBaseConverter, _constants_table
 from vecorel_cli.validate import ValidateData
 from vecorel_cli.vecorel.hilbert import hilbert_keys_for_table
 
@@ -721,6 +721,19 @@ def test_merge_parquet_hydrates_nan_as_null(tmp_folder):
         "1": None,
         "2": 1.5,
     }
+
+
+@pytest.mark.parametrize(
+    "value, dtype", [(300, "uint8"), ("not a date", "date-time")], ids=["overflow", "date-time"]
+)
+def test_constants_that_do_not_fit_their_type_are_reported(value, dtype, capsys):
+    log = Converter()
+    logger.remove()
+    logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
+    table = _constants_table({"x": value}, {"x": {"type": dtype}}, log=log)
+
+    assert table.column("x").to_pylist() == [value]
+    assert f"'x' doesn't fit its type {dtype}" in capsys.readouterr().out
 
 
 def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):

@@ -11,6 +11,7 @@ import shapely
 from loguru import logger
 
 from vecorel_cli.cli.logger import LoggerMixin
+from vecorel_cli.encoding.geojson import GeoJSON
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.merge import MergeDatasets
 from vecorel_cli.validate import ValidateData
@@ -60,6 +61,28 @@ def test_merge(tmp_parquet_file: Path):
         "id",
         "inspire:id",
     ]
+
+
+def test_merge_excludes_without_reading_twice(tmp_parquet_file: Path, monkeypatch):
+    reads = []
+    read = GeoJSON.read
+
+    def spy(self, num=None, **kwargs):
+        if num is None:
+            reads.append(self.uri)
+        return read(self, num=num, **kwargs)
+
+    monkeypatch.setattr(GeoJSON, "read", spy)
+    MergeDatasets().merge(
+        source=["tests/data-files/inspire.parquet", "tests/data-files/admin.json"],
+        target=tmp_parquet_file,
+        excludes=["foo"],
+    )
+
+    assert len(reads) == 1
+    columns = GeoParquet(tmp_parquet_file).get_properties()
+    assert "foo" not in columns
+    assert "admin:country_code" in columns
 
 
 def test_merge_invalid_file(tmp_folder):
@@ -180,6 +203,20 @@ def test_merge_hydrates_array_and_object_constants(tmp_folder, engine):
         ("b", ["r", "s"], {"k": "w"}),
     ]
     assert _errors(out) == []
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("with_schema", [False, True])
+def test_merge_keeps_shared_array_constants_in_the_collection(tmp_folder, engine, with_schema):
+    custom = {"properties": {"tags": {"type": "array", "items": {"type": "string"}}}}
+    custom = custom if with_schema else None
+    a = _part(tmp_folder, "a", "a", 2, collection={"tags": ["x", "y"]}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"tags": ["x", "y"]}, custom=custom)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, collection = _read(out)
+    assert collection["tags"] == ["x", "y"]
+    assert all("tags" not in row for row in rows)
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -326,6 +363,21 @@ def test_merge_fills_missing_collection_values(tmp_folder, engine):
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("values", [None, ["a", None]], ids=["no-column", "null-values"])
+def test_merge_accepts_a_collection_it_cannot_determine(tmp_folder, engine, values):
+    schemas = {"a": [CORE], "x": [CORE]}
+    a = _part(tmp_folder, "a", "a", 2, collection={"schemas": schemas}, with_collection=False)
+    if values:
+        a = _with_nullable_column(a, "collection", values)
+    b = _part(tmp_folder, "b", "b", 2)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, _ = _read(out)
+    assert [r["collection"] for r in rows][-2:] == ["b", "b"]
+    assert len(rows) == 4
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_merge_excludes_the_collection(tmp_folder, engine, log):
     a = _part(tmp_folder, "a", "a", 2)
     b = _part(tmp_folder, "b", "b", 2)
@@ -333,6 +385,34 @@ def test_merge_excludes_the_collection(tmp_folder, engine, log):
 
     assert "collection" not in pq.read_schema(out).names
     assert "the merged file will be invalid: collection" in log()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_rows_without_a_required_value(tmp_folder, engine):
+    a = _part(
+        tmp_folder, "a", "a", 2, columns={"admin:country_code": ["DE", "DE"]}, schemas=[CORE, ADMIN]
+    )
+    a = _with_nullable_column(a, "admin:country_code", ["DE", None])
+    b = _part(
+        tmp_folder, "b", "b", 2, columns={"admin:country_code": ["FR", "FR"]}, schemas=[CORE, ADMIN]
+    )
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, _ = _read(out)
+    assert [r["admin:country_code"] for r in rows] == ["DE", None, "FR", "FR"]
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_empty_geometries(tmp_folder, engine):
+    a = _part(tmp_folder, "a", "a", 2)
+    b = _part(tmp_folder, "b", "b", 2)
+    gp = GeoParquet(b)
+    gdf = gp.read()
+    gdf.loc[0, "geometry"] = shapely.Polygon()
+    gp.write(gdf, dehydrate=False)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    assert pq.read_metadata(out).num_rows == 4
 
 
 def test_merge_ignores_null_ids_for_duplicates(tmp_folder, log):
