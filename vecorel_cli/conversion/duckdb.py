@@ -402,7 +402,8 @@ class DuckDBBaseConverter(BaseConverter):
         # Same required-value check, empty-geometry drop and id uniqueness
         # check as in the GeoDataFrame-based codepath, in one scan
         collection_only = set(collection.get_collection_only_properties())
-        has_collection_column = "collection" in selected_targets
+        schema_groups = collection.get_schemas()
+        per_collection = "collection" in selected_targets and len(schema_groups) > 1
 
         def null_condition(schema, skip=("geometry",)):
             required = [
@@ -412,8 +413,7 @@ class DuckDBBaseConverter(BaseConverter):
             ]
             return " OR ".join(f'"{target}" IS NULL' for target in required) or None
 
-        schema_groups = collection.get_schemas()
-        if len(schema_groups) > 1 and has_collection_column:
+        if per_collection:
             # Each collection only requires what its own schemas require
             custom_schemas = collection.get_custom_schemas()
             conditions = ['"collection" IS NULL']
@@ -431,9 +431,7 @@ class DuckDBBaseConverter(BaseConverter):
         # row numbers are unique by construction
         check_ids = "id" in selected_targets and not ids_are_generated
         if check_ids:
-            id_key = (
-                'struct_pack(c := "collection", i := "id")' if has_collection_column else '"id"'
-            )
+            id_key = 'struct_pack(c := "collection", i := "id")' if per_collection else '"id"'
             stats.append('count("id")')
             stats.append(f'count(DISTINCT {id_key}) FILTER (WHERE "id" IS NOT NULL)')
         blank_cond = None
@@ -551,7 +549,7 @@ class DuckDBBaseConverter(BaseConverter):
 
         if "id" in selected_targets and suffix_duplicate_ids:
             self._suffix_duplicate_ids_in_file(
-                con, output_file, compression, collection_json, row_group_size
+                con, output_file, compression, collection_json, row_group_size, per_collection
             )
 
         # Sort against the same CRS-derived Hilbert grid as the
@@ -594,7 +592,7 @@ class DuckDBBaseConverter(BaseConverter):
         return output_file
 
     def _suffix_duplicate_ids_in_file(
-        self, con, output_file, compression, collection_json, row_group_size
+        self, con, output_file, compression, collection_json, row_group_size, per_collection
     ):
         """Number the ids that appear on several rows of a collection (id~1, id~2, ...), like the
         GeoDataFrame-based codepath, when the source does not provide unique ids
@@ -603,8 +601,7 @@ class DuckDBBaseConverter(BaseConverter):
         which the Hilbert sort afterwards puts right. A numbered id can collide
         with one the source already carries (x~1), so this repeats until nothing
         repeats."""
-        names = pq.read_schema(output_file).names
-        key = '"collection", "id"' if "collection" in names else '"id"'
+        key = '"collection", "id"' if per_collection else '"id"'
         reported = False
         while True:
             total, duplicated = con.execute(
