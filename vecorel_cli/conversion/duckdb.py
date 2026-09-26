@@ -411,7 +411,7 @@ class DuckDBBaseConverter(BaseConverter):
                 for r in schema.get("required", [])
                 if r not in skip and r not in collection_only and r in selected_targets
             ]
-            return " OR ".join(f'"{target}" IS NULL' for target in required) or None
+            return " OR ".join(f"{_sql_name(target)} IS NULL" for target in required) or None
 
         if per_collection:
             # Each collection only requires what its own schemas require
