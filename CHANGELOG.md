@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- Fix: `create-stac-collection` takes the bbox from the geometries in EPSG:4326. It
+  transformed the corners of the source bbox, which in a projected CRS reach beyond
+  the data.
+
 ## [v0.3.1] - 2026-09-24
 
 - Fix: ZIP archives compressed with Deflate64 are extracted through `inflate64` (a

@@ -55,3 +55,28 @@ def test_create_stac_collection(tmp_folder: Path, file: str, expected_file: str)
     del expected["assets"]["data"]["processing:software"]["vecorel-cli"]
 
     assert created_file == expected
+
+
+def test_bbox_is_the_extent_of_the_geometries():
+    """In a projected CRS, the corners of the source bbox reach beyond the data."""
+    import geopandas as gpd
+    import pytest as _pytest
+    from shapely.geometry import Polygon
+
+    from vecorel_cli.vecorel.collection import Collection
+
+    # a parcel in Saxony, in ETRS89 / UTM zone 33N
+    field = Polygon([(300000, 5600000), (500000, 5650000), (450000, 5700000), (320000, 5680000)])
+    gdf = gpd.GeoDataFrame({"id": ["1"]}, geometry=[field], crs="EPSG:25833")
+    collection = Collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            "title": "t",
+            "description": "d",
+        }
+    )
+
+    stac = CreateStacCollection().create(collection, gdf, "x.parquet")
+
+    expected = gdf.to_crs(epsg=4326).total_bounds
+    assert stac["extent"]["spatial"]["bbox"][0] == _pytest.approx(list(expected))
