@@ -59,7 +59,9 @@ class CreateGeoParquet(BaseCommand):
         # Read source data
         encodings = [create_encoding(s) for s in source]
         # Merge encodings into a single GeoDataFrame
-        geodata, collection = merge(encodings, properties=properties, schema_map=schema_map)
+        geodata, collection = merge(
+            encodings, properties=properties, schema_map=schema_map, log=self
+        )
 
         # Write to target
         target_encoding = GeoParquet(target)

@@ -1,4 +1,7 @@
+import base64
+import binascii
 import datetime
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -166,7 +169,7 @@ def get_pyarrow_type(schema):
         elif len(pattern_properties) > 0:
             if len(pattern_properties) > 1:
                 raise Exception("Multiple pattern properties are not supported")
-            _, subschema = pattern_properties.popitem()
+            subschema = next(iter(pattern_properties.values()))
             values = get_pyarrow_type(subschema)
             return pa.map_(pa.string(), values)
         else:
@@ -307,3 +310,47 @@ PYTHON_TYPES = {
 }
 
 SUPPORTED_PROTOCOLS = ["http", "https", "s3", "gs"]
+
+
+def from_json_value(value, dtype=None):
+    """
+    A collection-level value as a Python value for the data type.
+    Collection metadata is JSON, so temporal and binary values are encoded as strings.
+    """
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    if isinstance(value, str):
+        if dtype == "date-time":
+            ts = pd.Timestamp(value)
+            ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+            return ts.to_pydatetime()
+        if dtype == "date":
+            try:
+                return datetime.date.fromisoformat(value)
+            except ValueError:
+                # a date-time at midnight, e.g. 2024-01-01T00:00:00Z
+                ts = pd.Timestamp(value)
+                if ts != ts.normalize():
+                    raise ValueError(f"'{value}' is not a date")
+                return ts.date()
+        if dtype == "binary":
+            return base64.b64decode(value, validate=True)
+    return value
+
+
+def constant_array(value, schema: Optional[dict] = None, length: int = 1) -> pa.Array:
+    """
+    An array that repeats a collection-level value, typed by its schema if given.
+    Raises a ValueError if the value doesn't fit the schema.
+    """
+    dtype = (schema or {}).get("type")
+    try:
+        pa_type = get_pyarrow_type(schema) if dtype else None
+    except Exception:
+        pa_type = None
+    if pa_type is None:
+        return pa.array([from_json_value(value)] * length)
+    try:
+        return pa.array([from_json_value(value, dtype)] * length, type=pa_type)
+    except (pa.ArrowException, ValueError, TypeError, OverflowError, binascii.Error) as e:
+        raise ValueError(f"Value {value!r} doesn't fit data type {dtype}: {e}") from e

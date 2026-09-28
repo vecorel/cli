@@ -87,7 +87,7 @@ class Validator:
 
             # Check whether all required schemas are present, not needed in vecorel but other specs
             if len(self.required_schemas) == 0:
-                return
+                continue
 
             for pattern in self.required_schemas:
                 found = False

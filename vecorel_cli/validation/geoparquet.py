@@ -43,13 +43,19 @@ class GeoParquetValidator(Validator):
             validator=self,
         )
 
-        # Check that all required fields are present
+        # Check that all required fields are present; with multiple collections each
+        # collection only requires what its own schemas require, see validate_collection_column
         columns = data.columns
         required_props = schema.get("required", [])
+        if has_multiple_collections:
+            required_props = [key for key in required_props if key == "collection"]
         collection_props = schema.get("collection", {})
         for key in required_props:
             if key not in columns and not collection_props.get(key, False):
                 self.error(f"{key}: Required field is missing")
+
+        if validate_data and "collection" in columns:
+            self.validate_collection_column(data, schemas, collection, schema_map)
 
         # Validate whether the Parquet schema complies with the property schemas
         geo = self.encoding.get_geoparquet_metadata()
@@ -104,7 +110,11 @@ class GeoParquetValidator(Validator):
             issues = []
             if validate_data and not has_multiple_collections:
                 issues = validate_column(data[key], prop_schema)
-            elif validate_data and has_multiple_collections:
+            elif validate_data and "collection" not in columns:
+                # the rows can't be grouped, which is reported above; the merged schema of
+                # all collections would report values that are valid for their own collection
+                pass
+            elif validate_data:
                 # Validate data for each collection separately
                 for cid, cschema in schemas.items():
                     vecorel_schema = cschema.merge_schemas(
@@ -131,6 +141,35 @@ class GeoParquetValidator(Validator):
             self.warning(
                 f"Data was not fully validated, only the first {num} rows were checked",
             )
+
+    def validate_collection_column(self, data, schemas, collection, schema_map: SchemaMapping):
+        values = data["collection"]
+        missing = int(values.isna().sum())
+        if missing:
+            self.error(f"collection: {missing} rows have no collection")
+
+        unknown = set(values.dropna().unique()) - set(schemas.keys())
+        if unknown:
+            self.error(f"collection: Not found in schemas: {', '.join(sorted(map(str, unknown)))}")
+
+        if len(schemas) <= 1:
+            return
+        # Nullability can't express what each collection requires, so check the values
+        custom_schemas = collection.get_custom_schemas()
+        for cid, cschema in schemas.items():
+            vecorel_schema = cschema.merge_schemas(
+                schema_map=schema_map, custom_schemas=custom_schemas, validator=self
+            )
+            collection_props = vecorel_schema.get("collection", {})
+            rows = data[values == cid]
+            for key in vecorel_schema.get("required", []):
+                if collection_props.get(key, False):
+                    continue
+                if key not in rows.columns:
+                    if len(rows) > 0:
+                        self.error(f"{key}: Required field is missing for collection '{cid}'")
+                elif rows[key].isna().any():
+                    self.error(f"{key}: Required field has no value for collection '{cid}'")
 
     def validate_geometry_column(self, key, prop_schema, geo):
         columns = geo.get("columns", {})

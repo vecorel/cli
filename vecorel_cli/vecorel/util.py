@@ -16,6 +16,25 @@ from ..const import SUPPORTED_PROTOCOLS, USER_AGENT
 file_cache = {}
 
 
+def find_differing_crs(crs_values: list, reference=None) -> Optional[int]:
+    """The index of the first GeoParquet crs value that differs from the reference
+    (by default the first value), None if they all agree. A missing crs is OGC:CRS84."""
+    from pyproj import CRS
+
+    def normalize(crs):
+        return CRS.from_user_input(crs if crs is not None else "OGC:CRS84")
+
+    reference = normalize(reference) if reference is not None else None
+    for i, crs in enumerate(crs_values):
+        crs = normalize(crs)
+        if reference is None:
+            reference = crs
+        # GeoParquet coordinates are always x, y regardless of the CRS axis order
+        elif not crs.equals(reference, ignore_axis_order=True):
+            return i
+    return None
+
+
 def suffix_duplicate_ids(gdf):
     """Number the ids that appear on several rows (id~1, id~2, ...), which turns
     the id column into strings. Null ids are left alone. Returns the frame and
