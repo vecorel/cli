@@ -312,6 +312,7 @@ class CollectionSchemas(set):
 class Schemas(dict):
     spec_pattern = r"https://vecorel.org/specification/v([^/]+)/schema.yaml"
     spec_schema = "https://vecorel.org/specification/v{version}/schema.yaml"
+    version_pattern = r"/v\d+\.\d+\.\d+[^/]*/"
 
     @staticmethod
     def get_core_uri(version: Optional[str] = None) -> str:
@@ -330,8 +331,26 @@ class Schemas(dict):
     def get_all(self) -> list[CollectionSchemas]:
         return list(self.values())
 
-    def add_all(self, schemas: "Schemas"):
-        self.update(schemas)
+    def add_all(self, schemas: Union[RawSchemas, "Schemas"]):
+        """Add the schemas of other collections, uniting the lists of a collection that exists already."""
+        for collection, schema_list in schemas.items():
+            merged = CollectionSchemas(
+                set(self.get(collection, set())) | set(schema_list), collection
+            )
+            cores = {s for s in merged if re.match(Schemas.spec_pattern, s)}
+            if len(cores) > 1:
+                raise ValueError(
+                    f"Collection '{collection}' has conflicting core schemas: {', '.join(sorted(cores))}"
+                )
+            versions = {}
+            for uri in merged:
+                versions.setdefault(re.sub(Schemas.version_pattern, "/", uri), set()).add(uri)
+            for uris in versions.values():
+                if len(uris) > 1:
+                    raise ValueError(
+                        f"Collection '{collection}' has conflicting versions of a schema: {', '.join(sorted(uris))}"
+                    )
+            self[collection] = merged
 
     def is_empty(self) -> bool:
         return len(self) == 0
