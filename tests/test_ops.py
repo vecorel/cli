@@ -175,7 +175,9 @@ def test_warn_missing_required_collection_only_properties(tmp_path):
     assert "producer" not in merged
 
     log = Log()
-    warn_missing_required(merged, properties, schema_map, log)
-    assert log.warnings == [
-        "Required properties are not included, the merged file will be invalid: producer"
-    ]
+    warn_missing_required(collections, properties, schema_map, log)
+    message = "Required properties are not included, the merged file will be invalid: producer"
+    assert log.warnings == [message]
+
+    with pytest.raises(ValueError, match=message):
+        warn_missing_required(collections, properties, schema_map, strict=True)

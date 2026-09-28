@@ -13,12 +13,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   without loading them into memory; `--engine` chooses the engine explicitly.
 - `vec merge --crs first` keeps the CRS of the first dataset, the default is still EPSG:4326.
 - `merge_parquet` accepts `properties` to restrict the merged properties.
+- `vec merge --no-strict` warns instead of failing if the merged dataset would be invalid
+  and writes it anyway; `merge_parquet` has a `strict` parameter (default: `True`).
+  See the README for the differences between the modes.
 
 ### Changed
 
 - **Breaking:** `vec merge` keeps all properties by default, `--include` restricts them to
   the core properties plus the given ones and `--exclude` removes any property. It warns if
   a required property is not included.
+- **Breaking:** `vec merge` is strict by default: it fails if the merged dataset would be
+  invalid, e.g. because an id repeats within a collection.
+- The message for missing required values names the missing properties with counts,
+  instead of showing the SQL condition.
 
 ### Fixed
 
@@ -48,13 +55,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   collections, but without a collection column.
 - The in-memory merge keeps constants that all datasets share in the collection, instead
   of failing on or moving array and object constants into the rows.
-- `vec merge` with DuckDB keeps rows without a required value (with a warning) and
-  rows with an empty geometry, like the in-memory merge.
-- `merge_parquet` warns about a constant that doesn't fit the type of its schema.
+- `vec merge --no-strict` with DuckDB keeps rows without a required value and rows with
+  an empty geometry (with a warning), like the in-memory merge; strictly, both are errors.
+- Merging reports a constant that doesn't fit the type of its schema, with the property
+  and the file, in both engines; with `--no-strict` the value is left empty.
 - Merging rejects two versions of the same schema in one collection.
 - `vec merge --exclude` no longer reads datasets other than GeoParquet twice.
-- Merging warns when `--include` drops a required collection-only property.
-- Merging accepts features again whose collection can't be determined.
+- Merging reports when `--include` drops a required collection-only property, also if
+  only a custom schema requires it.
+- Merging reports features whose collection can't be determined; with `--no-strict` they
+  are accepted.
+- The in-memory merge reports empty geometries and missing required values, per collection.
 
 ## [v0.3.1] - 2026-09-24
 

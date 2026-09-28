@@ -132,6 +132,33 @@ Local GeoParquet files that are all in the target CRS are merged with DuckDB, so
 All other datasets (e.g. GeoJSON or datasets that need to be reprojected) are merged in memory.
 Use `--engine` to choose the engine explicitly.
 
+`-i` and `-e` apply to all properties, including collection-level metadata.
+Constants that differ between the datasets are moved from the collection metadata to the features.
+
+#### Strict and non-strict mode
+
+By default, `vec merge` is strict: problems that make the merged dataset invalid are errors
+and no dataset is written.
+With `--no-strict`, `vec merge` is fail-safe: these problems are reported as warnings and
+the dataset is written anyway. Check it with `vec validate` afterwards.
+
+| Problem | Strict (default) | `--no-strict` |
+| ------- | ---------------- | ------------- |
+| A required property has no value for some features | Error | Warning, the property is written as nullable |
+| An id repeats within a collection | Error | Warning |
+| The collection of a feature can't be determined | Error | Warning, the collection is left empty |
+| `-i` or `-e` removes a required property | Error | Warning |
+| A required collection-only property differs between the datasets | Error | Warning, the property is removed |
+| An optional collection-only property differs between the datasets | Warning, the property is removed | Warning, the property is removed |
+| A feature has an empty or missing geometry | Error | Warning, the feature is kept |
+| A collection-level value doesn't fit the data type of its schema | Error | Warning, the value is left empty |
+| A collection implements multiple versions of a schema, e.g. of an extension | Error | Error |
+| The schemas of the datasets conflict | Error | Error |
+
+The strict mode only checks what a merge can break or check with little effort.
+It doesn't validate the values against the schemas, e.g. patterns or value ranges,
+so a merged dataset is only valid if the values of the source datasets are valid.
+
 Check `vec merge --help` for more details.
 
 ### Create JSON Schema from Vecorel Schema
