@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `vec merge` stores the collection in a column only if the datasets have multiple
   collections or a dataset has a collection column, otherwise only in the collection
   metadata.
+- `vec merge` keeps properties without any value instead of removing them, so the
+  merged dataset has the same properties with both engines.
 - **Breaking:** `vec merge` is strict by default: it fails if the merged dataset would be
   invalid, e.g. because an id repeats within a collection.
 - **Breaking:** Merging fails before reading any data if the datasets use different

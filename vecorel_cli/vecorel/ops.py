@@ -111,12 +111,8 @@ def merge(
         data.append(gdf)
 
     # Concatenate all GeoDataFrames to a single GeoDataFrame
+    # Columns without any value are kept, as in merge_parquet
     merged = GeoDataFrame(pd.concat(data, ignore_index=True))
-    # Remove empty columns, except for the geometry, which is required
-    geometry = merged.geometry.name
-    merged = merged.drop(
-        columns=[c for c in merged.columns if c != geometry and merged[c].isna().all()]
-    )
 
     if "id" in merged.columns:
         with_id = merged[merged["id"].notna()]

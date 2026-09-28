@@ -773,3 +773,27 @@ def test_merge_gives_all_features_a_collection_if_a_dataset_has_a_column(tmp_fol
     rows, _ = _read(out)
     assert [r["collection"] for r in rows] == ["same"] * 4
     assert _errors(out) == []
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_columns_without_values(tmp_folder, engine):
+    custom = {"properties": {"typed": {"type": "int32"}}}
+    parts = []
+    for name in ("a", "b"):
+        part = _part(
+            tmp_folder,
+            name,
+            name,
+            2,
+            columns={"typed": [1, 2], "untyped": ["x", "y"]},
+            custom=custom,
+        )
+        _with_nullable_column(part, "typed", [None, None], pa.int32())
+        parts.append(_with_nullable_column(part, "untyped", [None, None]))
+    out = _merge(tmp_folder, parts, engine)
+
+    schema = pq.read_schema(out)
+    assert str(schema.field("typed").type) == "int32"
+    assert str(schema.field("untyped").type) == "string"
+    rows, _ = _read(out)
+    assert all(r["typed"] is None and r["untyped"] is None for r in rows)
