@@ -1,5 +1,9 @@
+import re
+
+import pytest
+
 from vecorel_cli.vecorel.collection import Collection
-from vecorel_cli.vecorel.ops import merge_collections
+from vecorel_cli.vecorel.ops import check_versions, merge_collections, warn_missing_required
 from vecorel_cli.vecorel.schemas import Schemas, VecorelSchema
 
 
@@ -92,3 +96,150 @@ def test_merge_collections_keeps_collection_properties():
     merged = merge_collections([collection1], properties=["only_in_first"])
     assert "source_name" not in merged
     assert merged.get("only_in_first") == "x"
+
+
+def test_merge_collections_unites_schemas_of_a_collection():
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ext = "https://example.com/ext.yaml"
+    merged = merge_collections(
+        [Collection({"schemas": {"c1": [core, ext]}}), Collection({"schemas": {"c1": [core]}})]
+    )
+    assert merged.get_schemas() == Schemas({"c1": [core, ext]})
+
+    other_core = "https://vecorel.org/specification/v0.2.0/schema.yaml"
+    with pytest.raises(ValueError, match="conflicting core schemas"):
+        merge_collections(
+            [Collection({"schemas": {"c1": [core]}}), Collection({"schemas": {"c1": [other_core]}})]
+        )
+
+    fiboa = "https://fiboa.org/specification/v{}/schema.yaml"
+    with pytest.raises(ValueError, match="conflicting versions of a schema"):
+        merge_collections(
+            [
+                Collection({"schemas": {"c1": [core, fiboa.format("0.2.0")]}}),
+                Collection({"schemas": {"c1": [core, fiboa.format("0.3.0")]}}),
+            ]
+        )
+    # other collections may use another version
+    merge_collections(
+        [
+            Collection({"schemas": {"c1": [core, fiboa.format("0.2.0")]}}),
+            Collection({"schemas": {"c2": [core, fiboa.format("0.3.0")]}}),
+        ]
+    )
+
+
+def test_merge_collections_warns_about_collection_only_properties():
+    class Log:
+        warnings = []
+
+        def warning(self, message):
+            self.warnings.append(message)
+
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    custom = {"properties": {"producer": {"type": "string"}}, "collection": {"producer": True}}
+    collections = [
+        Collection({"schemas": {"c1": [core]}, "schemas:custom": custom, "producer": "A", "x": 1}),
+        Collection({"schemas": {"c2": [core]}, "schemas:custom": custom, "producer": "B", "x": 2}),
+    ]
+    log = Log()
+    merged = merge_collections(collections, log=log)
+    assert "producer" not in merged
+    # x is not collection-only, so it goes back into the features, which the caller handles
+    assert log.warnings == [
+        "Collection-only properties differ between the datasets and are removed: producer"
+    ]
+
+
+def test_warn_missing_required_collection_only_properties(tmp_path):
+    class Log:
+        warnings = []
+
+        def warning(self, message):
+            self.warnings.append(message)
+
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ext = "https://example.com/producer/v0.1.0/schema.yaml"
+    path = tmp_path / "schema.yaml"
+    path.write_text(
+        "$schema: https://vecorel.org/sdl/v0.2.0/schema.json\n"
+        "required: [producer]\n"
+        "collection: {producer: true}\n"
+        "properties: {producer: {type: string}}\n"
+    )
+    schema_map = {ext: path}
+    properties = ["id", "geometry", "collection"]
+    collections = [
+        Collection({"schemas": {"c1": [core, ext]}, "producer": "A"}),
+        Collection({"schemas": {"c2": [core, ext]}, "producer": "A"}),
+    ]
+    merged = merge_collections(collections, properties=properties)
+    assert "producer" not in merged
+
+    log = Log()
+    warn_missing_required(collections, properties, schema_map, log)
+    message = "Required properties are not included, the merged file will be invalid: producer"
+    assert log.warnings == [message]
+
+    with pytest.raises(ValueError, match=message):
+        warn_missing_required(collections, properties, schema_map, strict=True)
+
+
+def test_merge_collections_uses_the_schema_map(tmp_path):
+    class Log:
+        warnings = []
+
+        def warning(self, message):
+            self.warnings.append(message)
+
+    # the extension is only available through the schema map
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ext = "https://example.com/producer/v0.1.0/schema.yaml"
+    path = tmp_path / "schema.yaml"
+    path.write_text(
+        "$schema: https://vecorel.org/sdl/v0.2.0/schema.json\n"
+        "required: [producer]\n"
+        "collection: {producer: true}\n"
+        "properties: {producer: {type: string}}\n"
+    )
+    schema_map = {ext: path}
+    collections = [
+        Collection({"schemas": {"c1": [core, ext]}, "producer": "A"}),
+        Collection({"schemas": {"c2": [core, ext]}, "producer": "B"}),
+    ]
+    message = "Collection-only properties differ between the datasets and are removed: producer"
+
+    log = Log()
+    merged = merge_collections(collections, log=log, schema_map=schema_map)
+    assert "producer" not in merged
+    assert log.warnings == [message]
+
+    with pytest.raises(ValueError, match=message):
+        merge_collections(collections, strict=True, schema_map=schema_map)
+
+
+def test_check_versions():
+    core1 = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    core2 = "https://vecorel.org/specification/v0.2.0/schema.yaml"
+    ext1 = "https://example.com/ext/v0.1.0/schema.yaml"
+    ext2 = "https://example.com/ext/v0.2.0/schema.yaml"
+    other = "https://example.com/other/v0.5.0/schema.yaml"
+
+    # the same versions, and different extensions, are fine
+    check_versions(
+        [
+            Collection({"schemas": {"a": [core1, ext1]}}),
+            Collection({"schemas": {"b": [core1, ext1, other]}}),
+        ]
+    )
+
+    # different versions fail, also across collections and datasets
+    with pytest.raises(ValueError, match=re.escape(f"{core1}; {core2}")):
+        check_versions([Collection({"schemas": {"a": [core1], "b": [core2]}})])
+    with pytest.raises(ValueError, match=re.escape(f"{ext1}; {ext2}")):
+        check_versions(
+            [
+                Collection({"schemas": {"a": [core1, ext1]}}),
+                Collection({"schemas": {"b": [core1, ext2]}}),
+            ]
+        )

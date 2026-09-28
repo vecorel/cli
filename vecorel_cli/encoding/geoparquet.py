@@ -158,6 +158,8 @@ class GeoParquet(BaseEncoding):
         compression: Optional[str] = "zstd",
         compression_level: Optional[int] = None,  # default level for compression
         geoparquet_version: Optional[str] = None,
+        # False writes required columns that contain nulls as nullable instead of failing
+        strict: bool = True,
         **kwargs,  # capture unknown arguments
     ) -> bool:
         if compression == "zstd" and compression_level is None:
@@ -192,6 +194,8 @@ class GeoParquet(BaseEncoding):
         pq_fields = []
         for column in properties:
             required = column in required_props and not has_multiple_collections
+            if required and not strict and data[column].isna().any():
+                required = False
             schema = props.get(column, {})
             dtype = schema.get("type")
 
@@ -278,6 +282,8 @@ class GeoParquet(BaseEncoding):
         compression_level: Optional[int] = None,
         geoparquet_version: Optional[str] = None,
         crs=None,  # the CRS to record in the GeoParquet metadata, e.g. from the source file
+        # False keeps required columns that contain nulls nullable instead of failing
+        strict: bool = True,
         **kwargs,  # capture unknown arguments
     ) -> bool:
         """
@@ -324,6 +330,7 @@ class GeoParquet(BaseEncoding):
                     geoparquet_version,
                     crs=crs,
                     compression_changed=compression != existing_compression,
+                    strict=strict,
                 )
             if tmp_path is None:
                 return False
@@ -338,6 +345,33 @@ class GeoParquet(BaseEncoding):
         self.pq_schema = None
         return True
 
+    @staticmethod
+    def _columns_with_nulls(pq_file: pq.ParquetFile, names: set[str]) -> set[str]:
+        """
+        The columns that contain nulls according to the statistics, or that have none.
+        Nested columns only have statistics for their leaves, so they are read instead.
+        """
+        metadata = pq_file.metadata
+        result = set()
+        flat = set()
+        for rg in range(metadata.num_row_groups):
+            row_group = metadata.row_group(rg)
+            for i in range(row_group.num_columns):
+                column = row_group.column(i)
+                name = column.path_in_schema
+                if name not in names:
+                    continue
+                flat.add(name)
+                stats = column.statistics
+                if stats is None or not stats.has_null_count or stats.null_count > 0:
+                    result.add(name)
+        for name in (names - flat) & set(pq_file.schema_arrow.names):
+            for rg in range(metadata.num_row_groups):
+                if pq_file.read_row_group(rg, columns=[name]).column(0).null_count > 0:
+                    result.add(name)
+                    break
+        return result
+
     # Rewrites the Parquet file to a temp file and returns its path,
     # or returns None if the file needs no changes
     def _rewrite(
@@ -349,6 +383,7 @@ class GeoParquet(BaseEncoding):
         geoparquet_version: str,
         crs=None,
         compression_changed: bool = False,
+        strict: bool = True,
     ) -> Optional[str]:
         existing_schema = pq_file.schema_arrow
         col_names = existing_schema.names
@@ -368,6 +403,8 @@ class GeoParquet(BaseEncoding):
             if "id" in col_names:
                 required_columns.add("id")
             required_columns |= {r for r in schemas.get("required", []) if r in col_names}
+        if not strict:
+            required_columns -= self._columns_with_nulls(pq_file, required_columns)
 
         if "bbox" in col_names:
             bbox_type = existing_schema.field("bbox").type

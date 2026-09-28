@@ -121,7 +121,54 @@ Check `vec describe --help` for more details.
 
 Merges multiple Vecorel datasets to a combined Vecorel dataset:
 
-- `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -e https://vecorel.org/hcat-extension/v0.1.0/schema.yaml -i ec:hcat_name -i ec:hcat_code -i ec:translated_name`
+- `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet`
+- Only the core properties and some additional properties: `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -i ec:hcat_name -i ec:hcat_code`
+- All properties except for some: `vec merge ec_ee.parquet ec_lv.parquet -o merged.parquet -e ec:translated_name`
+
+The merged dataset is in EPSG:4326 by default. Use `--crs` to choose another CRS,
+or `--crs first` to keep the CRS of the first dataset.
+
+Local GeoParquet files that are all in the target CRS are merged with DuckDB, so they don't need to fit into memory.
+All other datasets (e.g. GeoJSON or datasets that need to be reprojected) are merged in memory.
+Use `--engine` to choose the engine explicitly.
+
+`-i` and `-e` apply to all properties, including collection-level metadata.
+The geometry is required, so it can't be excluded.
+Constants that differ between the datasets are moved from the collection metadata to the features.
+The collection of the features is stored in a column if the datasets have multiple collections
+or if a dataset has a collection column already, otherwise only in the collection metadata.
+
+Geometries are merged as they are, except for the reprojection to the target CRS:
+they are neither made valid nor converted to other geometry types (use `vec improve -g` for that),
+and features with an empty or missing geometry are not dropped (see below).
+The bounding boxes (`bbox`) are computed again for the merged GeoParquet file.
+
+#### Strict and non-strict mode
+
+By default, `vec merge` is strict: problems that make the merged dataset invalid are errors
+and no dataset is written.
+With `--no-strict`, `vec merge` is fail-safe: these problems are reported as warnings and
+the dataset is written anyway. Check it with `vec validate` afterwards.
+
+| Problem | Strict (default) | `--no-strict` |
+| ------- | ---------------- | ------------- |
+| A required property has no value for some features | Error | Warning, the property is written as nullable |
+| An id repeats within a collection | Error | Warning |
+| The collection of a feature can't be determined | Error | Warning, the collection is left empty |
+| `-i` or `-e` removes a required property | Error | Warning |
+| A required collection-only property differs between the datasets | Error | Warning, the property is removed |
+| An optional collection-only property differs between the datasets | Warning, the property is removed | Warning, the property is removed |
+| A feature has an empty or missing geometry | Error | Warning, the feature is kept |
+| A collection-level value doesn't fit the data type of its schema | Error | Warning, the value is left empty |
+| The datasets use different versions of the Vecorel specification or of an extension | Error, before any data is read | Error, before any data is read |
+| The schemas of the datasets conflict | Error | Error |
+
+Datasets with different versions of the Vecorel specification or of an extension can't be
+merged, as the CLI can't upgrade them automatically yet.
+
+The strict mode only checks what a merge can break or check with little effort.
+It doesn't validate the values against the schemas, e.g. patterns or value ranges,
+so a merged dataset is only valid if the values of the source datasets are valid.
 
 Check `vec merge --help` for more details.
 
