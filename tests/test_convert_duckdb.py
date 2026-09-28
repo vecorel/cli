@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 
 import geopandas as gpd
@@ -730,10 +731,16 @@ def test_constants_that_do_not_fit_their_type_are_reported(value, dtype, capsys)
     log = Converter()
     logger.remove()
     logger.add(sys.stdout, format="{message}", level="DEBUG", colorize=False)
-    table = _constants_table({"x": value}, {"x": {"type": dtype}}, log=log)
+    table = _constants_table({"x": value}, {"x": {"type": dtype}}, log=log, source="part.parquet")
 
-    assert table.column("x").to_pylist() == [value]
-    assert f"'x' doesn't fit its type {dtype}" in capsys.readouterr().out
+    # the value would fail the writer, so it's left empty
+    assert table.column("x").to_pylist() == [None]
+    message = f"x: Value {value!r} doesn't fit data type {dtype}"
+    out = capsys.readouterr().out
+    assert message in out and "(in part.parquet)" in out
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _constants_table({"x": value}, {"x": {"type": dtype}}, log=log, strict=True)
 
 
 def test_merge_parquet_checks_ids_that_convert_generated(tmp_folder, capsys):

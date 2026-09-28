@@ -30,6 +30,9 @@ class MergeDatasets(BaseCommand):
 
     Local GeoParquet files that are all in the target CRS are merged with DuckDB,
     which doesn't need to fit the data into memory. All other datasets are merged in memory.
+
+    By default, problems that make the merged dataset invalid are errors.
+    With --no-strict, they are reported as warnings and the dataset is written anyway.
     """
 
     default_crs = "EPSG:4326"
@@ -71,6 +74,12 @@ class MergeDatasets(BaseCommand):
                 show_default=True,
                 default="auto",
             ),
+            "strict": click.option(
+                "--strict/--no-strict",
+                default=True,
+                show_default=True,
+                help="Fail if the merged dataset would be invalid. With --no-strict, warn and write the dataset anyway.",
+            ),
         }
 
     @runnable
@@ -82,6 +91,7 @@ class MergeDatasets(BaseCommand):
         includes=[],
         excludes=[],
         engine="auto",
+        strict=True,
     ):
         if not isinstance(source, list):
             raise ValueError("Source must be a list.")
@@ -123,16 +133,21 @@ class MergeDatasets(BaseCommand):
                 target.uri,
                 properties=properties,
                 suffix_duplicate_ids=False,
-                strict=False,
+                strict=strict,
             )
         else:
             if engine == "auto":
                 self.info(f"Merging in memory, as {blocker}")
             gdf, collection = merge_(
-                encodings, crs=crs, properties=properties, log=self, excludes=excludes
+                encodings,
+                crs=crs,
+                properties=properties,
+                log=self,
+                excludes=excludes,
+                strict=strict,
             )
             target.set_collection(collection)
-            target.write(gdf, properties=properties)
+            target.write(gdf, properties=properties, strict=strict)
 
         return target
 
