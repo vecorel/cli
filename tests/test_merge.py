@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import shapely
 from loguru import logger
 
 from vecorel_cli.cli.logger import LoggerMixin
+from vecorel_cli.encoding.geojson import GeoJSON
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.merge import MergeDatasets
 from vecorel_cli.validate import ValidateData
@@ -62,6 +64,28 @@ def test_merge(tmp_parquet_file: Path):
     ]
 
 
+def test_merge_excludes_without_reading_twice(tmp_parquet_file: Path, monkeypatch):
+    reads = []
+    read = GeoJSON.read
+
+    def spy(self, num=None, **kwargs):
+        if num is None:
+            reads.append(self.uri)
+        return read(self, num=num, **kwargs)
+
+    monkeypatch.setattr(GeoJSON, "read", spy)
+    MergeDatasets().merge(
+        source=["tests/data-files/inspire.parquet", "tests/data-files/admin.json"],
+        target=tmp_parquet_file,
+        excludes=["foo"],
+    )
+
+    assert len(reads) == 1
+    columns = GeoParquet(tmp_parquet_file).get_properties()
+    assert "foo" not in columns
+    assert "admin:country_code" in columns
+
+
 def test_merge_invalid_file(tmp_folder):
     out = tmp_folder / "output.parquet"
     merge = MergeDatasets()
@@ -106,14 +130,14 @@ def _part(
     return path
 
 
-def _with_nullable_column(path, name, values):
+def _with_nullable_column(path, name, values, pa_type=pa.string()):
     """Rewrites a column as nullable with the given values, as other tools could write it."""
     table = pq.read_table(path)
     metadata = table.schema.metadata
     index = table.schema.get_field_index(name)
     if index >= 0:
         table = table.remove_column(index)
-    table = table.append_column(pa.field(name, pa.string()), pa.array(values, pa.string()))
+    table = table.append_column(pa.field(name, pa_type), pa.array(values, pa_type))
     pq.write_table(table.replace_schema_metadata(metadata), path)
     return path
 
@@ -183,6 +207,20 @@ def test_merge_hydrates_array_and_object_constants(tmp_folder, engine):
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("with_schema", [False, True])
+def test_merge_keeps_shared_array_constants_in_the_collection(tmp_folder, engine, with_schema):
+    custom = {"properties": {"tags": {"type": "array", "items": {"type": "string"}}}}
+    custom = custom if with_schema else None
+    a = _part(tmp_folder, "a", "a", 2, collection={"tags": ["x", "y"]}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"tags": ["x", "y"]}, custom=custom)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, collection = _read(out)
+    assert collection["tags"] == ["x", "y"]
+    assert all("tags" not in row for row in rows)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_merge_hydrates_date_time_constants(tmp_folder, engine):
     custom = {"properties": {"dt": {"type": "date-time"}}}
     a = _part(tmp_folder, "a", "a", 2, collection={"dt": "2020-01-01T00:00:00Z"}, custom=custom)
@@ -206,7 +244,7 @@ def test_merge_keeps_ids_that_repeat_in_other_collections(tmp_folder, engine, lo
     a = _part(tmp_folder, "a", "a", 2, ids=["1", "2"])
     b = _part(tmp_folder, "b", "b", 2, ids=["1", "2"])
     c = _part(tmp_folder, "c", "b", 1, ids=["1"])
-    out = _merge(tmp_folder, [a, b, c], engine)
+    out = _merge(tmp_folder, [a, b, c], engine, strict=False)
 
     rows, _ = _read(out)
     assert [(r["collection"], r["id"]) for r in rows] == [
@@ -296,7 +334,7 @@ def test_merge_warns_when_includes_drop_required_properties(tmp_folder, engine, 
     b = _part(
         tmp_folder, "b", "b", 2, columns={"admin:country_code": ["FR", "FR"]}, schemas=[CORE, ADMIN]
     )
-    _merge(tmp_folder, [a, b], engine, includes=["foo"])
+    _merge(tmp_folder, [a, b], engine, includes=["foo"], strict=False)
     assert (
         "Required properties are not included, the merged file will be invalid: admin:country_code"
         in log()
@@ -326,19 +364,62 @@ def test_merge_fills_missing_collection_values(tmp_folder, engine):
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("values", [None, ["a", None]], ids=["no-column", "null-values"])
+def test_merge_accepts_a_collection_it_cannot_determine(tmp_folder, engine, values):
+    schemas = {"a": [CORE], "x": [CORE]}
+    a = _part(tmp_folder, "a", "a", 2, collection={"schemas": schemas}, with_collection=False)
+    if values:
+        a = _with_nullable_column(a, "collection", values)
+    b = _part(tmp_folder, "b", "b", 2)
+    out = _merge(tmp_folder, [a, b], engine, strict=False)
+
+    rows, _ = _read(out)
+    assert [r["collection"] for r in rows][-2:] == ["b", "b"]
+    assert len(rows) == 4
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_merge_excludes_the_collection(tmp_folder, engine, log):
     a = _part(tmp_folder, "a", "a", 2)
     b = _part(tmp_folder, "b", "b", 2)
-    out = _merge(tmp_folder, [a, b], engine, excludes=["collection"])
+    out = _merge(tmp_folder, [a, b], engine, excludes=["collection"], strict=False)
 
     assert "collection" not in pq.read_schema(out).names
     assert "the merged file will be invalid: collection" in log()
 
 
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_rows_without_a_required_value(tmp_folder, engine):
+    a = _part(
+        tmp_folder, "a", "a", 2, columns={"admin:country_code": ["DE", "DE"]}, schemas=[CORE, ADMIN]
+    )
+    a = _with_nullable_column(a, "admin:country_code", ["DE", None])
+    b = _part(
+        tmp_folder, "b", "b", 2, columns={"admin:country_code": ["FR", "FR"]}, schemas=[CORE, ADMIN]
+    )
+    out = _merge(tmp_folder, [a, b], engine, strict=False)
+
+    rows, _ = _read(out)
+    assert [r["admin:country_code"] for r in rows] == ["DE", None, "FR", "FR"]
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_keeps_empty_geometries(tmp_folder, engine):
+    a = _part(tmp_folder, "a", "a", 2)
+    b = _part(tmp_folder, "b", "b", 2)
+    gp = GeoParquet(b)
+    gdf = gp.read()
+    gdf.loc[0, "geometry"] = shapely.Polygon()
+    gp.write(gdf, dehydrate=False)
+    out = _merge(tmp_folder, [a, b], engine, strict=False)
+
+    assert pq.read_metadata(out).num_rows == 4
+
+
 def test_merge_ignores_null_ids_for_duplicates(tmp_folder, log):
     a = _with_nullable_column(_part(tmp_folder, "a", "a", 2), "id", [None, None])
     b = _part(tmp_folder, "b", "b", 2)
-    _merge(tmp_folder, [a, b], "geopandas")
+    _merge(tmp_folder, [a, b], "geopandas", strict=False)
     assert "repeat an id" not in log()
 
 
@@ -394,3 +475,194 @@ def test_merge_crs(tmp_folder, log):
     assert "Merging in memory, as the datasets must be reprojected" in log()
     assert crs_of(_merge(tmp_folder, [c, d], crs="EPSG:3857")) == 3857
     assert "Merging with DuckDB" in log()
+
+
+def _with_collection(path, collection):
+    """Replaces the collection metadata of a file."""
+    table = pq.read_table(path)
+    metadata = dict(table.schema.metadata)
+    metadata[b"collection"] = json.dumps(collection).encode("utf-8")
+    pq.write_table(table.replace_schema_metadata(metadata), path)
+    return path
+
+
+def _check_modes(folder, parts, engine, log, message, **kwargs):
+    """With --no-strict the merge warns and writes the file, by default it fails, both with the message."""
+    out = _merge(folder, parts, engine, strict=False, **kwargs)
+    assert message in log()
+    assert out.exists()
+    out.unlink()
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _merge(folder, parts, engine, **kwargs)
+    return out
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("cids", [("a", "a"), ("a", "b")])
+def test_merge_modes_null_in_required_property(tmp_folder, engine, log, cids):
+    a = _part(
+        tmp_folder,
+        "a",
+        cids[0],
+        2,
+        columns={"admin:country_code": ["DE", "DE"]},
+        schemas=[CORE, ADMIN],
+    )
+    a = _with_nullable_column(a, "admin:country_code", ["DE", None])
+    b = _part(
+        tmp_folder,
+        "b",
+        cids[1],
+        2,
+        columns={"admin:country_code": ["FR", "FR"]},
+        schemas=[CORE, ADMIN],
+    )
+    _check_modes(
+        tmp_folder,
+        [a, b],
+        engine,
+        log,
+        "Rows have no value for a required property: admin:country_code",
+    )
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_modes_repeating_ids(tmp_folder, engine, log):
+    a = _part(tmp_folder, "a", "a", 2, ids=["1", "2"])
+    b = _part(tmp_folder, "b", "a", 2, ids=["1", "3"])
+    out = _check_modes(tmp_folder, [a, b], engine, log, "repeat an id within their collection")
+    assert out.name.startswith("merged")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_modes_unknown_collection(tmp_folder, engine, log):
+    a = _with_nullable_column(_part(tmp_folder, "a", "a", 2), "collection", [None, None])
+    a = _with_collection(a, {"schemas": {"a": [CORE], "x": [CORE]}})
+    b = _part(tmp_folder, "b", "b", 2)
+    _check_modes(tmp_folder, [a, b], engine, log, "Can't determine the collection of the features")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_modes_includes_remove_required_properties(tmp_folder, engine, log):
+    # -i also applies to collection-only properties
+    custom = {
+        "properties": {"producer": {"type": "string"}},
+        "collection": {"producer": True},
+        "required": ["producer"],
+    }
+    a = _part(tmp_folder, "a", "a", 2, collection={"producer": "X"}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"producer": "X"}, custom=custom)
+    out = _check_modes(
+        tmp_folder,
+        [a, b],
+        engine,
+        log,
+        "Required properties are not included, the merged file will be invalid: producer",
+        includes=["foo"],
+    )
+    assert out.name.startswith("merged")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_modes_required_collection_only_property_differs(tmp_folder, engine, log):
+    custom = {
+        "properties": {"producer": {"type": "string"}},
+        "collection": {"producer": True},
+        "required": ["producer"],
+    }
+    a = _part(tmp_folder, "a", "a", 2, collection={"producer": "X"}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"producer": "Y"}, custom=custom)
+    _check_modes(
+        tmp_folder,
+        [a, b],
+        engine,
+        log,
+        "Collection-only properties differ between the datasets and are removed: producer",
+    )
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_modes_empty_geometries(tmp_folder, engine, log):
+    gdf = gpd.GeoDataFrame(
+        {"id": ["e0", "e1"], "geometry": [shapely.box(0, 0, 1, 1), shapely.Polygon()]},
+        crs="EPSG:4326",
+    )
+    a = tmp_folder / "empty.parquet"
+    gp = GeoParquet(a)
+    gp.set_collection({"schemas": {"a": [CORE]}, "collection": "a"})
+    gp.write(gdf, dehydrate=False)
+    b = _part(tmp_folder, "b", "b", 2)
+
+    _check_modes(tmp_folder, [a, b], engine, log, "1 of 4 rows have an empty or missing geometry")
+    # --no-strict keeps the rows
+    rows, _ = _read(_merge(tmp_folder, [a, b], engine, strict=False))
+    assert len(rows) == 4
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_modes_constant_that_does_not_fit_its_schema(tmp_folder, engine, log):
+    custom = {"properties": {"n": {"type": "uint8"}}}
+    a = _part(tmp_folder, "a", "a", 2, collection={"n": 300}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"n": 1}, custom=custom)
+    out = _check_modes(tmp_folder, [a, b], engine, log, "n: Value 300 doesn't fit data type uint8")
+
+    # --no-strict writes a null instead
+    rows, _ = _read(_merge(tmp_folder, [a, b], engine, strict=False))
+    assert [(r["collection"], r["n"]) for r in rows] == [
+        ("a", None),
+        ("a", None),
+        ("b", 1),
+        ("b", 1),
+    ]
+    assert out.name.startswith("merged")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_hydrates_binary_constants(tmp_folder, engine):
+    custom = {"properties": {"blob": {"type": "binary"}}}
+    a = _part(tmp_folder, "a", "a", 2, collection={"blob": "aGVsbG8="}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"blob": "d29ybGQ="}, custom=custom)
+
+    rows, _ = _read(_merge(tmp_folder, [a, b], engine))
+    assert [(r["collection"], r["blob"]) for r in rows] == [
+        ("a", b"hello"),
+        ("a", b"hello"),
+        ("b", b"world"),
+        ("b", b"world"),
+    ]
+
+
+def test_merge_modes_all_geometries_missing(tmp_folder, log):
+    paths = []
+    for cid in ("a", "b"):
+        path = tmp_folder / f"{cid}.json"
+        features = [
+            {"type": "Feature", "id": f"{cid}{i}", "geometry": None, "properties": {}}
+            for i in range(2)
+        ]
+        collection = {"schemas": {cid: [CORE]}, "collection": cid}
+        path.write_text(
+            json.dumps({"type": "FeatureCollection", **collection, "features": features})
+        )
+        paths.append(path)
+
+    _check_modes(
+        tmp_folder, paths, "geopandas", log, "4 of 4 rows have an empty or missing geometry"
+    )
+
+
+def test_merge_writes_required_nested_properties_with_nulls_as_nullable(tmp_folder, log):
+    struct = pa.struct([("k", pa.string())])
+    custom = {
+        "required": ["attrs"],
+        "properties": {"attrs": {"type": "object", "properties": {"k": {"type": "string"}}}},
+    }
+    a = _part(tmp_folder, "a", "a", 2, columns={"attrs": [{"k": "v"}, {"k": "w"}]}, custom=custom)
+    a = _with_nullable_column(a, "attrs", [{"k": "v"}, None], struct)
+    b = _part(tmp_folder, "b", "a", 2, columns={"attrs": [{"k": "x"}, {"k": "y"}]}, custom=custom)
+
+    out = _merge(tmp_folder, [a, b], "duckdb", strict=False)
+    assert "Rows have no value for a required property: attrs" in log()
+    assert pq.read_schema(out).field("attrs").nullable
+    rows, _ = _read(out)
+    assert [r["attrs"] for r in rows] == [{"k": "v"}, None, {"k": "x"}, {"k": "y"}]

@@ -1,5 +1,3 @@
-import base64
-import datetime
 import json
 import os
 from pathlib import Path
@@ -8,15 +6,16 @@ from typing import Optional
 
 import duckdb
 import numpy as np
-import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from ..cli.logger import LoggerMixin
 from ..encoding.geojson import VecorelJSONEncoder
 from ..encoding.geoparquet import GeoParquet
-from ..parquet.types import get_pyarrow_type
+from ..parquet.types import constant_array
 from ..vecorel.hilbert import hilbert_keys_for_table, hilbert_reference_bounds
-from ..vecorel.ops import get_collection_id, merge_collections, warn_missing_required
+from ..vecorel.ops import get_collection_id, merge_collections, report, warn_missing_required
+from ..vecorel.util import find_differing_crs
 from .base import BaseConverter
 
 
@@ -55,47 +54,23 @@ def _sql_literal(value) -> str:
     return f"'{escaped}'"
 
 
-# Collection metadata is JSON, so temporal and binary values are encoded as strings
-def _to_arrow_value(value, dtype):
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return None
-    if isinstance(value, str):
-        if dtype == "date-time":
-            ts = pd.Timestamp(value)
-            return (
-                ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
-            ).to_pydatetime()
-        if dtype == "date":
-            return datetime.date.fromisoformat(value[:10])
-        if dtype == "binary":
-            return base64.b64decode(value)
-    return value
-
-
-def _constants_table(constants: dict, props: dict) -> pa.Table:
+def _constants_table(
+    constants: dict,
+    props: dict,
+    log: Optional[LoggerMixin] = None,
+    source=None,
+    strict: bool = False,
+) -> pa.Table:
     """A single row with the given values, typed by the property schemas where available."""
     arrays = []
     for key, value in constants.items():
-        schema = props.get(key) or {}
         try:
-            pa_type = get_pyarrow_type(schema) if schema.get("type") else None
-            arrays.append(pa.array([_to_arrow_value(value, schema.get("type"))], type=pa_type))
-        except Exception:
-            arrays.append(pa.array([value]))
+            arrays.append(constant_array(value, props.get(key)))
+        except ValueError as e:
+            # the value would fail the writer, so it's left empty
+            report(f"{key}: {e} (in {source})", log, strict)
+            arrays.append(constant_array(None, props.get(key)))
     return pa.table(arrays, names=list(constants.keys()))
-
-
-def _normalize_crs(crs):
-    """The comparable pyproj CRS for a GeoParquet crs value,
-    which defaults to OGC:CRS84 when missing."""
-    from pyproj import CRS
-
-    return CRS.from_user_input(crs if crs is not None else "OGC:CRS84")
-
-
-def _equal_crs(a, b) -> bool:
-    # GeoParquet coordinates are always x, y regardless of the CRS axis order
-    return a.equals(b, ignore_axis_order=True)
 
 
 # This converter is experimental, use with caution.
@@ -321,9 +296,8 @@ class DuckDBBaseConverter(BaseConverter):
         They are combined without reprojection, and DuckDB before 1.5 drops the CRS
         from the metadata, so it has to be read from the files themselves.
         """
-        source_crs = None
-        reference = None
-        for i, source in enumerate(sources):
+        crs_values = []
+        for source in sources:
             crs = None
             row = con.execute(
                 "SELECT value FROM parquet_kv_metadata(?) WHERE key = 'geo'", [source]
@@ -332,15 +306,14 @@ class DuckDBBaseConverter(BaseConverter):
                 geo = json.loads(bytes(row[0]))
                 primary = geo.get("primary_column", "")
                 crs = geo.get("columns", {}).get(primary, {}).get("crs")
-            if i == 0:
-                source_crs = crs
-                reference = _normalize_crs(crs)
-            elif not _equal_crs(_normalize_crs(crs), reference):
-                raise ValueError(
-                    f"The sources use different coordinate reference systems: {source} "
-                    "differs from the first source. Reproject the sources to a common CRS."
-                )
-        return source_crs
+            crs_values.append(crs)
+        differing = find_differing_crs(crs_values)
+        if differing is not None:
+            raise ValueError(
+                f"The sources use different coordinate reference systems: {sources[differing]} "
+                "differs from the first source. Reproject the sources to a common CRS."
+            )
+        return crs_values[0] if crs_values else None
 
     def write_query(
         self,
@@ -358,6 +331,8 @@ class DuckDBBaseConverter(BaseConverter):
         geoparquet_version: Optional[str] = None,
         original_geometries: bool = False,
         suffix_duplicate_ids: bool = True,
+        strict: bool = True,
+        merging: bool = False,
     ) -> str:
         """Write the rows a SELECT returns as a Vecorel GeoParquet file: drop rows
         that no required property or geometry survives, report an id that is not
@@ -365,6 +340,9 @@ class DuckDBBaseConverter(BaseConverter):
 
         `targets` names the properties the query returns, which is what the checks
         run over. Ids only need to be unique per collection.
+        Without `strict`, a missing required value is only reported and empty
+        geometries are kept, as the in-memory merge does.
+        When `merging` strictly, empty geometries are an error instead of being dropped.
         """
         compression = compression or "zstd"
         if compression == "zstd" and compression_level is None:
@@ -388,23 +366,30 @@ class DuckDBBaseConverter(BaseConverter):
         # Same required-value check, empty-geometry drop and id uniqueness
         # check as in the GeoDataFrame-based codepath, in one scan
         collection_only = set(collection.get_collection_only_properties())
-        has_collection_column = "collection" in selected_targets
+        schema_groups = collection.get_schemas()
+        per_collection = "collection" in selected_targets and len(schema_groups) > 1
 
-        def null_condition(schema):
+        # The collections that require a property, None for all rows
+        required_by = {}
+
+        def null_condition(schema, skip=("geometry",), cid=None):
             required = [
                 r
                 for r in schema.get("required", [])
-                if r != "geometry" and r not in collection_only and r in selected_targets
+                if r not in skip and r not in collection_only and r in selected_targets
             ]
-            return " OR ".join(f'"{target}" IS NULL' for target in required) or None
+            for r in required:
+                required_by.setdefault(r, []).append(cid)
+            return " OR ".join(f"{_sql_name(target)} IS NULL" for target in required) or None
 
-        schema_groups = collection.get_schemas()
-        if len(schema_groups) > 1 and has_collection_column:
+        if per_collection:
             # Each collection only requires what its own schemas require
             custom_schemas = collection.get_custom_schemas()
             conditions = ['"collection" IS NULL']
+            required_by["collection"] = [None]
             for cid, group in schema_groups.items():
-                cond = null_condition(group.merge_schemas(custom_schemas=custom_schemas))
+                schema = group.merge_schemas(custom_schemas=custom_schemas)
+                cond = null_condition(schema, skip=("geometry", "collection"), cid=cid)
                 if cond:
                     conditions.append(f'("collection" = {_sql_literal(cid)} AND ({cond}))')
             null_cond = " OR ".join(conditions)
@@ -413,12 +398,16 @@ class DuckDBBaseConverter(BaseConverter):
         stats = ["count(*)"]
         if null_cond:
             stats.append(f"count(*) FILTER (WHERE {null_cond})")
+            # per property, so that the report can name what is missing
+            for name, cids in required_by.items():
+                condition = f"{_sql_name(name)} IS NULL"
+                if None not in cids:
+                    condition += f' AND "collection" IN ({", ".join(map(_sql_literal, cids))})'
+                stats.append(f"count(*) FILTER (WHERE {condition})")
         # row numbers are unique by construction
         check_ids = "id" in selected_targets and not ids_are_generated
         if check_ids:
-            id_key = (
-                'struct_pack(c := "collection", i := "id")' if has_collection_column else '"id"'
-            )
+            id_key = 'struct_pack(c := "collection", i := "id")' if per_collection else '"id"'
             stats.append('count("id")')
             stats.append(f'count(DISTINCT {id_key}) FILTER (WHERE "id" IS NOT NULL)')
         blank_cond = None
@@ -441,6 +430,7 @@ class DuckDBBaseConverter(BaseConverter):
             )
             total = values.pop(0)
             invalid = values.pop(0) if null_cond else 0
+            nulls = {name: values.pop(0) for name in required_by} if null_cond else {}
             if check_ids:
                 non_null = values.pop(0)
                 distinct = values.pop(0)
@@ -452,23 +442,35 @@ class DuckDBBaseConverter(BaseConverter):
                         "The repeating ids get a ~<n> suffix in the output."
                     )
                 elif distinct < non_null:
-                    self.warning(
-                        f"{non_null - distinct:,} of {non_null:,} rows repeat an id within their collection"
+                    report(
+                        f"{non_null - distinct:,} of {non_null:,} rows repeat an id within their collection",
+                        self,
+                        strict,
                     )
             blanks = values.pop(0) if blank_cond else 0
             repairs = values.pop(0) if repair_cond else 0
-            if invalid:
+            missing = ", ".join(
+                f"{name} ({count:,} of {total:,} rows)"
+                for name, count in sorted(nulls.items())
+                if count
+            )
+            if invalid and (merging or not strict):
+                report(f"Rows have no value for a required property: {missing}", self, strict)
+            elif invalid:
                 # A null in a required property is an error, whatever the count:
                 # the writer rejects nulls in the non-nullable required fields
                 # anyway, and silently dropping rows would make that data-quality
                 # decision for the user (vecorel/cli#33)
                 raise ValueError(
-                    f"{invalid} of {total} rows have no value for a required property "
-                    f"({null_cond}). Handle them in the converter: fix the mapping, "
-                    "fill the values in column_migrations, or exclude the rows with "
-                    "a column_filters entry."
+                    f"Rows have no value for a required property: {missing}. "
+                    "Handle them in the converter: fix the mapping, fill the values in "
+                    "column_migrations, or exclude the rows with a column_filters entry."
                 )
-            if blanks:
+            if blanks and merging:
+                report(
+                    f"{blanks:,} of {total:,} rows have an empty or missing geometry", self, strict
+                )
+            elif blanks and strict:
                 self.warning(f"Dropping {blanks} of {total} rows with an empty or missing geometry")
                 source_query = f"SELECT * FROM ({source_query}) WHERE NOT ({blank_cond})"
             if repairs:
@@ -531,7 +533,7 @@ class DuckDBBaseConverter(BaseConverter):
 
         if "id" in selected_targets and suffix_duplicate_ids:
             self._suffix_duplicate_ids_in_file(
-                con, output_file, compression, collection_json, row_group_size
+                con, output_file, compression, collection_json, row_group_size, per_collection
             )
 
         # Sort against the same CRS-derived Hilbert grid as the
@@ -569,12 +571,13 @@ class DuckDBBaseConverter(BaseConverter):
             compression_level=compression_level,
             geoparquet_version=geoparquet_version,
             crs=source_crs,
+            strict=strict,
         )
 
         return output_file
 
     def _suffix_duplicate_ids_in_file(
-        self, con, output_file, compression, collection_json, row_group_size
+        self, con, output_file, compression, collection_json, row_group_size, per_collection
     ):
         """Number the ids that appear on several rows of a collection (id~1, id~2, ...), like the
         GeoDataFrame-based codepath, when the source does not provide unique ids
@@ -583,8 +586,7 @@ class DuckDBBaseConverter(BaseConverter):
         which the Hilbert sort afterwards puts right. A numbered id can collide
         with one the source already carries (x~1), so this repeats until nothing
         repeats."""
-        names = pq.read_schema(output_file).names
-        key = '"collection", "id"' if "collection" in names else '"id"'
+        key = '"collection", "id"' if per_collection else '"id"'
         reported = False
         while True:
             total, duplicated = con.execute(
@@ -640,7 +642,13 @@ class DuckDBBaseConverter(BaseConverter):
                 raise
 
     def merge_parquet(
-        self, paths: list, output_file, collection=None, properties=None, **kwargs
+        self,
+        paths: list,
+        output_file,
+        collection=None,
+        properties=None,
+        strict: bool = True,
+        **kwargs,
     ) -> str:
         """Combine Vecorel GeoParquet files into one, checked and sorted over the
         whole set rather than per file.
@@ -649,6 +657,8 @@ class DuckDBBaseConverter(BaseConverter):
         their geometries are already valid polygons; pass `original_geometries=False`
         to run the geometry step anyway. `properties` restricts the properties that
         are merged. The bbox is always recomputed, as not all parts may have one.
+        Problems that make the merged file invalid are errors if `strict`,
+        otherwise warnings.
         """
         if not paths:
             raise ValueError("No paths to merge")
@@ -665,9 +675,11 @@ class DuckDBBaseConverter(BaseConverter):
 
         collections = [GeoParquet(path).get_collection() for path in paths]
         if collection is None:
-            collection = merge_collections(collections, properties=properties, log=self)
+            collection = merge_collections(
+                collections, properties=properties, log=self, strict=strict
+            )
             if properties is not None:
-                warn_missing_required(collection, properties, {}, self)
+                warn_missing_required(collections, properties, {}, self, strict)
         props = collection.merge_schemas({}).get("properties", {})
 
         # union by name, because a converter drops a column a source file does not have,
@@ -689,16 +701,21 @@ class DuckDBBaseConverter(BaseConverter):
                 and (properties is None or key in properties)
             }
             keep_collection = properties is None or "collection" in properties
-            fill = None
-            if keep_collection and "collection" in names:
-                # Fill gaps like the in-memory merge does, if the part's collection is known
-                try:
-                    fill = get_collection_id(part, path)
-                except ValueError:
-                    pass
-            elif keep_collection and "collection" not in collection:
+            fill = get_collection_id(part) if keep_collection else None
+            if fill is not None and "collection" not in names and "collection" not in collection:
                 # Features of multiple collections must state their collection
-                constants["collection"] = get_collection_id(part, path)
+                constants["collection"] = fill
+            elif fill is None and keep_collection:
+                # the statistics tell whether the column has nulls without a scan
+                if "collection" in names:
+                    with pq.ParquetFile(path) as pq_file:
+                        unknown = bool(GeoParquet._columns_with_nulls(pq_file, {"collection"}))
+                else:
+                    unknown = "collection" not in collection
+                if unknown:
+                    report(
+                        f"Can't determine the collection of the features in {path}", self, strict
+                    )
 
             columns = []
             for name in names:
@@ -714,7 +731,10 @@ class DuckDBBaseConverter(BaseConverter):
                 # A registered table rather than SQL literals, so arrays, objects and
                 # temporal values keep their types
                 table = f"constants_{i}"
-                con.register(table, _constants_table(constants, props))
+                con.register(
+                    table,
+                    _constants_table(constants, props, log=self, source=path, strict=strict),
+                )
                 query += f", {table}.*"
                 source += f" CROSS JOIN {table}"
             selects.append(f"{query} FROM {source}")
@@ -728,6 +748,8 @@ class DuckDBBaseConverter(BaseConverter):
             collection,
             targets=targets,
             source_crs=source_crs,
+            strict=strict,
+            merging=True,
             **kwargs,
         )
 

@@ -112,15 +112,23 @@ class BaseEncoding(LoggerMixin):
         raise NotImplementedError("Not supported by encoding")
 
     def hydrate_from_collection(
-        self, data: GeoDataFrame, schema_map: SchemaMapping = {}
+        self,
+        data: GeoDataFrame,
+        schema_map: SchemaMapping = {},
+        keys: Optional[list[str]] = None,
     ) -> GeoDataFrame:
         """
         Merge the collection metadata into the GeoDataFrame.
+
+        If `keys` is specified, only those keys are merged.
         """
         collection = self.get_collection()
         collection_only = collection.get_collection_only_properties(schema_map=schema_map)
-        keys = list(collection.keys())
+        if keys is None:
+            keys = list(collection.keys())
         for key in keys:
+            if key not in collection:
+                continue
             value = collection[key]
             if key in collection_only:
                 continue
