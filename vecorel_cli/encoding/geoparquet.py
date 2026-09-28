@@ -346,9 +346,14 @@ class GeoParquet(BaseEncoding):
         return True
 
     @staticmethod
-    def _columns_with_nulls(metadata: pq.FileMetaData, names: set[str]) -> set[str]:
-        """The columns that contain nulls according to the statistics, or that have none."""
+    def _columns_with_nulls(pq_file: pq.ParquetFile, names: set[str]) -> set[str]:
+        """
+        The columns that contain nulls according to the statistics, or that have none.
+        Nested columns only have statistics for their leaves, so they are read instead.
+        """
+        metadata = pq_file.metadata
         result = set()
+        flat = set()
         for rg in range(metadata.num_row_groups):
             row_group = metadata.row_group(rg)
             for i in range(row_group.num_columns):
@@ -356,9 +361,15 @@ class GeoParquet(BaseEncoding):
                 name = column.path_in_schema
                 if name not in names:
                     continue
+                flat.add(name)
                 stats = column.statistics
                 if stats is None or not stats.has_null_count or stats.null_count > 0:
                     result.add(name)
+        for name in (names - flat) & set(pq_file.schema_arrow.names):
+            for rg in range(metadata.num_row_groups):
+                if pq_file.read_row_group(rg, columns=[name]).column(0).null_count > 0:
+                    result.add(name)
+                    break
         return result
 
     # Rewrites the Parquet file to a temp file and returns its path,
@@ -393,7 +404,7 @@ class GeoParquet(BaseEncoding):
                 required_columns.add("id")
             required_columns |= {r for r in schemas.get("required", []) if r in col_names}
         if not strict:
-            required_columns -= self._columns_with_nulls(pq_file.metadata, required_columns)
+            required_columns -= self._columns_with_nulls(pq_file, required_columns)
 
         if "bbox" in col_names:
             bbox_type = existing_schema.field("bbox").type

@@ -708,8 +708,8 @@ class DuckDBBaseConverter(BaseConverter):
             elif fill is None and keep_collection:
                 # the statistics tell whether the column has nulls without a scan
                 if "collection" in names:
-                    metadata = pq.read_metadata(path)
-                    unknown = bool(GeoParquet._columns_with_nulls(metadata, {"collection"}))
+                    with pq.ParquetFile(path) as pq_file:
+                        unknown = bool(GeoParquet._columns_with_nulls(pq_file, {"collection"}))
                 else:
                     unknown = "collection" not in collection
                 if unknown:

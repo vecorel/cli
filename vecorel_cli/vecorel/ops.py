@@ -5,7 +5,7 @@ from geopandas import GeoDataFrame
 
 from ..cli.logger import LoggerMixin
 from ..encoding.base import BaseEncoding
-from ..parquet.types import constant_array
+from ..parquet.types import NULLABLE_INTEGERS, constant_array
 from ..vecorel.collection import Collection
 from ..vecorel.schemas import Schemas, VecorelSchema
 from ..vecorel.typing import SchemaMapping
@@ -41,7 +41,7 @@ def merge(
         properties = list(set(properties) - set(excludes))
         frames = [gdf.drop(columns=[c for c in excludes if c in gdf.columns]) for gdf in frames]
     merged_collection = merge_collections(
-        collections, properties=properties, log=log, strict=strict
+        collections, properties=properties, log=log, strict=strict, schema_map=schema_map
     )
     if properties is not None:
         warn_missing_required(collections, properties, schema_map, log, strict)
@@ -55,19 +55,26 @@ def merge(
             for key in collection
             if key not in merged_collection and (properties is None or key in properties)
         ]
-        # A value that doesn't fit the data type of its schema would fail the writer
-        unfit = []
+        # Constants with a schema get their data type, as in DuckDB, e.g. binary is decoded;
+        # a value that doesn't fit the data type would fail the writer, so it's left empty
+        collection_only = set(collection.get_collection_only_properties(schema_map=schema_map))
+        typed = {}
         for key in keys:
-            if key in gdf.columns:
+            if key in gdf.columns or key in collection_only or key not in collection:
                 continue
+            schema = props.get(key)
             try:
-                constant_array(collection[key], props.get(key))
+                array = constant_array(collection[key], schema, len(gdf))
             except ValueError as e:
                 report(f"{key}: {e} (in {item.uri})", log, strict)
-                unfit.append(key)
+                array = constant_array(None, schema, len(gdf))
+            if (schema or {}).get("type"):
+                typed[key] = array
         gdf = item.hydrate_from_collection(gdf, schema_map=schema_map, keys=keys)
-        for key in unfit:
-            gdf[key] = None
+        for key, array in typed.items():
+            series = array.to_pandas(types_mapper=NULLABLE_INTEGERS.get)
+            series.index = gdf.index
+            gdf[key] = series
 
         keep_collection = properties is None or "collection" in properties
         cid = get_collection_id(collection) if keep_collection else None
@@ -93,8 +100,11 @@ def merge(
 
     # Concatenate all GeoDataFrames to a single GeoDataFrame
     merged = GeoDataFrame(pd.concat(data, ignore_index=True))
-    # Remove empty columns
-    merged.dropna(axis=1, how="all", inplace=True)
+    # Remove empty columns, except for the geometry, which is required
+    geometry = merged.geometry.name
+    merged = merged.drop(
+        columns=[c for c in merged.columns if c != geometry and merged[c].isna().all()]
+    )
 
     if "id" in merged.columns:
         with_id = merged[merged["id"].notna()]
@@ -206,6 +216,7 @@ def merge_collections(
     properties=None,
     log: Optional[LoggerMixin] = None,
     strict: bool = False,
+    schema_map: SchemaMapping = {},
 ) -> Collection:
     schemas = Schemas()
     custom_schemas = VecorelSchema()
@@ -246,8 +257,8 @@ def merge_collections(
                 and (properties is None or k in properties)
             }
             if keys:
-                dropped |= keys & set(c.get_collection_only_properties())
-                required |= set(c.merge_schemas().get("required", []))
+                dropped |= keys & set(c.get_collection_only_properties(schema_map=schema_map))
+                required |= set(c.merge_schemas(schema_map=schema_map).get("required", []))
         message = "Collection-only properties differ between the datasets and are removed: "
         if dropped & required:
             report(message + ", ".join(sorted(dropped & required)), log, strict)

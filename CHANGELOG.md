@@ -20,8 +20,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - **Breaking:** `vec merge` keeps all properties by default, `--include` restricts them to
-  the core properties plus the given ones and `--exclude` removes any property. It warns if
-  a required property is not included.
+  the core properties plus the given ones and `--exclude` removes any property. It reports
+  required properties that are not included, also collection-only ones.
 - **Breaking:** `vec merge` is strict by default: it fails if the merged dataset would be
   invalid, e.g. because an id repeats within a collection.
 - The message for missing required values names the missing properties with counts,
@@ -30,20 +30,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `merge_parquet` no longer drops a property that each part kept as a constant in
-  its collection but on which the parts disagree; it becomes a column again, as in
-  `vec merge`.
+  its collection but on which the parts disagree; it becomes a column again, with the
+  data type of its schema, as in `vec merge`.
 - Merging no longer overwrites the schemas of a collection that occurs in multiple
-  datasets, it unites them.
+  datasets, it unites them and rejects two versions of the same schema in one collection.
 - Merging warns about collection-only properties that differ between the datasets
   and have to be removed.
 - Merging fills in missing collection values of datasets that only list a single
   collection in `schemas`.
-- Merging hydrates array and object constants correctly, instead of spreading them
-  over the rows, dropping them (`vec merge`) or failing (`merge_parquet`).
+- `vec merge` handles constants correctly: arrays and objects are no longer spread over
+  the rows or dropped, constants that all datasets share stay in the collection, and
+  constants get the data type of their schema, e.g. binary values are decoded instead
+  of written as base64 text.
+- Merging reports a constant that doesn't fit the data type of its schema, with the
+  property and the file, instead of failing with an Arrow error.
 - `merge_parquet` checks and numbers repeating ids per collection instead of across
   all collections, and checks the required properties per collection.
-- `merge_parquet` hydrates date-time, date and binary constants with their types and
-  NaN as null.
 - `merge_parquet` recomputes the bbox, which was empty for the rows of GeoParquet 1.0 parts.
 - Columns without any value are no longer moved to the collection, which wrote NaN
   (invalid JSON) or failed for nullable integers.
@@ -53,19 +55,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Validation checks the schemas of all collections, not only the first one.
 - Validation no longer fails with a `KeyError` for GeoParquet files with multiple
   collections, but without a collection column.
-- The in-memory merge keeps constants that all datasets share in the collection, instead
-  of failing on or moving array and object constants into the rows.
-- `vec merge --no-strict` with DuckDB keeps rows without a required value and rows with
-  an empty geometry (with a warning), like the in-memory merge; strictly, both are errors.
-- Merging reports a constant that doesn't fit the type of its schema, with the property
-  and the file, in both engines; with `--no-strict` the value is left empty.
-- Merging rejects two versions of the same schema in one collection.
-- `vec merge --exclude` no longer reads datasets other than GeoParquet twice.
-- Merging reports when `--include` drops a required collection-only property, also if
-  only a custom schema requires it.
-- Merging reports features whose collection can't be determined; with `--no-strict` they
-  are accepted.
-- The in-memory merge reports empty geometries and missing required values, per collection.
 
 ## [v0.3.1] - 2026-09-24
 

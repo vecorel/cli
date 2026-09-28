@@ -130,14 +130,14 @@ def _part(
     return path
 
 
-def _with_nullable_column(path, name, values):
+def _with_nullable_column(path, name, values, pa_type=pa.string()):
     """Rewrites a column as nullable with the given values, as other tools could write it."""
     table = pq.read_table(path)
     metadata = table.schema.metadata
     index = table.schema.get_field_index(name)
     if index >= 0:
         table = table.remove_column(index)
-    table = table.append_column(pa.field(name, pa.string()), pa.array(values, pa.string()))
+    table = table.append_column(pa.field(name, pa_type), pa.array(values, pa_type))
     pq.write_table(table.replace_schema_metadata(metadata), path)
     return path
 
@@ -615,3 +615,54 @@ def test_merge_modes_constant_that_does_not_fit_its_schema(tmp_folder, engine, l
         ("b", 1),
     ]
     assert out.name.startswith("merged")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_hydrates_binary_constants(tmp_folder, engine):
+    custom = {"properties": {"blob": {"type": "binary"}}}
+    a = _part(tmp_folder, "a", "a", 2, collection={"blob": "aGVsbG8="}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, collection={"blob": "d29ybGQ="}, custom=custom)
+
+    rows, _ = _read(_merge(tmp_folder, [a, b], engine))
+    assert [(r["collection"], r["blob"]) for r in rows] == [
+        ("a", b"hello"),
+        ("a", b"hello"),
+        ("b", b"world"),
+        ("b", b"world"),
+    ]
+
+
+def test_merge_modes_all_geometries_missing(tmp_folder, log):
+    paths = []
+    for cid in ("a", "b"):
+        path = tmp_folder / f"{cid}.json"
+        features = [
+            {"type": "Feature", "id": f"{cid}{i}", "geometry": None, "properties": {}}
+            for i in range(2)
+        ]
+        collection = {"schemas": {cid: [CORE]}, "collection": cid}
+        path.write_text(
+            json.dumps({"type": "FeatureCollection", **collection, "features": features})
+        )
+        paths.append(path)
+
+    _check_modes(
+        tmp_folder, paths, "geopandas", log, "4 of 4 rows have an empty or missing geometry"
+    )
+
+
+def test_merge_writes_required_nested_properties_with_nulls_as_nullable(tmp_folder, log):
+    struct = pa.struct([("k", pa.string())])
+    custom = {
+        "required": ["attrs"],
+        "properties": {"attrs": {"type": "object", "properties": {"k": {"type": "string"}}}},
+    }
+    a = _part(tmp_folder, "a", "a", 2, columns={"attrs": [{"k": "v"}, {"k": "w"}]}, custom=custom)
+    a = _with_nullable_column(a, "attrs", [{"k": "v"}, None], struct)
+    b = _part(tmp_folder, "b", "a", 2, columns={"attrs": [{"k": "x"}, {"k": "y"}]}, custom=custom)
+
+    out = _merge(tmp_folder, [a, b], "duckdb", strict=False)
+    assert "Rows have no value for a required property: attrs" in log()
+    assert pq.read_schema(out).field("attrs").nullable
+    rows, _ = _read(out)
+    assert [r["attrs"] for r in rows] == [{"k": "v"}, None, {"k": "x"}, {"k": "y"}]

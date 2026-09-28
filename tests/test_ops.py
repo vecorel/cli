@@ -181,3 +181,36 @@ def test_warn_missing_required_collection_only_properties(tmp_path):
 
     with pytest.raises(ValueError, match=message):
         warn_missing_required(collections, properties, schema_map, strict=True)
+
+
+def test_merge_collections_uses_the_schema_map(tmp_path):
+    class Log:
+        warnings = []
+
+        def warning(self, message):
+            self.warnings.append(message)
+
+    # the extension is only available through the schema map
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    ext = "https://example.com/producer/v0.1.0/schema.yaml"
+    path = tmp_path / "schema.yaml"
+    path.write_text(
+        "$schema: https://vecorel.org/sdl/v0.2.0/schema.json\n"
+        "required: [producer]\n"
+        "collection: {producer: true}\n"
+        "properties: {producer: {type: string}}\n"
+    )
+    schema_map = {ext: path}
+    collections = [
+        Collection({"schemas": {"c1": [core, ext]}, "producer": "A"}),
+        Collection({"schemas": {"c2": [core, ext]}, "producer": "B"}),
+    ]
+    message = "Collection-only properties differ between the datasets and are removed: producer"
+
+    log = Log()
+    merged = merge_collections(collections, log=log, schema_map=schema_map)
+    assert "producer" not in merged
+    assert log.warnings == [message]
+
+    with pytest.raises(ValueError, match=message):
+        merge_collections(collections, strict=True, schema_map=schema_map)
