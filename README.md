@@ -133,7 +133,15 @@ All other datasets (e.g. GeoJSON or datasets that need to be reprojected) are me
 Use `--engine` to choose the engine explicitly.
 
 `-i` and `-e` apply to all properties, including collection-level metadata.
+The geometry is required, so it can't be excluded.
 Constants that differ between the datasets are moved from the collection metadata to the features.
+The collection of the features is stored in a column if the datasets have multiple collections
+or if a dataset has a collection column already, otherwise only in the collection metadata.
+
+Geometries are merged as they are, except for the reprojection to the target CRS:
+they are neither made valid nor converted to other geometry types (use `vec improve -g` for that),
+and features with an empty or missing geometry are not dropped (see below).
+The bounding boxes (`bbox`) are computed again for the merged GeoParquet file.
 
 #### Strict and non-strict mode
 

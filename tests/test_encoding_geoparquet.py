@@ -187,6 +187,49 @@ def test_get_pyarrow_type_keeps_the_schema():
     assert get_pyarrow_type(schema) == pa.map_(pa.string(), pa.string())
 
 
+def test_constant_array_parses_dates_completely():
+    import datetime
+
+    import pytest
+
+    from vecorel_cli.parquet.types import constant_array
+
+    schema = {"type": "date"}
+    for value in ["2024-01-01", "2024-01-01T00:00:00Z"]:
+        assert constant_array(value, schema).to_pylist() == [datetime.date(2024, 1, 1)]
+    for value in ["2024-01-01-invalid", "2024-01-01T12:00:00Z"]:
+        with pytest.raises(ValueError):
+            constant_array(value, schema)
+
+
+def test_write_moves_a_constant_date_to_the_collection(tmp_parquet_file):
+    import datetime
+
+    from geopandas import GeoDataFrame
+    from shapely.geometry import box
+
+    gdf = GeoDataFrame(
+        {
+            "id": ["1", "2"],
+            "d": [datetime.date(2024, 1, 1)] * 2,
+            "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            "collection": "c",
+            "schemas:custom": {"properties": {"d": {"type": "date"}}},
+        }
+    )
+    gp.write(gdf)
+
+    # dates are stored as ISO 8601 strings at the collection level
+    assert GeoParquet(tmp_parquet_file).get_collection()["d"] == "2024-01-01"
+
+
 def test_read_hydrates_array_and_object_constants(tmp_parquet_file):
     from geopandas import GeoDataFrame
     from shapely.geometry import box

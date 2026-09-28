@@ -26,7 +26,7 @@ class MergeDatasets(BaseCommand):
     This simply appends the datasets to each other.
     Ids that repeat within a collection are reported, but not changed.
     Each feature keeps its collection, which is stored in a column if the
-    datasets have multiple collections.
+    datasets have multiple collections or a dataset has a collection column.
 
     Local GeoParquet files that are all in the target CRS are merged with DuckDB,
     which doesn't need to fit the data into memory. All other datasets are merged in memory.
@@ -65,7 +65,7 @@ class MergeDatasets(BaseCommand):
                 "excludes",
                 type=click.STRING,
                 multiple=True,
-                help="Properties to exclude.",
+                help="Properties to exclude, except for the geometry.",
             ),
             "engine": click.option(
                 "--engine",
@@ -99,6 +99,8 @@ class MergeDatasets(BaseCommand):
             raise ValueError("No source files provided")
         if engine not in self.engines:
             raise ValueError(f"Engine must be one of {', '.join(self.engines)}")
+        if excludes and "geometry" in excludes:
+            raise ValueError("The geometry can't be excluded")
         encodings = [create_encoding(s) for s in source]
         for encoding in encodings:
             if not encoding.exists():

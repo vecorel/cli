@@ -713,8 +713,13 @@ class DuckDBBaseConverter(BaseConverter):
         # the selected columns of all parts, in order
         union = []
         per_part = False
-        for i, (path, part) in enumerate(zip(paths, collections)):
-            names = pq.read_schema(path).names
+        part_names = [pq.read_schema(path).names for path in paths]
+        # A column only if the merged collection can't carry the collection, or if a part
+        # has a column already, which all features then need, as in the in-memory merge
+        collection_column = "collection" not in collection or any(
+            "collection" in names for names in part_names
+        )
+        for i, (path, part, names) in enumerate(zip(paths, collections, part_names)):
             collection_only = set(part.get_collection_only_properties())
             # A part keeps its constants in its collection; one the merged collection does not
             # carry, because the parts disagree on it, goes back into the rows, as `vec merge` does
@@ -734,13 +739,12 @@ class DuckDBBaseConverter(BaseConverter):
             if keep_collection and "collection" in names:
                 with pq.ParquetFile(path) as pq_file:
                     gaps = bool(GeoParquet._columns_with_nulls(pq_file, {"collection"}))
-            if fill is not None and "collection" not in names and "collection" not in collection:
-                # Features of multiple collections must state their collection
+            if fill is not None and "collection" not in names and collection_column:
                 constants["collection"] = fill
             elif (
                 fill is None
                 and keep_collection
-                and (gaps if "collection" in names else "collection" not in collection)
+                and (gaps if "collection" in names else collection_column)
             ):
                 report(f"Can't determine the collection of the features in {path}", self, strict)
             coalesce = fill is not None and gaps

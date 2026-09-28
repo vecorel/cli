@@ -325,7 +325,14 @@ def from_json_value(value, dtype=None):
             ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
             return ts.to_pydatetime()
         if dtype == "date":
-            return datetime.date.fromisoformat(value[:10])
+            try:
+                return datetime.date.fromisoformat(value)
+            except ValueError:
+                # a date-time at midnight, e.g. 2024-01-01T00:00:00Z
+                ts = pd.Timestamp(value)
+                if ts != ts.normalize():
+                    raise ValueError(f"'{value}' is not a date")
+                return ts.date()
         if dtype == "binary":
             return base64.b64decode(value, validate=True)
     return value

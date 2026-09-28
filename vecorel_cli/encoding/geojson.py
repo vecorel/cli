@@ -1,3 +1,4 @@
+import datetime
 import json
 from pathlib import Path
 from typing import Optional, Union
@@ -340,8 +341,10 @@ class GeoJSON(BaseEncoding):
 
 class VecorelJSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if isinstance(o, pd.Timestamp):
+        if isinstance(o, (pd.Timestamp, datetime.datetime)):
             return to_iso8601(o)
+        elif isinstance(o, datetime.date):
+            return o.isoformat()
         elif isinstance(o, np.ndarray):
             return o.tolist()
         elif isinstance(o, set):

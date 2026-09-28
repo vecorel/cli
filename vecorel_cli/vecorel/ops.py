@@ -34,6 +34,8 @@ def merge(
 ) -> tuple[GeoDataFrame, Collection]:
     # before any data is read
     check_versions([item.get_collection() for item in encodings])
+    # the geometry is required, as in merge_parquet
+    excludes = [key for key in excludes or [] if key != "geometry"]
     frames = [item.read(properties=properties, schema_map=schema_map) for item in encodings]
     collections = [item.get_collection() for item in encodings]
     if excludes:
@@ -49,6 +51,11 @@ def merge(
     if properties is not None:
         warn_missing_required(collections, properties, schema_map, log, strict)
     props = merged_collection.merge_schemas(schema_map=schema_map).get("properties", {})
+    # A column only if the merged collection can't carry the collection, or if a dataset
+    # has a column already, which all features then need, as in merge_parquet
+    collection_column = "collection" not in merged_collection or any(
+        "collection" in gdf.columns for gdf in frames
+    )
 
     data = []
     for item, gdf, collection in zip(encodings, frames, collections):
@@ -83,12 +90,14 @@ def merge(
         cid = get_collection_id(collection) if keep_collection else None
         if cid is not None and "collection" in gdf.columns:
             gdf["collection"] = gdf["collection"].fillna(cid)
-        elif cid is not None:
+        elif cid is not None and collection_column:
             gdf["collection"] = cid
-        elif keep_collection and (
-            gdf["collection"].isna().any()
-            if "collection" in gdf.columns
-            else "collection" not in merged_collection
+        elif (
+            cid is None
+            and keep_collection
+            and (
+                gdf["collection"].isna().any() if "collection" in gdf.columns else collection_column
+            )
         ):
             report(f"Can't determine the collection of the features in {item.uri}", log, strict)
 

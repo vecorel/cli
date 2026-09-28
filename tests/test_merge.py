@@ -743,3 +743,33 @@ def test_merge_modes_ids_that_only_differ_in_type(tmp_folder, log):
     b = _part(tmp_folder, "b", "same", 1, ids=["1"])
 
     _check_modes(tmp_folder, [geojson, b], "geopandas", log, "repeat an id within their collection")
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_rejects_excluding_the_geometry(tmp_folder, engine):
+    a = _part(tmp_folder, "a", "a", 2)
+    b = _part(tmp_folder, "b", "b", 2)
+    with pytest.raises(ValueError, match="The geometry can't be excluded"):
+        _merge(tmp_folder, [a, b], engine, excludes=["geometry"], strict=False)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_stores_a_shared_collection_in_the_metadata(tmp_folder, engine):
+    a = _part(tmp_folder, "a", "same", 2)
+    b = _part(tmp_folder, "b", "same", 2)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, collection = _read(out)
+    assert collection["collection"] == "same"
+    assert all("collection" not in row for row in rows)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_gives_all_features_a_collection_if_a_dataset_has_a_column(tmp_folder, engine):
+    a = _part(tmp_folder, "a", "same", 2, columns={"collection": ["same", "same"]})
+    b = _part(tmp_folder, "b", "same", 2)
+    out = _merge(tmp_folder, [a, b], engine)
+
+    rows, _ = _read(out)
+    assert [r["collection"] for r in rows] == ["same"] * 4
+    assert _errors(out) == []

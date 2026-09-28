@@ -20,12 +20,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - **Breaking:** `vec merge` keeps all properties by default, `--include` restricts them to
-  the core properties plus the given ones and `--exclude` removes any property. It reports
-  required properties that are not included, also collection-only ones.
+  the core properties plus the given ones and `--exclude` removes any property except for
+  the geometry. It reports required properties that are not included, also collection-only
+  ones.
+- `vec merge` stores the collection in a column only if the datasets have multiple
+  collections or a dataset has a collection column, otherwise only in the collection
+  metadata.
 - **Breaking:** `vec merge` is strict by default: it fails if the merged dataset would be
   invalid, e.g. because an id repeats within a collection.
 - **Breaking:** Merging fails before reading any data if the datasets use different
   versions of the Vecorel specification or of an extension.
+- **Breaking:** Merging doesn't drop features with an empty or missing geometry anymore
+  (`merge_parquet` did): they are an error in strict mode, otherwise they are kept with
+  a warning.
 - The message for missing required values names the missing properties with counts,
   instead of showing the SQL condition.
 
@@ -60,6 +67,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   collections, but without a collection column.
 - Reading GeoJSON with a limit or a selection of properties no longer fails for features
   without a geometry.
+- Writing no longer fails for a date property with the same value for all features, the
+  value is stored as an ISO 8601 date in the collection.
 
 ## [v0.3.1] - 2026-09-24
 
