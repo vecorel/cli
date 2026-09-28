@@ -710,3 +710,36 @@ def test_merge_fails_for_different_versions_before_reading(tmp_folder, engine, m
     monkeypatch.setattr(GeoParquet, "read", no_read)
     with pytest.raises(ValueError, match="different versions of a schema"):
         _merge(tmp_folder, [a, b], engine, strict=False)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("cids", [("a", "a"), ("a", "b")])
+def test_merge_modes_required_property_that_no_part_has(tmp_folder, engine, log, cids):
+    # only the parts of collection a use the extension that requires the property
+    a = _part(tmp_folder, "a", cids[0], 2, schemas=[CORE, ADMIN])
+    b = _part(tmp_folder, "b", cids[1], 2, schemas=[CORE, ADMIN] if cids[1] == "a" else None)
+    _check_modes(
+        tmp_folder,
+        [a, b],
+        engine,
+        log,
+        "Rows have no value for a required property: admin:country_code",
+    )
+
+
+def test_merge_modes_ids_that_only_differ_in_type(tmp_folder, log):
+    # the writer converts the ids to strings, so 1 and "1" are the same id
+    geojson = tmp_folder / "numeric.json"
+    feature = {
+        "type": "Feature",
+        "id": 1,
+        "geometry": {"type": "Point", "coordinates": [0, 0]},
+        "properties": {},
+    }
+    collection = {"schemas": {"same": [CORE]}, "collection": "same"}
+    geojson.write_text(
+        json.dumps({"type": "FeatureCollection", **collection, "features": [feature]})
+    )
+    b = _part(tmp_folder, "b", "same", 1, ids=["1"])
+
+    _check_modes(tmp_folder, [geojson, b], "geopandas", log, "repeat an id within their collection")

@@ -339,6 +339,8 @@ class DuckDBBaseConverter(BaseConverter):
         suffix_duplicate_ids: bool = True,
         strict: bool = True,
         merging: bool = False,
+        # the selected properties of a merge, None for all
+        properties=None,
     ) -> str:
         """Write the rows a SELECT returns as a Vecorel GeoParquet file: drop rows
         that no required property or geometry survives, report an id that is not
@@ -348,7 +350,8 @@ class DuckDBBaseConverter(BaseConverter):
         run over. Ids only need to be unique per collection.
         Without `strict`, a missing required value is only reported and empty
         geometries are kept, as the in-memory merge does.
-        When `merging` strictly, empty geometries are an error instead of being dropped.
+        When `merging` strictly, empty geometries are an error instead of being dropped,
+        and so are required properties that no part has.
         """
         compression = compression or "zstd"
         if compression == "zstd" and compression_level is None:
@@ -377,15 +380,20 @@ class DuckDBBaseConverter(BaseConverter):
 
         # The collections that require a property, None for all rows
         required_by = {}
+        # The same for required properties that no part has at all
+        absent_by = {}
 
         def null_condition(schema, skip=("geometry",), cid=None):
             required = [
-                r
-                for r in schema.get("required", [])
-                if r not in skip and r not in collection_only and r in selected_targets
+                r for r in schema.get("required", []) if r not in skip and r not in collection_only
             ]
             for r in required:
-                required_by.setdefault(r, []).append(cid)
+                if r in selected_targets:
+                    required_by.setdefault(r, []).append(cid)
+                elif merging and r not in collection and (properties is None or r in properties):
+                    # not selected properties are reported by warn_missing_required
+                    absent_by.setdefault(r, []).append(cid)
+            required = [r for r in required if r in selected_targets]
             return " OR ".join(f"{_sql_name(target)} IS NULL" for target in required) or None
 
         if per_collection:
@@ -401,15 +409,22 @@ class DuckDBBaseConverter(BaseConverter):
             null_cond = " OR ".join(conditions)
         else:
             null_cond = null_condition(collection.merge_schemas({}))
+
+        def in_collections(cids):
+            return f'"collection" IN ({", ".join(map(_sql_literal, cids))})'
+
         stats = ["count(*)"]
         if null_cond:
-            stats.append(f"count(*) FILTER (WHERE {null_cond})")
             # per property, so that the report can name what is missing
             for name, cids in required_by.items():
                 condition = f"{_sql_name(name)} IS NULL"
                 if None not in cids:
-                    condition += f' AND "collection" IN ({", ".join(map(_sql_literal, cids))})'
+                    condition += f" AND {in_collections(cids)}"
                 stats.append(f"count(*) FILTER (WHERE {condition})")
+        # a property that no part has is missing in all rows of the collections requiring it
+        for cids in absent_by.values():
+            condition = "TRUE" if None in cids else in_collections(cids)
+            stats.append(f"count(*) FILTER (WHERE {condition})")
         # row numbers are unique by construction
         check_ids = "id" in selected_targets and not ids_are_generated
         if check_ids:
@@ -435,8 +450,8 @@ class DuckDBBaseConverter(BaseConverter):
                 con.execute(f"SELECT {', '.join(stats)} FROM ({source_query})").fetchone()
             )
             total = values.pop(0)
-            invalid = values.pop(0) if null_cond else 0
             nulls = {name: values.pop(0) for name in required_by} if null_cond else {}
+            nulls.update({name: values.pop(0) for name in absent_by})
             if check_ids:
                 non_null = values.pop(0)
                 distinct = values.pop(0)
@@ -460,9 +475,9 @@ class DuckDBBaseConverter(BaseConverter):
                 for name, count in sorted(nulls.items())
                 if count
             )
-            if invalid and (merging or not strict):
+            if missing and (merging or not strict):
                 report(f"Rows have no value for a required property: {missing}", self, strict)
-            elif invalid:
+            elif missing:
                 # A null in a required property is an error, whatever the count:
                 # the writer rejects nulls in the non-nullable required fields
                 # anyway, and silently dropping rows would make that data-quality
@@ -772,6 +787,7 @@ class DuckDBBaseConverter(BaseConverter):
             source_crs=source_crs,
             strict=strict,
             merging=True,
+            properties=properties,
             **kwargs,
         )
 

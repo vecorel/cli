@@ -112,7 +112,8 @@ def merge(
     if "id" in merged.columns:
         with_id = merged[merged["id"].notna()]
         key = [c for c in ("collection", "id") if c in merged.columns]
-        duplicates = int(with_id.duplicated(subset=key).sum())
+        # the writer converts the ids to strings, so 1 and "1" are the same id
+        duplicates = int(with_id[key].astype(str).duplicated().sum())
         if duplicates:
             report(f"{duplicates} rows repeat an id within their collection", log, strict)
 
