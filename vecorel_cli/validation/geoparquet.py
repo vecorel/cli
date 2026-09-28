@@ -43,9 +43,12 @@ class GeoParquetValidator(Validator):
             validator=self,
         )
 
-        # Check that all required fields are present
+        # Check that all required fields are present; with multiple collections each
+        # collection only requires what its own schemas require, see validate_collection_column
         columns = data.columns
         required_props = schema.get("required", [])
+        if has_multiple_collections:
+            required_props = [key for key in required_props if key == "collection"]
         collection_props = schema.get("collection", {})
         for key in required_props:
             if key not in columns and not collection_props.get(key, False):
@@ -105,9 +108,12 @@ class GeoParquetValidator(Validator):
 
             # Validate data of the column
             issues = []
-            # Without a collection column the rows can't be grouped, which is reported above
-            if validate_data and (not has_multiple_collections or "collection" not in columns):
+            if validate_data and not has_multiple_collections:
                 issues = validate_column(data[key], prop_schema)
+            elif validate_data and "collection" not in columns:
+                # the rows can't be grouped, which is reported above; the merged schema of
+                # all collections would report values that are valid for their own collection
+                pass
             elif validate_data:
                 # Validate data for each collection separately
                 for cid, cschema in schemas.items():

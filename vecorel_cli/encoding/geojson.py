@@ -266,8 +266,8 @@ class GeoJSON(BaseEncoding):
                             if k == "id" and include:
                                 data["id"].append(json_stream.to_standard_types(v))
                             elif k == "geometry" and include:
-                                geom = shape(json_stream.to_standard_types(v))
-                                data["geometry"].append(geom)
+                                geom = json_stream.to_standard_types(v)
+                                data["geometry"].append(shape(geom) if geom else None)
                             elif k == "properties":
                                 for prop_key, prop_value in v.items():
                                     # Property is not relevant

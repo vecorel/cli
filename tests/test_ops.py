@@ -1,7 +1,9 @@
+import re
+
 import pytest
 
 from vecorel_cli.vecorel.collection import Collection
-from vecorel_cli.vecorel.ops import merge_collections, warn_missing_required
+from vecorel_cli.vecorel.ops import check_versions, merge_collections, warn_missing_required
 from vecorel_cli.vecorel.schemas import Schemas, VecorelSchema
 
 
@@ -214,3 +216,30 @@ def test_merge_collections_uses_the_schema_map(tmp_path):
 
     with pytest.raises(ValueError, match=message):
         merge_collections(collections, strict=True, schema_map=schema_map)
+
+
+def test_check_versions():
+    core1 = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    core2 = "https://vecorel.org/specification/v0.2.0/schema.yaml"
+    ext1 = "https://example.com/ext/v0.1.0/schema.yaml"
+    ext2 = "https://example.com/ext/v0.2.0/schema.yaml"
+    other = "https://example.com/other/v0.5.0/schema.yaml"
+
+    # the same versions, and different extensions, are fine
+    check_versions(
+        [
+            Collection({"schemas": {"a": [core1, ext1]}}),
+            Collection({"schemas": {"b": [core1, ext1, other]}}),
+        ]
+    )
+
+    # different versions fail, also across collections and datasets
+    with pytest.raises(ValueError, match=re.escape(f"{core1}; {core2}")):
+        check_versions([Collection({"schemas": {"a": [core1], "b": [core2]}})])
+    with pytest.raises(ValueError, match=re.escape(f"{ext1}; {ext2}")):
+        check_versions(
+            [
+                Collection({"schemas": {"a": [core1, ext1]}}),
+                Collection({"schemas": {"b": [core1, ext2]}}),
+            ]
+        )

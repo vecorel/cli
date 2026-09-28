@@ -152,8 +152,11 @@ the dataset is written anyway. Check it with `vec validate` afterwards.
 | An optional collection-only property differs between the datasets | Warning, the property is removed | Warning, the property is removed |
 | A feature has an empty or missing geometry | Error | Warning, the feature is kept |
 | A collection-level value doesn't fit the data type of its schema | Error | Warning, the value is left empty |
-| A collection implements multiple versions of a schema, e.g. of an extension | Error | Error |
+| The datasets use different versions of the Vecorel specification or of an extension | Error, before any data is read | Error, before any data is read |
 | The schemas of the datasets conflict | Error | Error |
+
+Datasets with different versions of the Vecorel specification or of an extension can't be
+merged, as the CLI can't upgrade them automatically yet.
 
 The strict mode only checks what a merge can break or check with little effort.
 It doesn't validate the values against the schemas, e.g. patterns or value ranges,

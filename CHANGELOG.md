@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   required properties that are not included, also collection-only ones.
 - **Breaking:** `vec merge` is strict by default: it fails if the merged dataset would be
   invalid, e.g. because an id repeats within a collection.
+- **Breaking:** Merging fails before reading any data if the datasets use different
+  versions of the Vecorel specification or of an extension.
 - The message for missing required values names the missing properties with counts,
   instead of showing the SQL condition.
 
@@ -33,7 +35,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   its collection but on which the parts disagree; it becomes a column again, with the
   data type of its schema, as in `vec merge`.
 - Merging no longer overwrites the schemas of a collection that occurs in multiple
-  datasets, it unites them and rejects two versions of the same schema in one collection.
+  datasets, it unites them.
 - Merging warns about collection-only properties that differ between the datasets
   and have to be removed.
 - Merging fills in missing collection values of datasets that only list a single
@@ -51,10 +53,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   (invalid JSON) or failed for nullable integers.
 - `get_pyarrow_type` no longer modifies the schema of objects with `patternProperties`.
 - Validation checks that all features in GeoParquet files have a collection that is
-  listed in `schemas`, and the required properties per collection.
+  listed in `schemas`, and the required properties per collection instead of requiring
+  the properties of all collections for all features.
 - Validation checks the schemas of all collections, not only the first one.
 - Validation no longer fails with a `KeyError` for GeoParquet files with multiple
   collections, but without a collection column.
+- Reading GeoJSON with a limit or a selection of properties no longer fails for features
+  without a geometry.
 
 ## [v0.3.1] - 2026-09-24
 

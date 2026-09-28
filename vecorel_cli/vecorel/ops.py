@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 import pandas as pd
@@ -31,6 +32,8 @@ def merge(
     excludes: Optional[list[str]] = None,
     strict: bool = False,
 ) -> tuple[GeoDataFrame, Collection]:
+    # before any data is read
+    check_versions([item.get_collection() for item in encodings])
     frames = [item.read(properties=properties, schema_map=schema_map) for item in encodings]
     collections = [item.get_collection() for item in encodings]
     if excludes:
@@ -184,6 +187,26 @@ def get_collection_id(collection: Collection) -> Optional[str]:
     if len(schemas) == 1:
         return next(iter(schemas.keys()))
     return None
+
+
+def check_versions(collections: list[Collection]):
+    """
+    Fails if the datasets use different versions of the Vecorel specification or of an
+    extension, in any of their collections, as they can't be upgraded automatically yet.
+    """
+    versions = {}
+    for collection in collections:
+        for uris in collection.get_schemas().values():
+            for uri in uris:
+                unversioned = re.sub(Schemas.version_pattern, "/", uri)
+                if unversioned != uri:
+                    versions.setdefault(unversioned, set()).add(uri)
+    conflicts = ["; ".join(sorted(uris)) for uris in versions.values() if len(uris) > 1]
+    if conflicts:
+        raise ValueError(
+            "The datasets use different versions of a schema, which can't be merged: "
+            + " and ".join(sorted(conflicts))
+        )
 
 
 def warn_missing_required(

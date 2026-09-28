@@ -173,3 +173,18 @@ def test_validate_checks_required_properties_per_collection(tmp_parquet_file):
     columns = {"admin:country_code": ["DE", "DE", None]}
     _write_collections(tmp_parquet_file, ["a", "a", "b"], columns, schemas)
     assert ValidateData().validate(tmp_parquet_file).errors == []
+
+
+def test_validate_scopes_missing_required_columns_to_the_collection(tmp_parquet_file):
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    admin = "https://vecorel.org/administrative-division-extension/v0.1.0/schema.yaml"
+    schemas = {"a": [core, admin], "b": [core]}
+
+    # only collection a requires the property, and it has no rows
+    _write_collections(tmp_parquet_file, ["b", "b"], {}, schemas)
+    assert ValidateData().validate(tmp_parquet_file).errors == []
+
+    # reported once, for the collection that requires it
+    _write_collections(tmp_parquet_file, ["a", "b"], {}, schemas)
+    errors = [str(e) for e in ValidateData().validate(tmp_parquet_file).errors]
+    assert errors == ["admin:country_code: Required field is missing for collection 'a'"]

@@ -14,7 +14,13 @@ from ..encoding.geojson import VecorelJSONEncoder
 from ..encoding.geoparquet import GeoParquet
 from ..parquet.types import constant_array
 from ..vecorel.hilbert import hilbert_keys_for_table, hilbert_reference_bounds
-from ..vecorel.ops import get_collection_id, merge_collections, report, warn_missing_required
+from ..vecorel.ops import (
+    check_versions,
+    get_collection_id,
+    merge_collections,
+    report,
+    warn_missing_required,
+)
 from ..vecorel.util import find_differing_crs
 from .base import BaseConverter
 
@@ -667,13 +673,16 @@ class DuckDBBaseConverter(BaseConverter):
         if properties is not None:
             properties = set(properties) | {"geometry"}
 
+        # before any data is read
+        collections = [GeoParquet(path).get_collection() for path in paths]
+        check_versions(collections)
+
         con = duckdb.connect()
         con.install_extension("spatial")
         con.load_extension("spatial")
 
         source_crs = self._common_crs(con, paths)
 
-        collections = [GeoParquet(path).get_collection() for path in paths]
         if collection is None:
             collection = merge_collections(
                 collections, properties=properties, log=self, strict=strict
@@ -686,6 +695,9 @@ class DuckDBBaseConverter(BaseConverter):
         # so two parts of one dataset can legitimately differ; the targets then come from
         # the union rather than from whichever part happens to be first
         selects = []
+        # the selected columns of all parts, in order
+        union = []
+        per_part = False
         for i, (path, part) in enumerate(zip(paths, collections)):
             names = pq.read_schema(path).names
             collection_only = set(part.get_collection_only_properties())
@@ -702,29 +714,33 @@ class DuckDBBaseConverter(BaseConverter):
             }
             keep_collection = properties is None or "collection" in properties
             fill = get_collection_id(part) if keep_collection else None
+            # the statistics tell whether the column has nulls without a scan
+            gaps = False
+            if keep_collection and "collection" in names:
+                with pq.ParquetFile(path) as pq_file:
+                    gaps = bool(GeoParquet._columns_with_nulls(pq_file, {"collection"}))
             if fill is not None and "collection" not in names and "collection" not in collection:
                 # Features of multiple collections must state their collection
                 constants["collection"] = fill
-            elif fill is None and keep_collection:
-                # the statistics tell whether the column has nulls without a scan
-                if "collection" in names:
-                    with pq.ParquetFile(path) as pq_file:
-                        unknown = bool(GeoParquet._columns_with_nulls(pq_file, {"collection"}))
-                else:
-                    unknown = "collection" not in collection
-                if unknown:
-                    report(
-                        f"Can't determine the collection of the features in {path}", self, strict
-                    )
+            elif (
+                fill is None
+                and keep_collection
+                and (gaps if "collection" in names else "collection" not in collection)
+            ):
+                report(f"Can't determine the collection of the features in {path}", self, strict)
+            coalesce = fill is not None and gaps
 
             columns = []
             for name in names:
                 if name == "bbox" or (properties is not None and name not in properties):
                     continue
-                if name == "collection" and fill is not None:
+                if name not in union:
+                    union.append(name)
+                if name == "collection" and coalesce:
                     columns.append(f'coalesce("collection", {_sql_literal(fill)}) AS "collection"')
                 else:
                     columns.append(_sql_name(name))
+            per_part = per_part or coalesce or bool(constants)
             query = f"SELECT {', '.join(columns)}"
             source = f"read_parquet({_sql_path(path)})"
             if constants:
@@ -738,7 +754,13 @@ class DuckDBBaseConverter(BaseConverter):
                 query += f", {table}.*"
                 source += f" CROSS JOIN {table}"
             selects.append(f"{query} FROM {source}")
-        source_query = " UNION ALL BY NAME ".join(selects)
+        if per_part:
+            source_query = " UNION ALL BY NAME ".join(selects)
+        else:
+            # nothing to add to any part, so a single scan over all of them
+            sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
+            columns = ", ".join(_sql_name(name) for name in union)
+            source_query = f"SELECT {columns} FROM read_parquet({sources}, union_by_name=true)"
         targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
 
         return self.write_query(

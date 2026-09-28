@@ -666,3 +666,47 @@ def test_merge_writes_required_nested_properties_with_nulls_as_nullable(tmp_fold
     assert pq.read_schema(out).field("attrs").nullable
     rows, _ = _read(out)
     assert [r["attrs"] for r in rows] == [{"k": "v"}, None, {"k": "x"}, {"k": "y"}]
+
+
+def test_merge_parquet_scans_all_parts_at_once_if_nothing_is_added(tmp_folder, monkeypatch):
+    from vecorel_cli.conversion.duckdb import DuckDBBaseConverter
+
+    queries = []
+    write_query = DuckDBBaseConverter.write_query
+
+    def spy(self, con, source_query, *args, **kwargs):
+        queries.append(source_query)
+        return write_query(self, con, source_query, *args, **kwargs)
+
+    monkeypatch.setattr(DuckDBBaseConverter, "write_query", spy)
+
+    a = _part(tmp_folder, "a", "same", 2, collection={"region": "x"})
+    b = _part(tmp_folder, "b", "same", 2, collection={"region": "x"})
+    c = _part(tmp_folder, "c", "same", 2, collection={"region": "y"})
+
+    DuckDBBaseConverter().merge_parquet([a, b], tmp_folder / "shared.parquet")
+    assert queries[-1].count("read_parquet(") == 1
+    assert len(pq.read_table(tmp_folder / "shared.parquet")) == 4
+
+    # the parts disagree on region, so it goes into the rows of each part
+    out = tmp_folder / "differing.parquet"
+    DuckDBBaseConverter().merge_parquet([a, c], out)
+    assert queries[-1].count("read_parquet(") == 2
+    rows, _ = _read(out)
+    assert [r["region"] for r in rows] == ["x", "x", "y", "y"]
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_merge_fails_for_different_versions_before_reading(tmp_folder, engine, monkeypatch):
+    admin2 = ADMIN.replace("/v0.1.0/", "/v0.2.0/")
+    columns = {"admin:country_code": ["DE", "DE"]}
+    a = _part(tmp_folder, "a", "a", 2, columns=columns, schemas=[CORE, ADMIN])
+    b = _part(tmp_folder, "b", "b", 2, columns=columns, schemas=[CORE, ADMIN])
+    b = _with_collection(b, {"schemas": {"b": [CORE, admin2]}, "collection": "b"})
+
+    def no_read(*args, **kwargs):
+        raise AssertionError("data was read")
+
+    monkeypatch.setattr(GeoParquet, "read", no_read)
+    with pytest.raises(ValueError, match="different versions of a schema"):
+        _merge(tmp_folder, [a, b], engine, strict=False)
