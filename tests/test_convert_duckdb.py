@@ -886,3 +886,25 @@ def test_merge_parquet_keeps_a_crs_duckdb_would_drop(tmp_folder):
     crs = geo["columns"][geo["primary_column"]]["crs"]
     assert crs is not None, "the merged file lost the CRS of its parts"
     assert "3857" in json.dumps(crs)
+
+
+def test_duckdb_converter_gives_a_small_file_enough_row_groups(tmp_folder, monkeypatch):
+    from vecorel_cli.encoding.geoparquet import GeoParquet
+
+    # DuckDB builds row groups from 2048-row vectors, so the file has to be large enough
+    n = 25_000
+    monkeypatch.setattr(GeoParquet, "row_group_size", 20_000)
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": [str(i) for i in range(n)],
+            "name": ["a"] * n,
+            "geometry": [shapely.box(i * 1e-5, 0, i * 1e-5 + 1e-5, 1e-5) for i in range(n)],
+        },
+        crs="EPSG:4326",
+    )
+    src = tmp_folder / "many.parquet"
+    gdf.to_parquet(src)
+    dest = tmp_folder / "many-out.parquet"
+    Converter().convert(dest, input_files={str(src): src.name})
+
+    assert pq.ParquetFile(dest).metadata.num_row_groups >= GeoParquet.min_row_groups

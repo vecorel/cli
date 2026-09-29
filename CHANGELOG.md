@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- GeoParquet files get at least ten row groups: a file under 250,000 rows is written in smaller
+  groups instead of 25,000 rows each, so every group covers a small area and a reader can
+  skip it. Larger files are unchanged.
 - **Breaking:** `vec merge` keeps all properties by default, `--include` restricts them to
   the core properties plus the given ones and `--exclude` removes any property except for
   the geometry. It reports required properties that are not included, also collection-only

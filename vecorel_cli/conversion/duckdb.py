@@ -561,6 +561,10 @@ class DuckDBBaseConverter(BaseConverter):
         # GeoDataFrame-based codepath
         with pq.ParquetFile(output_file) as pf:
             meta = pf.schema_arrow.metadata or {}
+            final_group_size = GeoParquet.row_group_size_for(pf.metadata.num_rows)
+            if final_group_size < row_group_size:
+                # DuckDB rounds a row group up to whole 2048-row vectors; round down to keep the count
+                final_group_size = max(2048, final_group_size // 2048 * 2048)
         if b"geo" in meta:
             geo = json.loads(meta[b"geo"])
             primary = geo["primary_column"]
@@ -571,15 +575,17 @@ class DuckDBBaseConverter(BaseConverter):
             else:
                 keys_path, is_sorted = self._write_hilbert_keys(output_file, primary, bounds)
                 try:
-                    if not is_sorted:
+                    # a small file is rewritten for its row groups even when already sorted
+                    if not is_sorted or final_group_size != row_group_size:
                         self._sort_output(
                             con,
                             output_file,
                             keys_path,
                             compression,
                             collection_json,
-                            row_group_size,
+                            final_group_size,
                         )
+                    if not is_sorted:
                         self.info("Sorted output into Hilbert order")
                 finally:
                     if os.path.exists(keys_path):
