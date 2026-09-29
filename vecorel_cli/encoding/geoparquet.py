@@ -35,6 +35,15 @@ class GeoParquet(BaseEncoding):
     ext = [".parquet", ".geoparquet"]
     media_type = "application/vnd.apache.parquet"
     row_group_size = 25000
+    # with fewer groups each one spans most of a small file, so a reader can skip none
+    min_row_groups = 10
+    min_row_group_rows = 1000
+
+    @classmethod
+    def row_group_size_for(cls, num_rows: int) -> int:
+        """Rows per group: at most row_group_size, but small enough for min_row_groups groups."""
+        wanted = -(-num_rows // cls.min_row_groups)
+        return max(cls.min_row_group_rows, min(cls.row_group_size, wanted))
 
     def __init__(self, file: Union[Path, URL, str]):
         super().__init__(file)
@@ -268,7 +277,7 @@ class GeoParquet(BaseEncoding):
             coerce_timestamps="ms",
             compression=compression,
             schema_version=geoparquet_version,
-            row_group_size=self.row_group_size,
+            row_group_size=self.row_group_size_for(len(data)),
             write_covering_bbox=bool(geoparquet_version != "1.0.0"),
             compression_level=compression_level,
         )
