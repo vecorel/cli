@@ -4,8 +4,7 @@ from typing import Optional, Union
 
 import click
 import pandas as pd
-from geopandas import GeoDataFrame, GeoSeries
-from shapely.geometry import box
+from geopandas import GeoDataFrame
 from yarl import URL
 
 from .basecommand import BaseCommand, runnable
@@ -142,7 +141,13 @@ class CreateStacCollection(BaseCommand):
         if len(description) == 0:
             raise Exception("Description is not found in collection.")
 
-        bbox = list(GeoSeries([box(*gdf.total_bounds)], crs=gdf.crs).to_crs(epsg=4326).total_bounds)
+        # in a projected CRS, the transformed corners of the bbox reach beyond the data
+        geometry = (
+            gdf.geometry
+            if gdf.crs and gdf.crs.to_epsg() == 4326
+            else gdf.geometry.to_crs(epsg=4326)
+        )
+        bbox = list(geometry.total_bounds)
 
         if isinstance(data_url, Path):
             href = "file://" + str(data_url.resolve()).replace("\\", "/")
