@@ -141,7 +141,7 @@ class CreateStacCollection(BaseCommand):
         if len(description) == 0:
             raise Exception("Description is not found in collection.")
 
-        # the extent of the geometries themselves: in a projected CRS the corners of its bbox reach beyond the data
+        # in a projected CRS, the transformed corners of the bbox reach beyond the data
         geometry = (
             gdf.geometry
             if gdf.crs and gdf.crs.to_epsg() == 4326
