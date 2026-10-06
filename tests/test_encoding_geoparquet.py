@@ -252,3 +252,28 @@ def test_read_hydrates_array_and_object_constants(tmp_parquet_file):
     data = GeoParquet(tmp_parquet_file).read(hydrate=True)
     assert list(data["tags"]) == [["a", "b"]] * 3
     assert list(data["attrs"]) == [{"k": "v"}] * 3
+
+
+def test_a_small_file_still_gets_enough_row_groups(tmp_parquet_file, monkeypatch):
+    # with too few groups each one spans most of the file, so a reader can skip none
+    from geopandas import GeoDataFrame
+    from shapely.geometry import box
+
+    monkeypatch.setattr(GeoParquet, "row_group_size", 100)
+    monkeypatch.setattr(GeoParquet, "min_row_group_rows", 10)
+    gdf = GeoDataFrame(
+        {"id": [str(i) for i in range(500)], "geometry": [box(i, 0, i + 1, 1) for i in range(500)]},
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            "collection": "c",
+        }
+    )
+    gp.write(gdf)
+
+    assert pq.ParquetFile(tmp_parquet_file).metadata.num_row_groups == GeoParquet.min_row_groups
+    assert GeoParquet.row_group_size_for(5_000) == 100  # a large file keeps the cap
+    assert GeoParquet.row_group_size_for(20) == 10  # and a tiny one the floor
