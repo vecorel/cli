@@ -71,6 +71,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   without a geometry.
 - Writing no longer fails for a date property with the same value for all features, the
   value is stored as an ISO 8601 date in the collection.
+- Fix: `create-stac-collection` takes the bbox from the geometries in EPSG:4326. It
+  transformed the corners of the source bbox, which in a projected CRS reach beyond
+  the data.
 
 ## [v0.3.1] - 2026-09-24
 
