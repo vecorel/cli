@@ -44,6 +44,8 @@ class GeoParquet(BaseEncoding):
     def row_group_size_for(cls, num_rows: int) -> int:
         """Rows per group: at most row_group_size, but small enough for min_row_groups groups."""
         unit = cls.min_row_group_rows
+        if num_rows >= cls.min_row_groups * cls.row_group_size:
+            return cls.row_group_size
         wanted = num_rows // cls.min_row_groups // unit * unit
         return max(unit, min(cls.row_group_size, wanted))
 
