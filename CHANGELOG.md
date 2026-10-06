@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-10-06
+
 ### Added
 
 - `vec merge` merges local GeoParquet files that are all in the target CRS with DuckDB,
@@ -75,7 +77,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   without a geometry.
 - Writing no longer fails for a date property with the same value for all features, the
   value is stored as an ISO 8601 date in the collection.
-- Fix: `create-stac-collection` takes the bbox from the geometries in EPSG:4326. It
+- `create-stac-collection` takes the bbox from the geometries in EPSG:4326. It
   transformed the corners of the source bbox, which in a projected CRS reach beyond
   the data.
 
@@ -390,7 +392,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.3.1...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.0...main>
+[v0.4.0]: <https://github.com/vecorel/cli/compare/v0.3.1...v0.4.0>
 [v0.3.1]: <https://github.com/vecorel/cli/compare/v0.3.0...v0.3.1>
 [v0.3.0]: <https://github.com/vecorel/cli/compare/v0.2.20...v0.3.0>
 [v0.2.20]: <https://github.com/vecorel/cli/compare/v0.2.19...v0.2.20>
