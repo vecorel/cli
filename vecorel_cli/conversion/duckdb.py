@@ -562,9 +562,7 @@ class DuckDBBaseConverter(BaseConverter):
         with pq.ParquetFile(output_file) as pf:
             meta = pf.schema_arrow.metadata or {}
             final_group_size = GeoParquet.row_group_size_for(pf.metadata.num_rows)
-            if final_group_size < row_group_size:
-                # DuckDB rounds a row group up to whole 2048-row vectors; round down to keep the count
-                final_group_size = max(2048, final_group_size // 2048 * 2048)
+        keys_path, is_sorted = None, True
         if b"geo" in meta:
             geo = json.loads(meta[b"geo"])
             primary = geo["primary_column"]
@@ -574,22 +572,22 @@ class DuckDBBaseConverter(BaseConverter):
                 self.warning("CRS declares no area of use; skipping spatial ordering")
             else:
                 keys_path, is_sorted = self._write_hilbert_keys(output_file, primary, bounds)
-                try:
-                    # a small file is rewritten for its row groups even when already sorted
-                    if not is_sorted or final_group_size != row_group_size:
-                        self._sort_output(
-                            con,
-                            output_file,
-                            keys_path,
-                            compression,
-                            collection_json,
-                            final_group_size,
-                        )
-                    if not is_sorted:
-                        self.info("Sorted output into Hilbert order")
-                finally:
-                    if os.path.exists(keys_path):
-                        os.unlink(keys_path)
+        try:
+            # a small file is rewritten for its row groups even when already sorted
+            if not is_sorted or final_group_size != row_group_size:
+                self._rewrite_output(
+                    con,
+                    output_file,
+                    keys_path,
+                    compression,
+                    collection_json,
+                    final_group_size,
+                )
+            if not is_sorted:
+                self.info("Sorted output into Hilbert order")
+        finally:
+            if keys_path and os.path.exists(keys_path):
+                os.unlink(keys_path)
 
         gp = GeoParquet(output_file)
         gp.set_collection(collection)
@@ -844,26 +842,27 @@ class DuckDBBaseConverter(BaseConverter):
             raise
         return keys_path, is_sorted
 
-    # Rewrites the file in the order given by the Hilbert keys.
-    # DuckDB sorts externally (spilling to disk if needed), so this works for
-    # datasets that don't fit into memory.
-    def _sort_output(
+    # Rewrites the file in the given row group size, and in the order given by the
+    # Hilbert keys if there are any. DuckDB sorts externally (spilling to disk if
+    # needed), so this works for datasets that don't fit into memory.
+    def _rewrite_output(
         self, con, output_file, keys_path, compression, collection_json, row_group_size
     ):
         directory = os.path.dirname(output_file) or "."
         tmp_path = None
+        query = f"SELECT d.* FROM read_parquet({_sql_path(output_file)}) d"
+        if keys_path:
+            query += f"""
+              POSITIONAL JOIN read_parquet({_sql_path(keys_path)}) k
+              ORDER BY k.hilbert, k.ordinal
+            """
         try:
             with NamedTemporaryFile("wb", delete=False, dir=directory, suffix=".parquet") as tmp:
                 tmp_path = tmp.name
 
             con.execute(
                 f"""
-                COPY (
-                  SELECT d.*
-                  FROM read_parquet({_sql_path(output_file)}) d
-                  POSITIONAL JOIN read_parquet({_sql_path(keys_path)}) k
-                  ORDER BY k.hilbert, k.ordinal
-                ) TO ? (
+                COPY ({query}) TO ? (
                     FORMAT parquet,
                     ROW_GROUP_SIZE {row_group_size},
                     compression ?,

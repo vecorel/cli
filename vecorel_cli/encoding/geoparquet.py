@@ -37,13 +37,15 @@ class GeoParquet(BaseEncoding):
     row_group_size = 25000
     # with fewer groups each one spans most of a small file, so a reader can skip none
     min_row_groups = 10
-    min_row_group_rows = 1000
+    # DuckDB writes row groups in whole 2048-row vectors, so both write paths use that unit
+    min_row_group_rows = 2048
 
     @classmethod
     def row_group_size_for(cls, num_rows: int) -> int:
         """Rows per group: at most row_group_size, but small enough for min_row_groups groups."""
-        wanted = -(-num_rows // cls.min_row_groups)
-        return max(cls.min_row_group_rows, min(cls.row_group_size, wanted))
+        unit = cls.min_row_group_rows
+        wanted = num_rows // cls.min_row_groups // unit * unit
+        return max(unit, min(cls.row_group_size, wanted))
 
     def __init__(self, file: Union[Path, URL, str]):
         super().__init__(file)

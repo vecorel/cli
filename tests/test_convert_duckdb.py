@@ -9,6 +9,7 @@ import pytest
 import shapely
 from loguru import logger
 
+from vecorel_cli.conversion import duckdb as duckdb_module
 from vecorel_cli.conversion.base import BaseConverter
 from vecorel_cli.conversion.duckdb import DuckDBBaseConverter, _constants_table
 from vecorel_cli.validate import ValidateData
@@ -888,12 +889,18 @@ def test_merge_parquet_keeps_a_crs_duckdb_would_drop(tmp_folder):
     assert "3857" in json.dumps(crs)
 
 
-def test_duckdb_converter_gives_a_small_file_enough_row_groups(tmp_folder, monkeypatch):
+@pytest.mark.parametrize("spatial_order", [True, False])
+def test_duckdb_converter_gives_a_small_file_enough_row_groups(
+    tmp_folder, monkeypatch, spatial_order
+):
     from vecorel_cli.encoding.geoparquet import GeoParquet
 
     # DuckDB builds row groups from 2048-row vectors, so the file has to be large enough
     n = 25_000
     monkeypatch.setattr(GeoParquet, "row_group_size", 20_000)
+    if not spatial_order:
+        # as for a CRS without an area of use
+        monkeypatch.setattr(duckdb_module, "hilbert_reference_bounds", lambda *args: None)
     gdf = gpd.GeoDataFrame(
         {
             "id": [str(i) for i in range(n)],
