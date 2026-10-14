@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- The DuckDB converter no longer adds a column for each `key=value` folder in the path of a
+  source or output file, such as `year` for an output in `year=2024/`.
+
 ## [v0.4.0] - 2026-10-06
 
 ### Added
