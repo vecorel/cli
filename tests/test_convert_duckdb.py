@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+import zipfile
 
 import geopandas as gpd
 import numpy as np
@@ -107,6 +108,18 @@ def test_duckdb_converter(tmp_folder):
 
     validation = ValidateData().validate(dest, num=100, schema_map={})
     assert validation.errors == []
+
+
+def test_duckdb_converter_extracts_an_archive_without_a_cache(tmp_folder):
+    src = _source_file(tmp_folder)
+    archive = tmp_folder / "source.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.write(src, "source.parquet")
+    dest = tmp_folder / "converted.parquet"
+
+    Converter().convert(dest, input_files={str(archive): ["source.parquet"]})
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["bowtie", "multi", "square", "with_z"]
 
 
 def test_duckdb_converter_numbers_rows_without_an_id_mapping(tmp_folder):

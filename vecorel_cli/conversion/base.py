@@ -58,6 +58,8 @@ class BaseConverter(LoggerMixin):
     data_access: str = ""
     open_options: dict = {}
     avoid_range_request: bool = False
+    # Sent with every download, e.g. a browser User-Agent for a server that refuses others
+    request_headers: dict[str, str] = {}
     variants: dict[str, Sources] = {}
     variant: Optional[str] = None
 
@@ -365,6 +367,8 @@ class BaseConverter(LoggerMixin):
 
         if self.avoid_range_request and "block_size" not in kwargs:
             kwargs["block_size"] = 0
+        if self.request_headers and "client_kwargs" not in kwargs:
+            kwargs["client_kwargs"] = {"headers": self.request_headers}
 
         # Multi-volume 7z archives (.7z.001, .7z.002, ...) are one 7z stream split
         # across several URIs; they must be downloaded and extracted together.

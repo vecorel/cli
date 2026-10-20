@@ -192,3 +192,23 @@ def test_multivolume_7z_is_downloaded_and_extracted(explicit_cache, tmp_folder, 
         # every volume was cached under its own name
         for part in parts:
             assert (tmp_folder / part).exists()
+
+
+def test_request_headers_go_with_every_download(tmp_folder, monkeypatch):
+    seen = []
+    source_fs = _FakeSourceFS(b"body", {})
+
+    def fake_get_fs(uri, **kwargs):
+        if str(uri).startswith(("http://", "https://")):
+            seen.append(kwargs.get("client_kwargs"))
+            return source_fs
+        return LocalFileSystem()
+
+    monkeypatch.setattr(base, "get_fs", fake_get_fs)
+    HeaderConverter = type(
+        "HeaderConverter", (BaseConverter,), {"request_headers": {"X-Test": "1"}}
+    )
+
+    HeaderConverter().download_files(URI, cache_folder=str(tmp_folder))
+
+    assert seen == [{"headers": {"X-Test": "1"}}]

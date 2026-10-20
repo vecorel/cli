@@ -32,6 +32,14 @@ def _sql_path(path) -> str:
     return f"'{escaped}'"
 
 
+def _readable_in_place(urls) -> bool:
+    if isinstance(urls, str):
+        urls = {urls: urls}
+    return all(
+        isinstance(target, str) and target.lower().endswith(".parquet") for target in urls.values()
+    )
+
+
 def _sql_name(name) -> str:
     escaped = str(name).replace('"', '""')
     return f'"{escaped}"'
@@ -116,7 +124,9 @@ class DuckDBBaseConverter(BaseConverter):
                 raise ValueError("No input files provided")
 
         self.info("Getting file(s) if not cached yet")
-        if cache:
+        # Without a cache DuckDB reads remote parquet files in place; anything else, such as
+        # an archive, is downloaded to a temporary folder as the GeoDataFrame codepath does
+        if cache or not _readable_in_place(urls):
             request_args = {}
             if self.avoid_range_request:
                 request_args["block_size"] = 0

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `request_headers` on a converter: headers sent with every download, e.g. a browser
+  User-Agent for a server that refuses other clients.
+
+### Changed
+
+- The DuckDB converter downloads sources DuckDB cannot read in place, such as archives, also
+  without a cache: to a temporary folder, as the GeoDataFrame-based converter does.
+
 ## [v0.4.0] - 2026-10-06
 
 ### Added
