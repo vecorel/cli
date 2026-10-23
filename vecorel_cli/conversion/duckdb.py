@@ -21,7 +21,7 @@ from ..vecorel.ops import (
     report,
     warn_missing_required,
 )
-from ..vecorel.util import find_differing_crs
+from ..vecorel.util import find_differing_crs, name_from_uri
 from .base import BaseConverter
 
 
@@ -34,9 +34,10 @@ def _sql_path(path) -> str:
 
 def _readable_in_place(urls) -> bool:
     if isinstance(urls, str):
-        urls = {urls: urls}
+        urls = {urls: name_from_uri(urls)}
     return all(
-        isinstance(target, str) and target.lower().endswith(".parquet") for target in urls.values()
+        isinstance(target, str) and target.lower().endswith((".parquet", ".geoparquet"))
+        for target in urls.values()
     )
 
 

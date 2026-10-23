@@ -138,6 +138,20 @@ def test_duckdb_converter_ignores_hive_style_folders(tmp_folder):
     assert "region" not in names
 
 
+@pytest.mark.parametrize(
+    "urls, in_place",
+    [
+        ("https://host/data.parquet?token=abc", True),
+        ("https://host/data.geoparquet", True),
+        ({"https://host/x?id=1": "fields.parquet"}, True),
+        ({"https://host/data.zip": ["fields.parquet"]}, False),
+        ("https://host/data.fgb", False),
+    ],
+)
+def test_only_parquet_is_read_in_place(urls, in_place):
+    assert duckdb_module._readable_in_place(urls) is in_place
+
+
 def test_duckdb_converter_numbers_rows_without_an_id_mapping(tmp_folder):
     src = _source_file(tmp_folder)
     dest = tmp_folder / "converted.parquet"

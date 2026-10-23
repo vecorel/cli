@@ -367,8 +367,11 @@ class BaseConverter(LoggerMixin):
 
         if self.avoid_range_request and "block_size" not in kwargs:
             kwargs["block_size"] = 0
-        if self.request_headers and "client_kwargs" not in kwargs:
-            kwargs["client_kwargs"] = {"headers": self.request_headers}
+        if self.request_headers:
+            # headers passed in explicitly win over the converter's
+            client_kwargs = kwargs.get("client_kwargs") or {}
+            headers = {**self.request_headers, **client_kwargs.get("headers", {})}
+            kwargs["client_kwargs"] = {**client_kwargs, "headers": headers}
 
         # Multi-volume 7z archives (.7z.001, .7z.002, ...) are one 7z stream split
         # across several URIs; they must be downloaded and extracted together.

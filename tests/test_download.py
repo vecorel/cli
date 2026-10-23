@@ -212,3 +212,24 @@ def test_request_headers_go_with_every_download(tmp_folder, monkeypatch):
     HeaderConverter().download_files(URI, cache_folder=str(tmp_folder))
 
     assert seen == [{"headers": {"X-Test": "1"}}]
+
+
+def test_request_headers_merge_with_explicit_client_options(tmp_folder, monkeypatch):
+    seen = []
+    source_fs = _FakeSourceFS(b"body", {})
+
+    def fake_get_fs(uri, **kwargs):
+        if str(uri).startswith(("http://", "https://")):
+            seen.append(kwargs.get("client_kwargs"))
+            return source_fs
+        return LocalFileSystem()
+
+    monkeypatch.setattr(base, "get_fs", fake_get_fs)
+    HeaderConverter = type(
+        "HeaderConverter", (BaseConverter,), {"request_headers": {"X-Test": "1", "X-Kept": "k"}}
+    )
+    client_kwargs = {"trust_env": True, "headers": {"X-Test": "2"}}
+
+    HeaderConverter().download_files(URI, cache_folder=str(tmp_folder), client_kwargs=client_kwargs)
+
+    assert seen == [{"trust_env": True, "headers": {"X-Test": "2", "X-Kept": "k"}}]
