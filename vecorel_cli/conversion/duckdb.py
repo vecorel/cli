@@ -150,7 +150,8 @@ class DuckDBBaseConverter(BaseConverter):
         available = {
             row[0]: row[1]
             for row in con.execute(
-                "DESCRIBE SELECT * FROM read_parquet(?, union_by_name=true)", [sources]
+                "DESCRIBE SELECT * FROM read_parquet(?, union_by_name=true, hive_partitioning=false)",
+                [sources],
             ).fetchall()
         }
 
@@ -200,7 +201,7 @@ class DuckDBBaseConverter(BaseConverter):
                     # migrated type so integer-valued floats format the same way
                     expr = f"({self.column_migrations[c]})"
                     sql_type = con.execute(
-                        f"DESCRIBE SELECT {expr} AS part FROM read_parquet(?, union_by_name=true)",
+                        f"DESCRIBE SELECT {expr} AS part FROM read_parquet(?, union_by_name=true, hive_partitioning=false)",
                         [sources],
                     ).fetchone()[1]
                     parts.append(self._stringify_sql(expr, sql_type, c))
@@ -270,7 +271,7 @@ class DuckDBBaseConverter(BaseConverter):
             sources_sql = "[" + ",".join(_sql_path(path) for path in sources) + "]"
         source_query = f"""
             SELECT {selection}
-            FROM read_parquet({sources_sql}, union_by_name=true)
+            FROM read_parquet({sources_sql}, union_by_name=true, hive_partitioning=false)
             {where}
         """
 
@@ -628,7 +629,7 @@ class DuckDBBaseConverter(BaseConverter):
                 f"""
                 SELECT coalesce(sum(n), 0), coalesce(sum(n) FILTER (WHERE n > 1), 0)
                 FROM (
-                    SELECT count(*) AS n FROM read_parquet({_sql_path(output_file)})
+                    SELECT count(*) AS n FROM read_parquet({_sql_path(output_file)}, hive_partitioning=false)
                     WHERE "id" IS NOT NULL GROUP BY {key}
                 )
                 """
@@ -658,7 +659,7 @@ class DuckDBBaseConverter(BaseConverter):
                                   AS VARCHAR)
                              ELSE CAST("id" AS VARCHAR)
                         END AS "id")
-                      FROM read_parquet({_sql_path(output_file)}, file_row_number=true)
+                      FROM read_parquet({_sql_path(output_file)}, file_row_number=true, hive_partitioning=false)
                     ) TO ? (
                         FORMAT parquet,
                         ROW_GROUP_SIZE {row_group_size},
@@ -775,7 +776,7 @@ class DuckDBBaseConverter(BaseConverter):
                     columns.append(_sql_name(name))
             per_part = per_part or coalesce or bool(constants)
             query = f"SELECT {', '.join(columns)}"
-            source = f"read_parquet({_sql_path(path)})"
+            source = f"read_parquet({_sql_path(path)}, hive_partitioning=false)"
             if constants:
                 # A registered table rather than SQL literals, so arrays, objects and
                 # temporal values keep their types
@@ -793,7 +794,7 @@ class DuckDBBaseConverter(BaseConverter):
             # nothing to add to any part, so a single scan over all of them
             sources = "[" + ",".join(_sql_path(path) for path in paths) + "]"
             columns = ", ".join(_sql_name(name) for name in union)
-            source_query = f"SELECT {columns} FROM read_parquet({sources}, union_by_name=true)"
+            source_query = f"SELECT {columns} FROM read_parquet({sources}, union_by_name=true, hive_partitioning=false)"
         targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
 
         return self.write_query(
@@ -860,10 +861,10 @@ class DuckDBBaseConverter(BaseConverter):
     ):
         directory = os.path.dirname(output_file) or "."
         tmp_path = None
-        query = f"SELECT d.* FROM read_parquet({_sql_path(output_file)}) d"
+        query = f"SELECT d.* FROM read_parquet({_sql_path(output_file)}, hive_partitioning=false) d"
         if keys_path:
             query += f"""
-              POSITIONAL JOIN read_parquet({_sql_path(keys_path)}) k
+              POSITIONAL JOIN read_parquet({_sql_path(keys_path)}, hive_partitioning=false) k
               ORDER BY k.hilbert, k.ordinal
             """
         try:

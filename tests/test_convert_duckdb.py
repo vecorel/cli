@@ -122,6 +122,22 @@ def test_duckdb_converter_extracts_an_archive_without_a_cache(tmp_folder):
     assert sorted(gpd.read_parquet(dest)["id"]) == ["bowtie", "multi", "square", "with_z"]
 
 
+def test_duckdb_converter_ignores_hive_style_folders(tmp_folder):
+    source_folder = tmp_folder / "region=north"
+    source_folder.mkdir()
+    src = _source_file(source_folder)
+    dest_folder = tmp_folder / "year=2024"
+    dest_folder.mkdir()
+    dest = dest_folder / "converted.parquet"
+
+    Converter().convert(dest, input_files={src: "source.parquet"})
+
+    with pq.ParquetFile(dest) as pf:
+        names = pf.schema_arrow.names
+    assert "year" not in names
+    assert "region" not in names
+
+
 def test_duckdb_converter_numbers_rows_without_an_id_mapping(tmp_folder):
     src = _source_file(tmp_folder)
     dest = tmp_folder / "converted.parquet"
