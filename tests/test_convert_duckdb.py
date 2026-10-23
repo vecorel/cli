@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+import zipfile
 
 import geopandas as gpd
 import numpy as np
@@ -109,6 +110,18 @@ def test_duckdb_converter(tmp_folder):
     assert validation.errors == []
 
 
+def test_duckdb_converter_extracts_an_archive_without_a_cache(tmp_folder):
+    src = _source_file(tmp_folder)
+    archive = tmp_folder / "source.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.write(src, "source.parquet")
+    dest = tmp_folder / "converted.parquet"
+
+    Converter().convert(dest, input_files={str(archive): ["source.parquet"]})
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["bowtie", "multi", "square", "with_z"]
+
+
 def test_duckdb_converter_ignores_hive_style_folders(tmp_folder):
     source_folder = tmp_folder / "region=north"
     source_folder.mkdir()
@@ -123,6 +136,20 @@ def test_duckdb_converter_ignores_hive_style_folders(tmp_folder):
         names = pf.schema_arrow.names
     assert "year" not in names
     assert "region" not in names
+
+
+@pytest.mark.parametrize(
+    "urls, in_place",
+    [
+        ("https://host/data.parquet?token=abc", True),
+        ("https://host/data.geoparquet", True),
+        ({"https://host/x?id=1": "fields.parquet"}, True),
+        ({"https://host/data.zip": ["fields.parquet"]}, False),
+        ("https://host/data.fgb", False),
+    ],
+)
+def test_only_parquet_is_read_in_place(urls, in_place):
+    assert duckdb_module._readable_in_place(urls) is in_place
 
 
 def test_duckdb_converter_numbers_rows_without_an_id_mapping(tmp_folder):

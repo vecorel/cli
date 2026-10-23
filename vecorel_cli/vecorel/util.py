@@ -120,6 +120,17 @@ def _expected_content_length(f) -> Optional[int]:
         return None
 
 
+def merge_headers(*headers: dict) -> dict:
+    """Merge HTTP headers; names are case-insensitive, and a later one replaces an earlier."""
+    merged = {}
+    for group in headers:
+        for name, value in group.items():
+            for existing in [k for k in merged if k.lower() == name.lower()]:
+                del merged[existing]
+            merged[name] = value
+    return merged
+
+
 def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
     """Choose fsspec filesystem by sniffing input url"""
     if isinstance(url_or_path, Path):
@@ -130,7 +141,7 @@ def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
 
     if parsed.scheme in ("http", "https"):
         client_kwargs = kwargs.pop("client_kwargs", {})
-        headers = {"User-Agent": USER_AGENT, **client_kwargs.get("headers", {})}
+        headers = merge_headers({"User-Agent": USER_AGENT}, client_kwargs.get("headers", {}))
         return HTTPFileSystem(client_kwargs={**client_kwargs, "headers": headers}, **kwargs)
 
     if parsed.scheme == "s3":

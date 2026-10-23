@@ -7,7 +7,7 @@ from fsspec.implementations.local import LocalFileSystem
 
 import vecorel_cli.conversion.base as base
 from vecorel_cli.conversion.base import BaseConverter
-from vecorel_cli.vecorel.util import stream_file
+from vecorel_cli.vecorel.util import get_fs, merge_headers, stream_file
 
 URI = "https://example.invalid/data/fields.gml"
 
@@ -192,3 +192,56 @@ def test_multivolume_7z_is_downloaded_and_extracted(explicit_cache, tmp_folder, 
         # every volume was cached under its own name
         for part in parts:
             assert (tmp_folder / part).exists()
+
+
+def test_request_headers_go_with_every_download(tmp_folder, monkeypatch):
+    seen = []
+    source_fs = _FakeSourceFS(b"body", {})
+
+    def fake_get_fs(uri, **kwargs):
+        if str(uri).startswith(("http://", "https://")):
+            seen.append(kwargs.get("client_kwargs"))
+            return source_fs
+        return LocalFileSystem()
+
+    monkeypatch.setattr(base, "get_fs", fake_get_fs)
+    HeaderConverter = type(
+        "HeaderConverter", (BaseConverter,), {"request_headers": {"X-Test": "1"}}
+    )
+
+    HeaderConverter().download_files(URI, cache_folder=str(tmp_folder))
+
+    assert seen == [{"headers": {"X-Test": "1"}}]
+
+
+def test_request_headers_merge_with_explicit_client_options(tmp_folder, monkeypatch):
+    seen = []
+    source_fs = _FakeSourceFS(b"body", {})
+
+    def fake_get_fs(uri, **kwargs):
+        if str(uri).startswith(("http://", "https://")):
+            seen.append(kwargs.get("client_kwargs"))
+            return source_fs
+        return LocalFileSystem()
+
+    monkeypatch.setattr(base, "get_fs", fake_get_fs)
+    HeaderConverter = type(
+        "HeaderConverter", (BaseConverter,), {"request_headers": {"X-Test": "1", "X-Kept": "k"}}
+    )
+    client_kwargs = {"trust_env": True, "headers": {"x-test": "2"}}
+
+    HeaderConverter().download_files(URI, cache_folder=str(tmp_folder), client_kwargs=client_kwargs)
+
+    assert seen == [{"trust_env": True, "headers": {"X-Kept": "k", "x-test": "2"}}]
+
+
+def test_headers_merge_case_insensitively():
+    merged = merge_headers(
+        {"User-Agent": "default", "X-Test": "1"}, {"user-agent": "mine", "x-test": "2"}
+    )
+    assert merged == {"user-agent": "mine", "x-test": "2"}
+
+
+def test_a_converter_user_agent_replaces_the_default():
+    fs = get_fs("https://example.invalid/x", client_kwargs={"headers": {"user-agent": "browser"}})
+    assert fs.client_kwargs["headers"] == {"user-agent": "browser"}
