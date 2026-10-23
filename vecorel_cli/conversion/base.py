@@ -33,7 +33,7 @@ from ..vecorel.collection import Collection
 from ..vecorel.hilbert import hilbert_sort_geodataframe
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
-from ..vecorel.util import get_fs, name_from_uri, stream_file, suffix_duplicate_ids
+from ..vecorel.util import get_fs, merge_headers, name_from_uri, stream_file, suffix_duplicate_ids
 from .deflate64 import deflate64_zip
 from .flatdict import FlatDict
 
@@ -370,7 +370,7 @@ class BaseConverter(LoggerMixin):
         if self.request_headers:
             # headers passed in explicitly win over the converter's
             client_kwargs = kwargs.get("client_kwargs") or {}
-            headers = {**self.request_headers, **client_kwargs.get("headers", {})}
+            headers = merge_headers(self.request_headers, client_kwargs.get("headers", {}))
             kwargs["client_kwargs"] = {**client_kwargs, "headers": headers}
 
         # Multi-volume 7z archives (.7z.001, .7z.002, ...) are one 7z stream split
