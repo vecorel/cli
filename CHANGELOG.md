@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.4.1] - 2026-10-25
+
 ### Added
 
 - `request_headers` on a converter: headers sent with every download, e.g. a browser
@@ -407,7 +409,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.0...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.1...main>
+[v0.4.1]: <https://github.com/vecorel/cli/compare/v0.4.0...v0.4.1>
 [v0.4.0]: <https://github.com/vecorel/cli/compare/v0.3.1...v0.4.0>
 [v0.3.1]: <https://github.com/vecorel/cli/compare/v0.3.0...v0.3.1>
 [v0.3.0]: <https://github.com/vecorel/cli/compare/v0.2.20...v0.3.0>
