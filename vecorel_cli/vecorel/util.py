@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Union
 from urllib.parse import urlparse
 
+import aiohttp
 import yaml
 from fsspec import AbstractFileSystem
 from fsspec.implementations.http import HTTPFileSystem
@@ -131,6 +132,10 @@ def merge_headers(*headers: dict) -> dict:
     return merged
 
 
+HTTP_CONNECT_TIMEOUT = 60
+HTTP_READ_TIMEOUT = 300
+
+
 def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
     """Choose fsspec filesystem by sniffing input url"""
     if isinstance(url_or_path, Path):
@@ -142,7 +147,12 @@ def get_fs(url_or_path: Union[str, Path, URL], **kwargs) -> AbstractFileSystem:
     if parsed.scheme in ("http", "https"):
         client_kwargs = kwargs.pop("client_kwargs", {})
         headers = merge_headers({"User-Agent": USER_AGENT}, client_kwargs.get("headers", {}))
-        return HTTPFileSystem(client_kwargs={**client_kwargs, "headers": headers}, **kwargs)
+        timeout = client_kwargs.get("timeout") or aiohttp.ClientTimeout(
+            total=None, sock_connect=HTTP_CONNECT_TIMEOUT, sock_read=HTTP_READ_TIMEOUT
+        )
+        return HTTPFileSystem(
+            client_kwargs={**client_kwargs, "headers": headers, "timeout": timeout}, **kwargs
+        )
 
     if parsed.scheme == "s3":
         from s3fs import S3FileSystem

@@ -22,6 +22,7 @@ import py7zr
 import rarfile
 import shapely
 from fsspec import AbstractFileSystem
+from fsspec.exceptions import FSTimeoutError
 from fsspec.implementations.local import LocalFileSystem
 from geopandas import GeoDataFrame
 
@@ -443,11 +444,13 @@ class BaseConverter(LoggerMixin):
         try:
             with cache_fs.open(part_file, mode="wb") as file:
                 stream_file(source_fs, uri, file)
-        except BaseException:
+        except BaseException as e:
             try:
                 cache_fs.rm(part_file)
             except FileNotFoundError:
                 pass
+            if isinstance(e, FSTimeoutError):
+                raise TimeoutError(f"Download timed out: {uri}") from e
             raise
         cache_fs.mv(part_file, cache_file)
 
