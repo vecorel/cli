@@ -516,6 +516,15 @@ class BaseConverter(LoggerMixin):
                 raise ValueError(f"Unknown variant '{self.variant}', choose from {opts}")
         return urls
 
+    def get_input_urls(self, input_files=None):
+        if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
+            self.warning("Using user provided input file(s) instead of the pre-defined file(s)")
+            return input_files
+        urls = self.get_urls()
+        if urls is None:
+            raise ValueError("No input files provided")
+        return urls
+
     def get_data(
         self, paths: list[tuple[str, str]], **kwargs
     ) -> Generator[tuple[GeoDataFrame, str, str, Optional[str]]]:
@@ -658,13 +667,7 @@ class BaseConverter(LoggerMixin):
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-        if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
-            self.warning("Using user provided input file(s) instead of the pre-defined file(s)")
-            urls = input_files
-        else:
-            urls = self.get_urls()
-            if urls is None:
-                raise ValueError("No input files provided")
+        urls = self.get_input_urls(input_files)
 
         self.info("Getting file(s) if not cached yet")
         paths = self.download_files(urls, cache)

@@ -116,13 +116,7 @@ class DuckDBBaseConverter(BaseConverter):
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-        if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
-            self.warning("Using user provided input file(s) instead of the pre-defined file(s)")
-            urls = input_files
-        else:
-            urls = self.get_urls()
-            if urls is None:
-                raise ValueError("No input files provided")
+        urls = self.get_input_urls(input_files)
 
         self.info("Getting file(s) if not cached yet")
         # Without a cache DuckDB reads remote parquet files in place; anything else, such as
@@ -368,6 +362,8 @@ class DuckDBBaseConverter(BaseConverter):
         compression = compression or "zstd"
         if compression == "zstd" and compression_level is None:
             compression_level = 15
+        # DuckDB calls "none" "uncompressed"; the postprocess (Arrow) takes the original name
+        copy_compression = "uncompressed" if compression == "none" else compression
         geoparquet_version = geoparquet_version or "1.1.0"
         row_group_size = GeoParquet.row_group_size
         if isinstance(output_file, Path):
@@ -561,12 +557,12 @@ class DuckDBBaseConverter(BaseConverter):
                 }}
             )
         """,
-            [output_file, compression, collection_json],
+            [output_file, copy_compression, collection_json],
         )
 
         if "id" in selected_targets and suffix_duplicate_ids:
             self._suffix_duplicate_ids_in_file(
-                con, output_file, compression, collection_json, row_group_size, per_collection
+                con, output_file, copy_compression, collection_json, row_group_size, per_collection
             )
 
         # Sort against the same CRS-derived Hilbert grid as the
@@ -591,7 +587,7 @@ class DuckDBBaseConverter(BaseConverter):
                     con,
                     output_file,
                     keys_path,
-                    compression,
+                    copy_compression,
                     collection_json,
                     final_group_size,
                 )

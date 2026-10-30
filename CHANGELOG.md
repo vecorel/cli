@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `PerFileConverterMixin`: converts each source of a converter on its own and merges the parts,
+  for sources that do not fit into memory together.
+
 ### Fixed
 
 - Longer HTTP download limit, 5 minute can be too short
+- `--compression none` no longer fails in the DuckDB converter and in `vec merge` with DuckDB.
 
 ## [v0.4.1] - 2026-10-25
 
