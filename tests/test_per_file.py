@@ -1,6 +1,9 @@
+import io
 import sys
 
 import geopandas as gpd
+import multivolumefile
+import py7zr
 import shapely
 from loguru import logger
 
@@ -64,3 +67,29 @@ def test_a_single_source_is_converted_directly(tmp_path):
     Converter().convert(str(output), input_files={str(source): source.name})
 
     assert sorted(gpd.read_parquet(output)["id"]) == ["a-1", "a-2"]
+
+
+def test_the_volumes_of_a_7z_archive_are_converted_together(tmp_path):
+    archived = _source(tmp_path, "b")
+    measure = io.BytesIO()
+    with py7zr.SevenZipFile(measure, "w") as archive:
+        archive.write(archived, archived.name)
+    volume_size = len(measure.getvalue()) // 3 + 1
+    with multivolumefile.MultiVolume(
+        str(tmp_path / "b.7z"), mode="wb", volume=volume_size, ext_digits=3
+    ) as volume:
+        with py7zr.SevenZipFile(volume, "w") as archive:
+            archive.write(archived, archived.name)
+    volumes = sorted(tmp_path.glob("b.7z.*"))
+    assert len(volumes) > 1, "the archive must span several volumes for this test"
+    archived.unlink()
+
+    source = _source(tmp_path, "a")
+    output = tmp_path / "merged.parquet"
+    # only the first volume names the target file
+    input_files = {str(source): source.name}
+    input_files |= {str(v): ([archived.name] if i == 0 else []) for i, v in enumerate(volumes)}
+
+    Converter().convert(str(output), input_files=input_files)
+
+    assert sorted(gpd.read_parquet(output)["id"]) == ["a-1", "a-2", "b-1", "b-2"]
