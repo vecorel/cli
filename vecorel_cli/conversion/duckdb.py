@@ -116,13 +116,7 @@ class DuckDBBaseConverter(BaseConverter):
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-        if input_files is not None and isinstance(input_files, dict) and len(input_files) > 0:
-            self.warning("Using user provided input file(s) instead of the pre-defined file(s)")
-            urls = input_files
-        else:
-            urls = self.get_urls()
-            if urls is None:
-                raise ValueError("No input files provided")
+        urls = self.get_input_urls(input_files)
 
         self.info("Getting file(s) if not cached yet")
         # Without a cache DuckDB reads remote parquet files in place; anything else, such as
