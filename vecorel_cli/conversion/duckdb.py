@@ -362,6 +362,8 @@ class DuckDBBaseConverter(BaseConverter):
         compression = compression or "zstd"
         if compression == "zstd" and compression_level is None:
             compression_level = 15
+        # DuckDB calls "none" "uncompressed"; the postprocess (Arrow) takes the original name
+        copy_compression = "uncompressed" if compression == "none" else compression
         geoparquet_version = geoparquet_version or "1.1.0"
         row_group_size = GeoParquet.row_group_size
         if isinstance(output_file, Path):
@@ -555,12 +557,12 @@ class DuckDBBaseConverter(BaseConverter):
                 }}
             )
         """,
-            [output_file, compression, collection_json],
+            [output_file, copy_compression, collection_json],
         )
 
         if "id" in selected_targets and suffix_duplicate_ids:
             self._suffix_duplicate_ids_in_file(
-                con, output_file, compression, collection_json, row_group_size, per_collection
+                con, output_file, copy_compression, collection_json, row_group_size, per_collection
             )
 
         # Sort against the same CRS-derived Hilbert grid as the
@@ -585,7 +587,7 @@ class DuckDBBaseConverter(BaseConverter):
                     con,
                     output_file,
                     keys_path,
-                    compression,
+                    copy_compression,
                     collection_json,
                     final_group_size,
                 )

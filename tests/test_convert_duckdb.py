@@ -10,6 +10,7 @@ import pytest
 import shapely
 from loguru import logger
 
+from vecorel_cli.const import COMPRESSION_METHODS
 from vecorel_cli.conversion import duckdb as duckdb_module
 from vecorel_cli.conversion.base import BaseConverter
 from vecorel_cli.conversion.duckdb import DuckDBBaseConverter, _constants_table
@@ -561,6 +562,20 @@ def test_merge_parquet(tmp_folder):
     assert b"collection" in table.schema.metadata
 
     assert ValidateData().validate(dest, num=100, schema_map={}).errors == []
+
+
+@pytest.mark.parametrize("compression", COMPRESSION_METHODS)
+def test_every_compression_method_is_written(tmp_folder, compression):
+    src = _source_file(tmp_folder)
+    part = tmp_folder / "part.parquet"
+    Converter().convert(part, input_files={src: "source.parquet"}, compression=compression)
+    dest = tmp_folder / "merged.parquet"
+    Converter().merge_parquet([part], dest, compression=compression)
+
+    for path in (part, dest):
+        with pq.ParquetFile(path) as pf:
+            codec = pf.metadata.row_group(0).column(0).compression
+        assert codec == ("UNCOMPRESSED" if compression == "none" else compression.upper())
 
 
 def test_merge_parquet_sees_an_id_that_repeats_across_parts(tmp_folder, capsys):
