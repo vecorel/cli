@@ -390,6 +390,64 @@ def test_template_from_package_folder():
     assert isinstance(converter, ConvertData), "Should succeed and not throw an exception"
 
 
+def test_geojson_features_without_id_map_a_property_to_id(tmp_folder):
+    import shapely
+
+    features = [
+        {
+            "type": "Feature",
+            "properties": {"case": f"c-{i}", "name": "a"},
+            "geometry": shapely.geometry.mapping(shapely.box(i * 2, 0, i * 2 + 1, 1)),
+        }
+        for i in range(2)
+    ]
+    src = tmp_folder / "source.geojson"
+    src.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
+
+    Converter = type(
+        "NoIdConverter",
+        (BaseConverter,),
+        {**CONFIG, "columns": {"geometry": "geometry", "case": "id", "name": "name"}},
+    )
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files={str(src): "source.geojson"})
+
+    assert sorted(gpd.read_parquet(dest)["id"]) == ["c-0", "c-1"]
+
+
+def test_shapefile_parts_are_read_through_their_shp(tmp_folder):
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {"id": ["a", "b"], "name": ["x", "y"]},
+        geometry=[shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        crs="EPSG:4326",
+    )
+    gdf.to_file(tmp_folder / "fields.shp")
+    # a table of its own, not part of the shapefile, must still be read
+    gdf.iloc[:1].to_file(tmp_folder / "other.shp")
+    (tmp_folder / "other.shp").unlink()
+    (tmp_folder / "other.shx").unlink()
+
+    (tmp_folder / "fields.qpj").write_text("")
+    (tmp_folder / "fields.shp.xml").write_text("<metadata/>")
+
+    parts = sorted(p for p in tmp_folder.iterdir() if p.name.split(".")[0] == "fields")
+    assert {p.suffix for p in parts} >= {".shp", ".shx", ".dbf", ".prj", ".qpj", ".xml"}
+    other = [(str(tmp_folder / "other.dbf"), "other")]
+    expected = [str(tmp_folder / "fields.shp"), str(tmp_folder / "other.dbf")]
+
+    paths = [(str(p), str(p)) for p in parts] + other
+    read = [path for _, path, _, _ in BaseConverter().get_data(paths)]
+    assert read == expected
+
+    # the .shp given as a wildcard, the other parts by name
+    paths = [(str(tmp_folder / "*.shp"), "shp")]
+    paths += [(str(p), str(p)) for p in parts if p.suffix != ".shp"] + other
+    read = [path for _, path, _, _ in BaseConverter().get_data(paths)]
+    assert read == expected
+
+
 @pytest.mark.parametrize("bom", [False, True], ids=["without-bom", "with-bom"])
 def test_read_geojson_decodes_utf8(tmp_folder, cp1252_locale, bom):
     file_path = tmp_folder / "umlaut.json"
