@@ -1,6 +1,7 @@
 import os
 from tempfile import TemporaryDirectory
 
+from ..vecorel.util import name_from_uri
 from .duckdb import DuckDBBaseConverter
 
 
@@ -50,4 +51,39 @@ class PerFileConverterMixin:
             return [urls]
         # the volumes of a multi-volume 7z archive can only be extracted together
         regular, volume_groups = self._group_multivolume_7z(urls)
-        return [{uri: target} for uri, target in regular.items()] + list(volume_groups.values())
+        units = [{u: t} for u, t in regular.items()] + list(volume_groups.values())
+        # side files are joined to every source, so each part gets them
+        side, sources = {}, []
+        for unit in units:
+            side_unit, data_unit = self._split_side_targets(unit)
+            has_side = self._has_targets(side_unit)
+            if has_side:
+                side.update(side_unit)
+            if self._has_targets(data_unit) or not has_side:
+                sources.append(data_unit)
+        return [self._add_side_targets(s, side) for s in sources]
+
+    def _split_side_targets(self, unit):
+        side, data = {}, {}
+        for uri, target in unit.items():
+            if isinstance(target, list):
+                # archives stay in both, so that all volumes of a 7z archive are kept together
+                side[uri] = [n for n in target if self.is_side_file(n)]
+                data[uri] = [n for n in target if not self.is_side_file(n)]
+            elif self.is_side_file(target or name_from_uri(uri)):
+                side[uri] = target
+            else:
+                data[uri] = target
+        return side, data
+
+    @staticmethod
+    def _has_targets(unit) -> bool:
+        return any(target != [] for target in unit.values())
+
+    @staticmethod
+    def _add_side_targets(source, side):
+        source = dict(source)
+        for uri, target in side.items():
+            # an archive with side and data targets is listed once, with both
+            source[uri] = source[uri] + target if uri in source else target
+        return source

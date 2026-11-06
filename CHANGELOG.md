@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `side_files` on a converter: sources that are tables to join (e.g. a CSV), not geodata.
+  They are downloaded with the other sources, left out of the geodata and read with
+  `read_side_file()`, e.g. in `migrate()`. Per-file conversion passes them to every part.
+
 ### Changed
 
 - Converters read a shapefile through its `.shp` only, so its parts (`.shx`, `.dbf`, `.prj`, ...)

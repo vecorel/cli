@@ -110,6 +110,9 @@ class DuckDBBaseConverter(BaseConverter):
             raise ValueError("If provided, the bounding box must consist of 4 numbers")
 
         self._require_one_source_of_urls()
+        if self.side_files:
+            # the sources are read in SQL, without the read_data() and migrate() side files need
+            raise ValueError(f"{type(self).__name__}: DuckDB converters don't support side_files")
         self._prewarm_schemas()
 
         directory = os.path.dirname(output_file)
