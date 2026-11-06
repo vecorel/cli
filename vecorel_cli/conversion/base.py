@@ -42,6 +42,26 @@ from .flatdict import FlatDict
 # so a mapping of the source column to another target keeps the source values
 SOURCE_ID_COLUMN = "__source_id"
 
+SHAPEFILE_SIDECARS = (
+    ".shp.xml",
+    ".shx",
+    ".dbf",
+    ".prj",
+    ".qpj",
+    ".cpg",
+    ".qix",
+    ".sbn",
+    ".sbx",
+    ".fbn",
+    ".fbx",
+    ".ain",
+    ".aih",
+    ".atx",
+    ".ixs",
+    ".mxs",
+    ".fix",
+)
+
 
 class BaseConverter(LoggerMixin):
     command = None
@@ -528,7 +548,11 @@ class BaseConverter(LoggerMixin):
     def get_data(
         self, paths: list[tuple[str, str]], **kwargs
     ) -> Generator[tuple[GeoDataFrame, str, str, Optional[str]]]:
+        shapefiles = self._shapefile_stems(paths)
         for path, uri in paths:
+            # GDAL reads the other parts of a shapefile next to its .shp
+            if self._is_shapefile_sidecar(path, shapefiles):
+                continue
             # e.g. allow "*.shp" to identify the single relevant file without knowing the name in advance
             if "*" in path:
                 lst = glob(path, recursive=True)
@@ -561,6 +585,23 @@ class BaseConverter(LoggerMixin):
 
                 yield GeoDataFrame(data), path, uri, layer
 
+    @staticmethod
+    def _shapefile_stems(paths):
+        stems = set()
+        for path, _ in paths:
+            if path.lower().endswith(".shp"):
+                matches = glob(path, recursive=True) if "*" in path else [path]
+                stems.update(os.path.normcase(os.path.normpath(m))[:-4] for m in matches)
+        return stems
+
+    @staticmethod
+    def _is_shapefile_sidecar(path, shapefiles):
+        path = os.path.normcase(os.path.normpath(path))
+        return any(
+            path.lower().endswith(ext) and path[: -len(ext)] in shapefiles
+            for ext in SHAPEFILE_SIDECARS
+        )
+
     def read_geojson(self, path, **kwargs):
         # open_options is shared with gpd.read_parquet() and gpd.read_file(), so a converter
         # cannot set a default encoding there without breaking the other two readers.
@@ -582,7 +623,7 @@ class BaseConverter(LoggerMixin):
         feature["properties"] = FlatDict(feature["properties"], delimiter=".")
 
         # Preserve id: https://github.com/geopandas/geopandas/issues/1208
-        if "id" not in feature["properties"]:
+        if "id" not in feature["properties"] and "id" in feature:
             feature["properties"]["id"] = feature["id"]
 
         return feature

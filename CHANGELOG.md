@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Converters read a shapefile through its `.shp` only, so its parts (`.shx`, `.dbf`, `.prj`, ...)
+  can be listed in `sources` one by one.
+
+### Fixed
+
+- Converters no longer fail on GeoJSON features without a top-level `id`.
+
 ## [v0.4.2] - 2026-10-30
 
 ### Added
