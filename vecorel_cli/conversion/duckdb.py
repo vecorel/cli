@@ -698,7 +698,7 @@ class DuckDBBaseConverter(BaseConverter):
         paths = [str(path) for path in paths]
         kwargs.setdefault("original_geometries", True)
         if properties is not None:
-            properties = set(properties) | {"geometry"}
+            properties = list(dict.fromkeys([*properties, "geometry"]))
 
         # before any data is read
         collections = [GeoParquet(path).get_collection() for path in paths]
@@ -793,6 +793,14 @@ class DuckDBBaseConverter(BaseConverter):
             columns = ", ".join(_sql_name(name) for name in union)
             source_query = f"SELECT {columns} FROM read_parquet({sources}, union_by_name=true, hive_partitioning=false)"
         targets = [row[0] for row in con.execute(f"DESCRIBE {source_query}").fetchall()]
+        if properties is not None:
+            # the requested properties first, in their order, as in the in-memory merge
+            ordered = [p for p in properties if p in targets]
+            ordered += [t for t in targets if t not in ordered]
+            if ordered != targets:
+                targets = ordered
+                columns = ", ".join(_sql_name(name) for name in targets)
+                source_query = f"SELECT {columns} FROM ({source_query})"
 
         return self.write_query(
             con,

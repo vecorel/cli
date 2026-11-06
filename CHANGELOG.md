@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Converters no longer fail on GeoJSON features without a top-level `id`.
+- Converters and `vec merge` write the columns and the collection metadata in a fixed order (e.g. the order of the column mapping or of the included properties) instead of a random order that changed between runs, so files are reproducible.
 
 ## [v0.4.2] - 2026-10-30
 

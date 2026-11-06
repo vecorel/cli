@@ -243,3 +243,83 @@ def test_check_versions():
                 Collection({"schemas": {"b": [core1, ext2]}}),
             ]
         )
+
+
+# Not sorted, so that the order of a set would differ from it
+ORDERED_KEYS = ["zeta", "alpha", "mu", "beta", "omega", "kappa", "delta", "gamma"]
+
+
+def _merged_metadata(folder):
+    import json
+    from pathlib import Path
+
+    from vecorel_cli.encoding.geojson import VecorelJSONEncoder
+
+    sdl = "https://vecorel.org/sdl/v0.2.0/schema.json"
+    core = "https://vecorel.org/specification/v0.1.0/schema.yaml"
+    # all schemas are local, the core schema requires "id"
+    schema_map = {}
+    for name in ["id", *ORDERED_KEYS]:
+        uri = core if name == "id" else f"https://example.com/{name}/v0.1.0/schema.yaml"
+        path = Path(folder) / f"{name}.yaml"
+        path.write_text(json.dumps({"$schema": sdl, "required": [name], "properties": {name: {}}}))
+        schema_map[uri] = path
+    half = len(ORDERED_KEYS) // 2
+    a, b = ORDERED_KEYS[:half], ORDERED_KEYS[half:]
+    collections = [
+        Collection(
+            {
+                "schemas": {cid: list(schema_map)},
+                "schemas:custom": {
+                    "$schema": sdl,
+                    "required": keys,
+                    "properties": {
+                        **{k: {"type": "string"} for k in keys},
+                        "x": {"type": "string", **{f"x{k}": k for k in keys}},
+                    },
+                },
+            }
+        )
+        for cid, keys in [("c1", a), ("c2", b)]
+    ]
+    merged = merge_collections(collections)
+    resolved = merged.get_schemas()["c1"].merge_schemas(schema_map=schema_map)
+    return json.dumps(
+        {"collection": merged, "required": resolved["required"]}, cls=VecorelJSONEncoder
+    )
+
+
+def test_merged_metadata_does_not_depend_on_the_hash_seed(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    script = (
+        "import sys; from tests.test_ops import _merged_metadata; "
+        "print(_merged_metadata(sys.argv[1]))"
+    )
+    results = []
+    for seed in ["0", "1", "2", "3", "42"]:
+        env = {**os.environ, "PYTHONHASHSEED": seed, "PYTHONPATH": str(root)}
+        out = subprocess.run(
+            [sys.executable, "-c", script, str(tmp_path)],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        results.append(json.loads(out.strip().splitlines()[-1]))
+    assert results == [results[0]] * len(results)
+
+    custom = results[0]["collection"]["schemas:custom"]
+    assert custom["required"] == ORDERED_KEYS
+    assert list(custom["properties"]) == [*ORDERED_KEYS[:4], "x", *ORDERED_KEYS[4:]]
+    assert list(custom["properties"]["x"]) == ["type", *[f"x{k}" for k in ORDERED_KEYS]]
+    # in the order of the schema URIs
+    assert results[0]["required"] == [*sorted(ORDERED_KEYS), "id"]
+    schemas = results[0]["collection"]["schemas"]
+    assert schemas["c1"] == sorted(schemas["c1"])

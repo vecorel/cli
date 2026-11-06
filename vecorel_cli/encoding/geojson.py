@@ -348,7 +348,11 @@ class VecorelJSONEncoder(json.JSONEncoder):
         elif isinstance(o, np.ndarray):
             return o.tolist()
         elif isinstance(o, set):
-            return list(o)
+            # sorted, so that the output doesn't depend on the hash seed
+            try:
+                return sorted(o)
+            except TypeError:
+                return list(o)
         elif isinstance(o, np.generic):
             return o.item()
         else:

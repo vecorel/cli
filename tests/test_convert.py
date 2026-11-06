@@ -370,6 +370,76 @@ def test_duplicate_ids_get_numbered(tmp_folder):
     assert sorted(gpd.read_parquet(dest)["id"]) == ["other-0", "other-1", "same~1", "same~2"]
 
 
+# Not sorted, so that the order of a set would differ from it
+ORDERED_COLUMNS = ["zeta", "alpha", "timestamp", "mu", "beta", "omega", "kappa", "delta", "gamma"]
+
+
+def _convert_with_many_columns(folder):
+    import pyarrow.parquet as pq
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {
+            **{name: [f"{name}-a", f"{name}-b"] for name in sorted(ORDERED_COLUMNS)},
+            "id": ["1", "2"],
+            "geometry": [shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    src = Path(folder) / "source.parquet"
+    gdf.to_parquet(src)
+
+    Converter = type(
+        "OrderConverter",
+        (BaseConverter,),
+        {
+            **CONFIG,
+            "columns": {
+                "id": "id",
+                **{name: name for name in ORDERED_COLUMNS},
+                "geometry": "geometry",
+            },
+            "missing_schemas": {
+                "properties": {name: {"type": "string"} for name in ORDERED_COLUMNS}
+            },
+        },
+    )
+    dest = Path(folder) / "converted.parquet"
+    Converter().convert(dest, input_files={str(src): "source.parquet"})
+    return pq.read_schema(dest).names
+
+
+def test_columns_keep_the_mapping_order(tmp_folder):
+    names = _convert_with_many_columns(tmp_folder)
+    assert names == ["id", *ORDERED_COLUMNS, "geometry", "bbox"]
+
+
+def test_column_order_does_not_depend_on_the_hash_seed(tmp_folder):
+    import os
+    import subprocess
+
+    root = Path(__file__).resolve().parents[1]
+    script = (
+        "import json, sys; from tests.test_convert import _convert_with_many_columns; "
+        "print(json.dumps(_convert_with_many_columns(sys.argv[1])))"
+    )
+    results = []
+    for seed in ["0", "1", "2", "3", "42"]:
+        folder = tmp_folder / seed
+        folder.mkdir()
+        env = {**os.environ, "PYTHONHASHSEED": seed, "PYTHONPATH": str(root)}
+        out = subprocess.run(
+            [sys.executable, "-c", script, str(folder)],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        results.append(json.loads(out.strip().splitlines()[-1]))
+    assert results == [["id", *ORDERED_COLUMNS, "geometry", "bbox"]] * len(results)
+
+
 def test_not_existing_converter(tmp_folder):
     with pytest.raises(Exception, match="Converter 'not_existing' not found"):
         converter = ConvertData("not_existing")

@@ -797,3 +797,31 @@ def test_merge_keeps_columns_without_values(tmp_folder, engine):
     assert str(schema.field("untyped").type) == "string"
     rows, _ = _read(out)
     assert all(r["typed"] is None and r["untyped"] is None for r in rows)
+
+
+# Not sorted, so that the order of a set would differ from it
+ORDERED_COLUMNS = ["zeta", "alpha", "timestamp", "mu", "beta", "omega", "kappa", "delta", "gamma"]
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("option", ["excludes", "includes"])
+def test_merge_keeps_the_column_order(tmp_folder, engine, option):
+    columns = {name: [f"{name}-0", f"{name}-1"] for name in ORDERED_COLUMNS}
+    custom = {"properties": {name: {"type": "string"} for name in ORDERED_COLUMNS}}
+    a = _part(tmp_folder, "a", "a", 2, columns={**columns, "extra": ["x", "y"]}, custom=custom)
+    b = _part(tmp_folder, "b", "b", 2, columns={**columns, "extra": ["z", "w"]}, custom=custom)
+    if option == "excludes":
+        out = _merge(tmp_folder, [a, b], engine, excludes=["extra"])
+        # the order of the files
+        properties = ORDERED_COLUMNS
+        expected = ["id", *properties, "geometry", "collection", "bbox"]
+    else:
+        # an order that differs from the order of the files
+        properties = ORDERED_COLUMNS[::-1]
+        out = _merge(tmp_folder, [a, b], engine, includes=properties)
+        expected = ["id", "geometry", "collection", *properties, "bbox"]
+
+    schema = pq.read_schema(out)
+    assert schema.names == expected
+    collection = json.loads(schema.metadata[b"collection"])
+    assert list(collection["schemas:custom"]["properties"]) == properties
