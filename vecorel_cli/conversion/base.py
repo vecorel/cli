@@ -10,6 +10,7 @@ import sys
 import tarfile
 import zipfile
 from copy import copy
+from fnmatch import fnmatch
 from glob import glob
 from io import StringIO
 from tempfile import TemporaryDirectory
@@ -82,6 +83,10 @@ class BaseConverter(LoggerMixin):
     # Sent with every download, e.g. a browser User-Agent for a server that refuses others
     request_headers: dict[str, str] = {}
     variants: dict[str, Sources] = {}
+    # File name patterns of sources that are tables to join, not geodata (e.g. "*.csv"):
+    # read_data() leaves them out, read_side_file() reads them, e.g. in migrate()
+    side_files: Sequence[str] = ()
+    side_paths: dict[str, str] = {}
     variant: Optional[str] = None
 
     columns: dict[str, str | Sequence[str]] = {}
@@ -553,11 +558,7 @@ class BaseConverter(LoggerMixin):
             # GDAL reads the other parts of a shapefile next to its .shp
             if self._is_shapefile_sidecar(path, shapefiles):
                 continue
-            # e.g. allow "*.shp" to identify the single relevant file without knowing the name in advance
-            if "*" in path:
-                lst = glob(path, recursive=True)
-                assert len(lst) == 1, f"Can not match {path} to a single file"
-                path = lst[0]
+            path = self._resolve_glob(path)
             self.info(f"Reading {path} into GeoDataFrame(s)")
             is_parquet = path.endswith(".parquet") or path.endswith(".geoparquet")
             is_json = path.endswith(".json") or path.endswith(".geojson")
@@ -602,6 +603,15 @@ class BaseConverter(LoggerMixin):
             for ext in SHAPEFILE_SIDECARS
         )
 
+    @staticmethod
+    def _resolve_glob(path):
+        # e.g. allow "*.shp" to identify the single relevant file without knowing the name in advance
+        if "*" in path:
+            lst = glob(path, recursive=True)
+            assert len(lst) == 1, f"Can not match {path} to a single file"
+            path = lst[0]
+        return path
+
     def read_geojson(self, path, **kwargs):
         # open_options is shared with gpd.read_parquet() and gpd.read_file(), so a converter
         # cannot set a default encoding there without breaking the other two readers.
@@ -628,7 +638,50 @@ class BaseConverter(LoggerMixin):
 
         return feature
 
+    def is_side_file(self, name: str) -> bool:
+        name = os.path.basename(name)
+        return any(fnmatch(name, pattern) for pattern in self.side_files)
+
+    def _split_side_files(self, paths):
+        self.side_paths = {}
+        data = []
+        for path, uri in paths:
+            if self.side_files:
+                path = self._resolve_glob(path)
+            matches = [p for p in self.side_files if fnmatch(os.path.basename(path), p)]
+            if not matches:
+                data.append((path, uri))
+                continue
+            for pattern in matches:
+                if pattern in self.side_paths:
+                    raise ValueError(
+                        f"Several sources match the side file {pattern}: "
+                        f"{self.side_paths[pattern]}, {path}"
+                    )
+                self.side_paths[pattern] = path
+        missing = [p for p in self.side_files if p not in self.side_paths]
+        if missing:
+            raise ValueError(f"No source matches the side file(s) {', '.join(missing)}")
+        return data
+
+    def read_side_file(self, pattern: str, **kwargs) -> pd.DataFrame:
+        if pattern not in self.side_paths:
+            raise ValueError(f"{pattern} is not a side file of {type(self).__name__}")
+        path = self.side_paths[pattern]
+        ext = os.path.splitext(path)[1].lower()
+        if ext in (".csv", ".tsv", ".txt"):
+            if ext == ".tsv":
+                kwargs.setdefault("sep", "\t")
+            return pd.read_csv(path, **kwargs)
+        if ext in (".parquet", ".geoparquet"):
+            return pd.read_parquet(path, **kwargs)
+        if ext == ".json":
+            return pd.read_json(path, **kwargs)
+        # e.g. .dbf or .xlsx, through GDAL
+        return pd.DataFrame(gpd.read_file(path, ignore_geometry=True, **kwargs))
+
     def read_data(self, paths, **kwargs):
+        paths = self._split_side_files(paths)
         gdfs = []
         for data, path, uri, layer in self.get_data(paths, **kwargs):
             # 0. Run migration per file/layer

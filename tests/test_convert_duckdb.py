@@ -123,6 +123,16 @@ def test_duckdb_converter_extracts_an_archive_without_a_cache(tmp_folder):
     assert sorted(gpd.read_parquet(dest)["id"]) == ["bowtie", "multi", "square", "with_z"]
 
 
+def test_duckdb_converter_rejects_side_files(tmp_folder):
+    src = _source_file(tmp_folder)
+    SideFileConverter = type("SideFileConverter", (Converter,), {"side_files": ("*.csv",)})
+
+    with pytest.raises(ValueError, match="don't support side_files"):
+        SideFileConverter().convert(
+            tmp_folder / "converted.parquet", input_files={str(src): "source.parquet"}
+        )
+
+
 def test_duckdb_converter_ignores_hive_style_folders(tmp_folder):
     source_folder = tmp_folder / "region=north"
     source_folder.mkdir()

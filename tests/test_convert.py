@@ -448,6 +448,91 @@ def test_shapefile_parts_are_read_through_their_shp(tmp_folder):
     assert read == expected
 
 
+class SideFileConverter(BaseConverter):
+    side_files = ("*.csv",)
+
+    def migrate(self, gdf):
+        # keep_default_na=False: "NA" is a code here, not a missing value
+        table = self.read_side_file("*.csv", dtype=str, keep_default_na=False)
+        return gdf.merge(table, on="id", how="left", validate="many_to_one")
+
+
+def _side_file_sources(folder):
+    import shapely
+
+    gdf = gpd.GeoDataFrame(
+        {"id": ["1", "2"], "name": ["a", "b"]},
+        geometry=[shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        crs="EPSG:4326",
+    )
+    gdf.to_parquet(folder / "fields.parquet")
+    (folder / "codes.csv").write_text("id,code\n1,NA\n2,GH\n")
+    return {
+        str(folder / "fields.parquet"): "fields.parquet",
+        str(folder / "codes.csv"): "codes.csv",
+    }
+
+
+def test_side_files_are_read_as_tables_not_as_geodata(tmp_folder):
+    Converter = type(
+        "Converter",
+        (SideFileConverter,),
+        {
+            **CONFIG,
+            "columns": {**CONFIG["columns"], "code": "code"},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "code": {"type": "string"}}
+            },
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files=_side_file_sources(tmp_folder))
+
+    result = gpd.read_parquet(dest).sort_values("id")
+    assert result["code"].tolist() == ["NA", "GH"]
+
+
+def test_a_missing_side_file_fails(tmp_folder):
+    sources = _side_file_sources(tmp_folder)
+    del sources[str(tmp_folder / "codes.csv")]
+    Converter = type("Converter", (SideFileConverter,), CONFIG)
+
+    with pytest.raises(ValueError, match=r"No source matches the side file\(s\) \*\.csv"):
+        Converter().convert(tmp_folder / "converted.parquet", input_files=sources)
+
+
+@pytest.mark.parametrize("side_file", ["*.csv", "codes.csv"])
+def test_a_side_file_in_an_archive_can_be_given_as_glob(tmp_folder, side_file):
+    import zipfile
+
+    _side_file_sources(tmp_folder)
+    archive = tmp_folder / "sources.zip"
+    with zipfile.ZipFile(archive, "w") as zip_file:
+        zip_file.write(tmp_folder / "fields.parquet", "fields.parquet")
+        zip_file.write(tmp_folder / "codes.csv", "tables/codes.csv")
+    Converter = type(
+        "Converter",
+        (SideFileConverter,),
+        {
+            **CONFIG,
+            "side_files": (side_file,),
+            "columns": {**CONFIG["columns"], "code": "code"},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "code": {"type": "string"}}
+            },
+            "migrate": lambda self, gdf: gdf.merge(
+                self.read_side_file(side_file, dtype=str, keep_default_na=False), on="id"
+            ),
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+    input_files = {str(archive): ["fields.parquet", "tables/*.csv"]}
+    Converter().convert(dest, input_files=input_files)
+
+    result = gpd.read_parquet(dest).sort_values("id")
+    assert result["code"].tolist() == ["NA", "GH"]
+
+
 @pytest.mark.parametrize("bom", [False, True], ids=["without-bom", "with-bom"])
 def test_read_geojson_decodes_utf8(tmp_folder, cp1252_locale, bom):
     file_path = tmp_folder / "umlaut.json"

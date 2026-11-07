@@ -1,5 +1,6 @@
 import io
 import sys
+import zipfile
 
 import geopandas as gpd
 import multivolumefile
@@ -36,6 +37,21 @@ def _source(folder, region):
     return path
 
 
+def _write_multivolume_7z(path, file):
+    measure = io.BytesIO()
+    with py7zr.SevenZipFile(measure, "w") as archive:
+        archive.write(file, file.name)
+    volume_size = len(measure.getvalue()) // 3 + 1
+    with multivolumefile.MultiVolume(
+        str(path), mode="wb", volume=volume_size, ext_digits=3
+    ) as volume:
+        with py7zr.SevenZipFile(volume, "w") as archive:
+            archive.write(file, file.name)
+    volumes = sorted(path.parent.glob(path.name + ".*"))
+    assert len(volumes) > 1, "the archive must span several volumes for this test"
+    return volumes
+
+
 def _capture_log():
     # loguru's default sink is bound to stderr at import, so point it at stdout
     logger.remove()
@@ -60,6 +76,61 @@ def test_each_source_is_converted_on_its_own_and_merged(tmp_path, capsys):
     assert log.count("No variant given") == 1
 
 
+class SideFileConverter(Converter):
+    side_files = ("names.csv",)
+    columns = {**Converter.columns, "name": "name"}
+    missing_schemas = {"properties": {"region": {"type": "string"}, "name": {"type": "string"}}}
+
+    def migrate(self, gdf):
+        return gdf.merge(self.read_side_file("names.csv"), on="region", how="left")
+
+
+def test_side_files_go_with_every_part(tmp_path):
+    sources = [_source(tmp_path, region) for region in ("a", "b")]
+    (tmp_path / "names.csv").write_text("region,name\na,Alpha\nb,Beta\n")
+
+    output = tmp_path / "merged.parquet"
+    input_files = {str(s): s.name for s in sources} | {str(tmp_path / "names.csv"): "names.csv"}
+    SideFileConverter().convert(str(output), input_files=input_files)
+
+    merged = gpd.read_parquet(output).sort_values("id")
+    assert merged["name"].tolist() == ["Alpha", "Alpha", "Beta", "Beta"]
+
+
+def test_side_files_in_an_archive_with_geodata_go_with_every_part(tmp_path):
+    archived = _source(tmp_path, "a")
+    (tmp_path / "names.csv").write_text("region,name\na,Alpha\nb,Beta\n")
+    with zipfile.ZipFile(tmp_path / "a.zip", "w") as archive:
+        archive.write(archived, archived.name)
+        archive.write(tmp_path / "names.csv", "names.csv")
+    source = _source(tmp_path, "b")
+
+    output = tmp_path / "merged.parquet"
+    input_files = {str(tmp_path / "a.zip"): [archived.name, "names.csv"], str(source): source.name}
+    SideFileConverter().convert(str(output), input_files=input_files)
+
+    merged = gpd.read_parquet(output).sort_values("id")
+    assert merged["id"].tolist() == ["a-1", "a-2", "b-1", "b-2"]
+    assert merged["name"].tolist() == ["Alpha", "Alpha", "Beta", "Beta"]
+
+
+def test_side_files_in_a_multivolume_7z_archive_go_with_every_part(tmp_path):
+    sources = [_source(tmp_path, region) for region in ("a", "b")]
+    names = tmp_path / "names.csv"
+    names.write_text("region,name\na,Alpha\nb,Beta\n")
+    volumes = _write_multivolume_7z(tmp_path / "names.7z", names)
+    names.unlink()
+
+    output = tmp_path / "merged.parquet"
+    input_files = {str(s): s.name for s in sources}
+    input_files |= {str(v): (["names.csv"] if i == 0 else []) for i, v in enumerate(volumes)}
+    SideFileConverter().convert(str(output), input_files=input_files)
+
+    merged = gpd.read_parquet(output).sort_values("id")
+    assert merged["id"].tolist() == ["a-1", "a-2", "b-1", "b-2"]
+    assert merged["name"].tolist() == ["Alpha", "Alpha", "Beta", "Beta"]
+
+
 def test_a_single_source_is_converted_directly(tmp_path):
     source = _source(tmp_path, "a")
     output = tmp_path / "single.parquet"
@@ -71,17 +142,7 @@ def test_a_single_source_is_converted_directly(tmp_path):
 
 def test_the_volumes_of_a_7z_archive_are_converted_together(tmp_path):
     archived = _source(tmp_path, "b")
-    measure = io.BytesIO()
-    with py7zr.SevenZipFile(measure, "w") as archive:
-        archive.write(archived, archived.name)
-    volume_size = len(measure.getvalue()) // 3 + 1
-    with multivolumefile.MultiVolume(
-        str(tmp_path / "b.7z"), mode="wb", volume=volume_size, ext_digits=3
-    ) as volume:
-        with py7zr.SevenZipFile(volume, "w") as archive:
-            archive.write(archived, archived.name)
-    volumes = sorted(tmp_path.glob("b.7z.*"))
-    assert len(volumes) > 1, "the archive must span several volumes for this test"
+    volumes = _write_multivolume_7z(tmp_path / "b.7z", archived)
     archived.unlink()
 
     source = _source(tmp_path, "a")
