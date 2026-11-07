@@ -40,10 +40,10 @@ def merge(
     collections = [item.get_collection() for item in encodings]
     if excludes:
         if properties is None:
-            properties = set()
+            properties = {}
             for gdf, collection in zip(frames, collections):
-                properties |= set(gdf.columns) | set(collection.keys())
-        properties = list(set(properties) - set(excludes))
+                properties.update(dict.fromkeys([*gdf.columns, *collection.keys()]))
+        properties = [p for p in properties if p not in excludes]
         frames = [gdf.drop(columns=[c for c in excludes if c in gdf.columns]) for gdf in frames]
     merged_collection = merge_collections(
         collections, properties=properties, log=log, strict=strict, schema_map=schema_map

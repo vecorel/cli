@@ -35,7 +35,8 @@ class VecorelSchema(dict):
     ) -> dict[str, VecorelSchema]:
         # Load all schemas
         loaded = {}
-        for uri in uris:
+        # sorted, so that the merged schema doesn't depend on the order of a set
+        for uri in sorted(uris):
             try:
                 if uri in schema_map:
                     actual_location = schema_map[uri]
@@ -96,7 +97,7 @@ class VecorelSchema(dict):
             raise ValueError("Schemas have different SDL versions, can't merge.")
 
         # Merge required properties
-        self["required"] = list(set(self["required"]) | set(other.get("required", [])))
+        self["required"] = list(dict.fromkeys([*self["required"], *other.get("required", [])]))
 
         # Merge collection details
         other_collection = other.get("collection", {}).items()
@@ -118,7 +119,7 @@ class VecorelSchema(dict):
         )
 
     def _merge_properties(self, a: dict, b: dict, path: str = "") -> dict:
-        all_properties = set(a.keys()) | set(b.keys())
+        all_properties = list(dict.fromkeys([*a, *b]))
         a = a.copy()
         for key in all_properties:
             if key in a:
@@ -140,7 +141,7 @@ class VecorelSchema(dict):
             )
 
         a = a.copy()
-        all_keys = set(a.keys()) | set(b.keys())
+        all_keys = list(dict.fromkeys([*a, *b]))
         for key in all_keys:
             if key == "additionalProperties":
                 # We need to handle additionalProperties separately as it has a default value
@@ -164,9 +165,9 @@ class VecorelSchema(dict):
                     case "$schema":
                         pass  # ignore for now. todo: Properly check versions
                     case "required":
-                        a[key] = list(set(a[key]) | set(b[key]))
+                        a[key] = list(dict.fromkeys([*a[key], *b[key]]))
                     case ("enum", "geometryTypes"):
-                        a[key] = list(set(a[key]) & set(b[key]))
+                        a[key] = [v for v in a[key] if v in b[key]]
                     case ("items", "contains"):
                         a[key] = self._merge_json_schema(a[key], b[key], p)
                     case ("properties", "patternProperties"):

@@ -115,7 +115,7 @@ class MergeDatasets(BaseCommand):
 
         properties = None
         if includes:
-            properties = list(set(Registry.core_properties) | set(includes))
+            properties = list(dict.fromkeys([*Registry.core_properties, *includes]))
 
         blocker = self.get_duckdb_blocker(encodings, target, crs)
         if engine == "duckdb" and blocker:
@@ -127,7 +127,7 @@ class MergeDatasets(BaseCommand):
             if excludes:
                 if properties is None:
                     properties = self.get_available_properties(encodings)
-                properties = list(set(properties) - set(excludes))
+                properties = [p for p in properties if p not in excludes]
 
             self.info("Merging with DuckDB")
             DuckDBBaseConverter().merge_parquet(
@@ -155,13 +155,13 @@ class MergeDatasets(BaseCommand):
 
     @staticmethod
     def get_available_properties(encodings: list[BaseEncoding]) -> list[str]:
-        properties = set()
+        properties = {}
         for encoding in encodings:
             columns = encoding.get_properties()
             if columns is None:
                 columns = encoding.read().columns
-            properties |= set(columns)
-            properties |= set(encoding.get_collection().keys())
+            properties.update(dict.fromkeys(columns))
+            properties.update(dict.fromkeys(encoding.get_collection().keys()))
         return list(properties)
 
     @staticmethod

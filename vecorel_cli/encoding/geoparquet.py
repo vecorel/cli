@@ -188,7 +188,7 @@ class GeoParquet(BaseEncoding):
             properties = list(data.columns)
         else:
             # Restrict to the properties that actually exist, ignore all others
-            properties = list(set(properties) & set(data.columns))
+            properties = [p for p in dict.fromkeys(properties) if p in data.columns]
 
         # Don't write the bbox properties, will be added automatically later
         if "bbox" in properties:
@@ -556,8 +556,8 @@ class GeoParquet(BaseEncoding):
 
         if properties is not None:
             # Make sure we ignore properties that don't exist
-            existing_properties = set(self.get_properties().keys())
-            properties = list(set(properties) & existing_properties)
+            existing_properties = self.get_properties()
+            properties = [p for p in dict.fromkeys(properties) if p in existing_properties]
 
         if num is None:
             pa_file = self._get_pyarrow_file()
