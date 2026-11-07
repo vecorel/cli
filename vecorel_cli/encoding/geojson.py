@@ -352,7 +352,7 @@ class VecorelJSONEncoder(json.JSONEncoder):
             try:
                 return sorted(o)
             except TypeError:
-                return list(o)
+                return sorted(o, key=lambda v: (type(v).__name__, repr(v)))
         elif isinstance(o, np.generic):
             return o.item()
         else:

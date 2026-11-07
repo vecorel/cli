@@ -323,3 +323,13 @@ def test_merged_metadata_does_not_depend_on_the_hash_seed(tmp_path):
     assert results[0]["required"] == [*sorted(ORDERED_KEYS), "id"]
     schemas = results[0]["collection"]["schemas"]
     assert schemas["c1"] == sorted(schemas["c1"])
+
+
+def test_sets_of_mixed_types_are_encoded_in_a_fixed_order():
+    import json
+
+    from vecorel_cli.encoding.geojson import VecorelJSONEncoder
+
+    encoded = json.dumps({"b", 2, "a", 10, 1.5}, cls=VecorelJSONEncoder)
+    # by type name, then by repr
+    assert encoded == '[1.5, 10, 2, "a", "b"]'
