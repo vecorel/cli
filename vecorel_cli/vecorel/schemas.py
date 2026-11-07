@@ -32,20 +32,6 @@ RESTRICTIONS = {
     "exclusiveMaximum",
     "maxItems",
     "maxProperties",
-    "const",
-    "multipleOf",
-    "minContains",
-    "maxContains",
-    "dependentRequired",
-    "dependentSchemas",
-    "propertyNames",
-    "not",
-    "allOf",
-    "anyOf",
-    "oneOf",
-    "if",
-    "then",
-    "else",
 }
 
 

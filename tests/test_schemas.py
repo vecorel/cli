@@ -128,22 +128,3 @@ def test_a_union_drops_items_contains_and_format_only_one_schema_has():
     merged = _merge(a, b)
     assert merged["tags"]["items"] == {"type": "string"}
     assert merged["mail"]["format"] == "email"
-
-
-@pytest.mark.parametrize(
-    "restriction",
-    [
-        {"const": "x"},
-        {"multipleOf": 5},
-        {"not": {"const": "x"}},
-        {"anyOf": [{"const": "x"}, {"const": "y"}]},
-        {"if": {"const": "x"}, "then": {"minLength": 1}},
-    ],
-)
-def test_a_union_drops_any_restriction_only_one_schema_has(restriction):
-    a = {"value": {"type": "string", **restriction}}
-    b = {"value": {"type": "string"}}
-    assert _merge(a, b, union=True)["value"] == {"type": "string"}
-    assert _merge(b, a, union=True)["value"] == {"type": "string"}
-    # one collection's schemas still restrict each other
-    assert _merge(a, b)["value"] == a["value"]
