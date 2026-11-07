@@ -51,7 +51,8 @@ def test_merge_collections():
     assert merged_collection.get_custom_schemas() == VecorelSchema(
         {
             "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
-            "required": ["inspire:id"],
+            # only collection2 requires it; the features of collection1 don't have it
+            "required": [],
             "collection": {"inspire:id": False},
             "properties": {
                 "determination_datetime": {"type": "date-time"},
@@ -272,7 +273,8 @@ def _merged_metadata(folder):
                 "schemas": {cid: list(schema_map)},
                 "schemas:custom": {
                     "$schema": sdl,
-                    "required": keys,
+                    # a merge only keeps what both require, in the order of the first
+                    "required": required,
                     "properties": {
                         **{k: {"type": "string"} for k in keys},
                         "x": {"type": "string", **{f"x{k}": k for k in keys}},
@@ -280,7 +282,10 @@ def _merged_metadata(folder):
                 },
             }
         )
-        for cid, keys in [("c1", a), ("c2", b)]
+        for cid, keys, required in [
+            ("c1", a, ORDERED_KEYS),
+            ("c2", b, list(reversed(ORDERED_KEYS))),
+        ]
     ]
     merged = merge_collections(collections)
     resolved = merged.get_schemas()["c1"].merge_schemas(schema_map=schema_map)
