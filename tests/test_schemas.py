@@ -113,3 +113,18 @@ def test_one_collection_requires_what_any_of_its_schemas_requires():
     a.merge(b)
     assert sorted(a["required"]) == ["id", "meta"]
     assert sorted(a["properties"]["meta"]["required"]) == ["kind", "source"]
+
+
+def test_a_union_drops_items_contains_and_format_only_one_schema_has():
+    a = {
+        "tags": {"type": "array", "items": {"type": "string"}, "contains": {"const": "x"}},
+        "mail": {"type": "string", "format": "email"},
+    }
+    b = {"tags": {"type": "array"}, "mail": {"type": "string"}}
+    merged = _merge(a, b, union=True)
+    assert merged["tags"] == {"type": "array"}
+    assert merged["mail"] == {"type": "string"}
+    # one collection's schemas still restrict each other
+    merged = _merge(a, b)
+    assert merged["tags"]["items"] == {"type": "string"}
+    assert merged["mail"]["format"] == "email"
