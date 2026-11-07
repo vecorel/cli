@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.4.3] - 2026-11-07
+
 ### Added
 
 - `side_files` on a converter: sources that are tables to join (e.g. a CSV), not geodata.
@@ -441,7 +443,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.2...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.3...main>
+[v0.4.3]: <https://github.com/vecorel/cli/compare/v0.4.2...v0.4.3>
 [v0.4.2]: <https://github.com/vecorel/cli/compare/v0.4.1...v0.4.2>
 [v0.4.1]: <https://github.com/vecorel/cli/compare/v0.4.0...v0.4.1>
 [v0.4.0]: <https://github.com/vecorel/cli/compare/v0.3.1...v0.4.0>
