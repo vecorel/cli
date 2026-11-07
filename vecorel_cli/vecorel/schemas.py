@@ -12,6 +12,29 @@ if TYPE_CHECKING:
     from ..validation.base import Validator
 
 
+# Keywords that restrict the values; a union drops those that only one schema has
+RESTRICTIONS = {
+    "required",
+    "enum",
+    "geometryTypes",
+    "pattern",
+    "format",
+    "items",
+    "contains",
+    "uniqueItems",
+    "minLength",
+    "minimum",
+    "exclusiveMinimum",
+    "minItems",
+    "minProperties",
+    "maxLength",
+    "maximum",
+    "exclusiveMaximum",
+    "maxItems",
+    "maxProperties",
+}
+
+
 class VecorelSchema(dict):
     sdl_pattern = r"https://vecorel.org/sdl/v([^/]+)/schema.json"
     sdl_schema = sdl_uri
@@ -85,8 +108,10 @@ class VecorelSchema(dict):
         if "properties" not in self:
             self["properties"] = {}
 
-    def merge(self, other: "VecorelSchema"):
-        """Merge another schema into this one, in-place."""
+    def merge(self, other: "VecorelSchema", union: bool = False):
+        """Merge another schema into this one, in-place.
+        By default the data must satisfy both schemas (e.g. enums are intersected);
+        with `union`, data that satisfies either one stays valid (e.g. enums are joined)."""
         if isinstance(other, dict):
             other = VecorelSchema(other)
 
@@ -97,7 +122,13 @@ class VecorelSchema(dict):
             raise ValueError("Schemas have different SDL versions, can't merge.")
 
         # Merge required properties
-        self["required"] = list(dict.fromkeys([*self["required"], *other.get("required", [])]))
+        required = other.get("required", [])
+        if not union:
+            self["required"] = list(dict.fromkeys([*self["required"], *required]))
+        elif self.is_empty():
+            self["required"] = list(required)
+        else:
+            self["required"] = [p for p in self["required"] if p in required]
 
         # Merge collection details
         other_collection = other.get("collection", {}).items()
@@ -115,17 +146,17 @@ class VecorelSchema(dict):
 
         # Merge actual schemas for properties
         self["properties"] = self._merge_properties(
-            self["properties"], other.get("properties", {}), "properties"
+            self["properties"], other.get("properties", {}), "properties", union
         )
 
-    def _merge_properties(self, a: dict, b: dict, path: str = "") -> dict:
+    def _merge_properties(self, a: dict, b: dict, path: str = "", union: bool = False) -> dict:
         all_properties = list(dict.fromkeys([*a, *b]))
         a = a.copy()
         for key in all_properties:
             if key in a:
                 if key in b:
                     # merge schemas
-                    a[key] = self._merge_json_schema(a[key], b[key], f"{path}.{key}")
+                    a[key] = self._merge_json_schema(a[key], b[key], f"{path}.{key}", union)
                 else:
                     pass  # doesn't exist in other schema, keep as is
             else:
@@ -133,7 +164,7 @@ class VecorelSchema(dict):
                 a[key] = b[key]
         return a
 
-    def _merge_json_schema(self, a: dict, b: dict, path: str = "") -> dict:
+    def _merge_json_schema(self, a: dict, b: dict, path: str = "", union: bool = False) -> dict:
         """Merge two JSON schemas"""
         if not isinstance(a, dict) or not isinstance(b, dict):
             raise ValueError(
@@ -148,13 +179,19 @@ class VecorelSchema(dict):
                 ap1 = a.get("additionalProperties", False)
                 ap2 = b.get("additionalProperties", False)
                 if isinstance(ap1, dict) and isinstance(ap2, dict):
-                    a[key] = self._merge_json_schema(ap1, ap2, f"{path}.additionalProperties")
-                elif a[key] is False or b[key] is False:
+                    a[key] = self._merge_json_schema(
+                        ap1, ap2, f"{path}.additionalProperties", union
+                    )
+                elif union:
+                    a[key] = True if ap1 is True or ap2 is True else ap1 or ap2
+                elif ap1 is False or ap2 is False:
                     a[key] = False
-                elif a[key] is True and isinstance(b[key], dict):
-                    a[key] = b[key]
+                elif ap1 is True and isinstance(ap2, dict):
+                    a[key] = ap2
                 else:
                     pass  # a is good as is, no action needed
+            elif union and key in RESTRICTIONS and (key not in a or key not in b):
+                a.pop(key, None)
             elif key not in b:
                 continue
             elif key not in a:
@@ -165,20 +202,31 @@ class VecorelSchema(dict):
                     case "$schema":
                         pass  # ignore for now. todo: Properly check versions
                     case "required":
-                        a[key] = list(dict.fromkeys([*a[key], *b[key]]))
-                    case ("enum", "geometryTypes"):
-                        a[key] = [v for v in a[key] if v in b[key]]
-                    case ("items", "contains"):
-                        a[key] = self._merge_json_schema(a[key], b[key], p)
-                    case ("properties", "patternProperties"):
-                        a[key] = self._merge_properties(a[key], b[key], p)
-                    case ("minLength", "minimum", "exclusiveMinimum", "minItems", "minProperties"):
-                        a[key] = max(a[key], b[key])
-                    case ("maxLength", "maximum", "exclusiveMaximum", "maxItems", "maxProperties"):
-                        a[key] = min(a[key], b[key])
-                    case ("deprecated", "uniqueItems"):
-                        if b[key]:
-                            a[key] = True
+                        if union:
+                            a[key] = [p for p in a[key] if p in b[key]]
+                        else:
+                            a[key] = list(dict.fromkeys([*a[key], *b[key]]))
+                    case "enum" | "geometryTypes":
+                        if union:
+                            a[key] = list(dict.fromkeys([*a[key], *b[key]]))
+                        else:
+                            a[key] = [v for v in a[key] if v in b[key]]
+                    case "items" | "contains":
+                        a[key] = self._merge_json_schema(a[key], b[key], p, union)
+                    case "properties" | "patternProperties":
+                        a[key] = self._merge_properties(a[key], b[key], p, union)
+                    case (
+                        "minLength" | "minimum" | "exclusiveMinimum" | "minItems" | "minProperties"
+                    ):
+                        a[key] = min(a[key], b[key]) if union else max(a[key], b[key])
+                    case (
+                        "maxLength" | "maximum" | "exclusiveMaximum" | "maxItems" | "maxProperties"
+                    ):
+                        a[key] = max(a[key], b[key]) if union else min(a[key], b[key])
+                    case "deprecated":
+                        a[key] = a[key] or b[key]
+                    case "uniqueItems":
+                        a[key] = (a[key] and b[key]) if union else (a[key] or b[key])
                     case _:  # description, type, format, pattern, default
                         if a[key] == b[key]:
                             a[key] = b[key]

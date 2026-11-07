@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Converters no longer fail on GeoJSON features without a top-level `id`.
 - Converters and `vec merge` write the columns and the collection metadata in a fixed order (e.g. the order of the column mapping or of the included properties) instead of a random order that changed between runs, so files are reproducible.
+- Schemas with different `enum`, `geometryTypes`, minimum/maximum or `items` constraints no longer
+  conflict when merged: a collection's schemas restrict each other (e.g. enums are intersected),
+  while `vec merge` keeps the data of every dataset valid (e.g. enums are joined).
+- `vec merge` only keeps a property required if every merged dataset requires it.
 
 ## [v0.4.2] - 2026-10-30
 

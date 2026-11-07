@@ -255,11 +255,16 @@ def merge_collections(
     # if it's present in all collections with the same value, i.e. it still
     # applies to the merged dataset as a whole.
     other_props = None
+    required = None
     for collection in collections:
         schemas.add_all(collection.get_schemas())
 
         custom = collection.get_custom_schemas()
-        custom_schemas.merge(custom)
+        # each dataset's rows only satisfy its own schema
+        custom_schemas.merge(custom, union=True)
+        # also a dataset without custom schemas requires none of their properties
+        own = custom.get("required", [])
+        required = list(own) if required is None else [p for p in required if p in own]
 
         props = {k: v for k, v in collection.items() if k not in handled_separately}
         if other_props is None:
@@ -267,6 +272,7 @@ def merge_collections(
         else:
             other_props = {k: v for k, v in other_props.items() if k in props and props[k] == v}
 
+    custom_schemas["required"] = required or []
     if other_props is None:
         other_props = {}
     if properties is not None:
