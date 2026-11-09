@@ -87,6 +87,9 @@ class BaseConverter(LoggerMixin):
     # read_data() leaves them out, read_side_file() reads them, e.g. in migrate()
     side_files: Sequence[str] = ()
     side_paths: dict[str, str] = {}
+    # The CRS the sources are reprojected to. Without it, sources in different CRS are
+    # reprojected to EPSG:4326, otherwise their CRS is kept.
+    crs: Optional[str] = None
     variant: Optional[str] = None
 
     columns: dict[str, str | Sequence[str]] = {}
@@ -688,9 +691,22 @@ class BaseConverter(LoggerMixin):
             data = self.file_migration(data, path, uri, layer)
             if not isinstance(data, GeoDataFrame):
                 raise ValueError("Per-file/layer migration function must return a GeoDataFrame")
-            gdfs.append(data)
+            gdfs.append((data, path))
 
-        return pd.concat(gdfs)
+        return pd.concat(self._common_crs(gdfs))
+
+    def _common_crs(self, gdfs) -> list[GeoDataFrame]:
+        missing = [path for gdf, path in gdfs if gdf.crs is None]
+        if missing and (self.crs or len(missing) < len(gdfs)):
+            raise ValueError(
+                f"No CRS for {', '.join(dict.fromkeys(missing))}, set one in file_migration()"
+            )
+        crs = self.crs
+        if crs is None and len({gdf.crs for gdf, _ in gdfs if gdf.crs is not None}) > 1:
+            crs = "EPSG:4326"
+        if crs is None:
+            return [gdf for gdf, _ in gdfs]
+        return [gdf if gdf.crs == crs else gdf.to_crs(crs) for gdf, _ in gdfs]
 
     def filter_rows(self, gdf):
         if len(self.column_filters) > 0:

@@ -603,6 +603,53 @@ def test_a_side_file_in_an_archive_can_be_given_as_glob(tmp_folder, side_file):
     assert result["code"].tolist() == ["NA", "GH"]
 
 
+def _sources_in_crs(folder, *crs_list):
+    import shapely
+
+    files = {}
+    for i, crs in enumerate(crs_list):
+        gdf = gpd.GeoDataFrame(
+            {"id": [f"{i}"], "name": ["a"]},
+            geometry=[shapely.box(10 + i, 50, 10.01 + i, 50.01)],
+            crs="EPSG:4326",
+        )
+        if crs is None:
+            gdf = gdf.set_crs(None, allow_override=True)
+        elif crs != "EPSG:4326":
+            gdf = gdf.to_crs(crs)
+        path = folder / f"source_{i}.gpkg"
+        gdf.to_file(path)
+        files[str(path)] = path.name
+    return files
+
+
+@pytest.mark.parametrize(
+    "crs_list, target, expected",
+    [
+        (("EPSG:4326", "EPSG:4326"), None, "EPSG:4326"),
+        (("EPSG:32632", "EPSG:32632"), None, "EPSG:32632"),
+        (("EPSG:3857", "EPSG:32632", "EPSG:4326"), None, "EPSG:4326"),
+        (("EPSG:3857", "EPSG:32632"), "EPSG:3035", "EPSG:3035"),
+    ],
+)
+def test_sources_in_different_crs_are_reprojected(tmp_folder, crs_list, target, expected):
+    Converter = type("Converter", (BaseConverter,), {**CONFIG, "crs": target})
+    dest = tmp_folder / "converted.parquet"
+    Converter().convert(dest, input_files=_sources_in_crs(tmp_folder, *crs_list))
+
+    result = gpd.read_parquet(dest).sort_values("id")
+    assert result.crs == expected
+    centroids = result.to_crs("EPSG:4326").geometry.centroid
+    assert [round(p.x, 3) for p in centroids] == [10.005 + i for i in range(len(crs_list))]
+
+
+def test_sources_without_crs_next_to_others_fail(tmp_folder):
+    Converter = type("Converter", (BaseConverter,), CONFIG)
+    sources = _sources_in_crs(tmp_folder, "EPSG:4326", None)
+    with pytest.raises(ValueError, match=r"No CRS for .*source_1\.gpkg"):
+        Converter().convert(tmp_folder / "converted.parquet", input_files=sources)
+
+
 @pytest.mark.parametrize("bom", [False, True], ids=["without-bom", "with-bom"])
 def test_read_geojson_decodes_utf8(tmp_folder, cp1252_locale, bom):
     file_path = tmp_folder / "umlaut.json"
