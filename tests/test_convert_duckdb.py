@@ -5,6 +5,8 @@ import zipfile
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 import shapely
@@ -131,6 +133,42 @@ def test_duckdb_converter_rejects_side_files(tmp_folder):
         SideFileConverter().convert(
             tmp_folder / "converted.parquet", input_files={str(src): "source.parquet"}
         )
+
+
+def test_duckdb_converter_drops_sub_millisecond_precision(tmp_folder):
+    src = tmp_folder / "source.parquet"
+    gpd.GeoDataFrame(
+        {
+            "id": ["a", "b"],
+            "name": ["x", "y"],
+            "t": pd.to_datetime(
+                ["2021-01-01 10:00:00.123456", "1969-12-31 23:59:59.999500"], utc=True
+            ),
+        },
+        geometry=[shapely.box(0, 0, 1, 1), shapely.box(2, 0, 3, 1)],
+        crs="EPSG:4326",
+    ).to_parquet(src)
+    TimestampConverter = type(
+        "TimestampConverter",
+        (Converter,),
+        {
+            "columns": {**CONFIG["columns"], "t": "t"},
+            "missing_schemas": {
+                "properties": {"name": {"type": "string"}, "t": {"type": "date-time"}}
+            },
+        },
+    )
+    dest = tmp_folder / "converted.parquet"
+
+    TimestampConverter().convert(dest, input_files={str(src): "source.parquet"})
+
+    table = pq.read_table(dest, columns=["id", "t"]).sort_by("id")
+    assert table.schema.field("t").type == pa.timestamp("ms", tz="UTC")
+    # floored like pandas, also before 1970
+    assert [t.isoformat() for t in table.column("t").to_pylist()] == [
+        "2021-01-01T10:00:00.123000+00:00",
+        "1969-12-31T23:59:59.999000+00:00",
+    ]
 
 
 def test_duckdb_converter_rejects_crs(tmp_folder):

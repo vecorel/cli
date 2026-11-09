@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `crs` on a converter: the CRS all sources are reprojected to. Converters with sources in
   different CRS need it and fail with a clear error without it.
 
+### Fixed
+
+- Writing GeoParquet no longer fails for date-times with more than millisecond precision: they
+  are stored in milliseconds, as the specification defines.
+
 ## [v0.4.3] - 2026-11-07
 
 ### Added

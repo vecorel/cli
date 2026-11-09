@@ -6,6 +6,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyarrow.types as pat
+import pytest
 
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.vecorel.collection import Collection
@@ -177,6 +178,48 @@ def test_write_keeps_all_null_columns_in_the_data(tmp_parquet_file):
     collection = GeoParquet(tmp_parquet_file).get_collection()
     assert not {"code", "area", "name"} & set(collection)
     assert {"code", "area", "name"} <= set(pq.read_schema(tmp_parquet_file).names)
+
+
+@pytest.mark.parametrize("with_schema", [True, False], ids=["schema", "no-schema"])
+def test_write_drops_sub_millisecond_precision(tmp_parquet_file, with_schema):
+    from geopandas import GeoDataFrame
+    from shapely.geometry import box
+
+    times = ["2021-01-01 10:00:00.123456", "1969-12-31 23:59:59.999500", None]
+    gdf = GeoDataFrame(
+        {
+            "id": ["1", "2", "3"],
+            "t": pd.to_datetime(times, utc=True, format="ISO8601"),
+            "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1), box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            **(
+                {
+                    "schemas:custom": {
+                        "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
+                        "properties": {"t": {"type": "date-time"}},
+                    }
+                }
+                if with_schema
+                else {}
+            ),
+            "collection": "c",
+        }
+    )
+    gp.write(gdf)
+
+    assert pq.read_schema(tmp_parquet_file).field("t").type == pa.timestamp("ms", tz="UTC")
+    written = pq.read_table(tmp_parquet_file, columns=["t"]).column("t").to_pylist()
+    assert [t.isoformat() if t else None for t in written] == [
+        "2021-01-01T10:00:00.123000+00:00",
+        "1969-12-31T23:59:59.999000+00:00",
+        None,
+    ]
 
 
 def test_get_pyarrow_type_keeps_the_schema():

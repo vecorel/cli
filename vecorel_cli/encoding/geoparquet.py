@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 from typing import Optional, Union
 
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from geopandas import GeoDataFrame
 from geopandas.array import from_wkb
@@ -238,6 +239,8 @@ class GeoParquet(BaseEncoding):
                 try:
                     pa_type = get_pyarrow_type_for_geopandas(pd_type)  # pyarrow data type
                     if pa_type is not None:
+                        if pa.types.is_timestamp(pa_type):
+                            data[column] = data[column].dt.floor("ms")
                         self.warning(
                             f"{column}: No schema defined, converting {pd_type} to nullable {pa_type}",
                         )
@@ -287,6 +290,29 @@ class GeoParquet(BaseEncoding):
         )
 
         return True
+
+    @staticmethod
+    def _truncate_timestamps(tbl, schema):
+        # date-times are stored in milliseconds; the specification accepts losing finer precision
+        units = {"s": 1, "ms": 10**3, "us": 10**6, "ns": 10**9}
+        for field in schema:
+            if field.name not in tbl.column_names or not pa.types.is_timestamp(field.type):
+                continue
+            column = tbl[field.name]
+            if not pa.types.is_timestamp(column.type):
+                continue
+            factor = units[column.type.unit] // units[field.type.unit]
+            if factor <= 1:
+                continue
+            # floored like pandas' dt.floor, also before 1970, so the safe cast loses nothing
+            values = column.cast(pa.int64())
+            floored = pc.divide(values, factor)
+            floored = pc.if_else(
+                pc.greater(pc.multiply(floored, factor), values), pc.subtract(floored, 1), floored
+            )
+            floored = floored.cast(pa.timestamp(field.type.unit, tz=column.type.tz))
+            tbl = tbl.set_column(tbl.column_names.index(field.name), field.name, floored)
+        return tbl
 
     def postprocess(
         self,
@@ -529,7 +555,7 @@ class GeoParquet(BaseEncoding):
                     # The safe cast fails on lossy conversions (e.g. out-of-range integers),
                     # so invalid source data is reported instead of silently corrupted
                     if tbl.schema != new_schema:
-                        tbl = tbl.cast(new_schema)
+                        tbl = self._truncate_timestamps(tbl, new_schema).cast(new_schema)
                     writer.write_table(tbl)
             finally:
                 writer.close()
