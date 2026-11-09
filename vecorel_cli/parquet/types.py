@@ -126,8 +126,11 @@ def get_geopandas_dtype(type, required=False, schema={}, return_category=False):
         return lambda series: series.apply(lambda x: np.array(x))
     elif type == "object":
         return "object"
-    elif type == "date" or type == "date-time":
+    elif type == "date":
         return lambda series: pd.to_datetime(series)
+    elif type == "date-time":
+        # stored in milliseconds; the specification accepts losing finer precision
+        return lambda series: pd.to_datetime(series).dt.floor("ms")
     elif type == "geometry":
         return lambda series: series  # don't convert geometry
     elif type == "bounding-box":

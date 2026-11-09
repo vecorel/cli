@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 from typing import Optional, Union
 
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from geopandas import GeoDataFrame
 from geopandas.array import from_wkb
@@ -288,6 +289,18 @@ class GeoParquet(BaseEncoding):
 
         return True
 
+    @staticmethod
+    def _truncate_timestamps(tbl, schema):
+        # date-times are stored in milliseconds; the specification accepts losing finer precision
+        for field in schema:
+            if field.name not in tbl.column_names or not pa.types.is_timestamp(field.type):
+                continue
+            column = tbl[field.name]
+            if pa.types.is_timestamp(column.type) and column.type.unit != field.type.unit:
+                index = tbl.column_names.index(field.name)
+                tbl = tbl.set_column(index, field.name, pc.cast(column, field.type, safe=False))
+        return tbl
+
     def postprocess(
         self,
         schema_map: SchemaMapping = {},
@@ -529,7 +542,7 @@ class GeoParquet(BaseEncoding):
                     # The safe cast fails on lossy conversions (e.g. out-of-range integers),
                     # so invalid source data is reported instead of silently corrupted
                     if tbl.schema != new_schema:
-                        tbl = tbl.cast(new_schema)
+                        tbl = self._truncate_timestamps(tbl, new_schema).cast(new_schema)
                     writer.write_table(tbl)
             finally:
                 writer.close()

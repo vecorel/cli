@@ -179,6 +179,41 @@ def test_write_keeps_all_null_columns_in_the_data(tmp_parquet_file):
     assert {"code", "area", "name"} <= set(pq.read_schema(tmp_parquet_file).names)
 
 
+def test_write_drops_sub_millisecond_precision(tmp_parquet_file):
+    from geopandas import GeoDataFrame
+    from shapely.geometry import box
+
+    times = ["2021-01-01 10:00:00.123456", "2021-01-01 10:00:00.999999999", None]
+    gdf = GeoDataFrame(
+        {
+            "id": ["1", "2", "3"],
+            "t": pd.to_datetime(times, utc=True, format="ISO8601"),
+            "geometry": [box(0, 0, 1, 1), box(1, 0, 2, 1), box(2, 0, 3, 1)],
+        },
+        crs="EPSG:4326",
+    )
+    gp = GeoParquet(tmp_parquet_file)
+    gp.set_collection(
+        {
+            "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
+            "schemas:custom": {
+                "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
+                "properties": {"t": {"type": "date-time"}},
+            },
+            "collection": "c",
+        }
+    )
+    gp.write(gdf)
+
+    assert pq.read_schema(tmp_parquet_file).field("t").type == pa.timestamp("ms", tz="UTC")
+    written = pq.read_table(tmp_parquet_file, columns=["t"]).column("t").to_pylist()
+    assert [t.isoformat() if t else None for t in written] == [
+        "2021-01-01T10:00:00.123000+00:00",
+        "2021-01-01T10:00:00.999000+00:00",
+        None,
+    ]
+
+
 def test_get_pyarrow_type_keeps_the_schema():
     from vecorel_cli.parquet.types import get_pyarrow_type
 

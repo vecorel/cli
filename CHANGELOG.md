@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Writing GeoParquet no longer fails for date-times with more than millisecond precision: they
+  are stored in milliseconds, as the specification defines.
+
 ## [v0.4.3] - 2026-11-07
 
 ### Added
