@@ -239,6 +239,8 @@ class GeoParquet(BaseEncoding):
                 try:
                     pa_type = get_pyarrow_type_for_geopandas(pd_type)  # pyarrow data type
                     if pa_type is not None:
+                        if pa.types.is_timestamp(pa_type):
+                            data[column] = data[column].dt.floor("ms")
                         self.warning(
                             f"{column}: No schema defined, converting {pd_type} to nullable {pa_type}",
                         )

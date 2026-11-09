@@ -6,6 +6,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyarrow.types as pat
+import pytest
 
 from vecorel_cli.encoding.geoparquet import GeoParquet
 from vecorel_cli.vecorel.collection import Collection
@@ -179,7 +180,8 @@ def test_write_keeps_all_null_columns_in_the_data(tmp_parquet_file):
     assert {"code", "area", "name"} <= set(pq.read_schema(tmp_parquet_file).names)
 
 
-def test_write_drops_sub_millisecond_precision(tmp_parquet_file):
+@pytest.mark.parametrize("with_schema", [True, False], ids=["schema", "no-schema"])
+def test_write_drops_sub_millisecond_precision(tmp_parquet_file, with_schema):
     from geopandas import GeoDataFrame
     from shapely.geometry import box
 
@@ -196,10 +198,16 @@ def test_write_drops_sub_millisecond_precision(tmp_parquet_file):
     gp.set_collection(
         {
             "schemas": {"c": ["https://vecorel.org/specification/v0.1.0/schema.yaml"]},
-            "schemas:custom": {
-                "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
-                "properties": {"t": {"type": "date-time"}},
-            },
+            **(
+                {
+                    "schemas:custom": {
+                        "$schema": "https://vecorel.org/sdl/v0.2.0/schema.json",
+                        "properties": {"t": {"type": "date-time"}},
+                    }
+                }
+                if with_schema
+                else {}
+            ),
             "collection": "c",
         }
     )
