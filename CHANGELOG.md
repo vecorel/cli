@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.4.4] - 2026-11-09
+
 ### Added
 
 - `crs` on a converter: the CRS all sources are reprojected to. Converters with sources in
@@ -453,7 +455,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - First release based on vecorel CLI 0.1.0
 
-[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.3...main>
+[Unreleased]: <https://github.com/vecorel/cli/compare/v0.4.4...main>
+[v0.4.4]: <https://github.com/vecorel/cli/compare/v0.4.3...v0.4.4>
 [v0.4.3]: <https://github.com/vecorel/cli/compare/v0.4.2...v0.4.3>
 [v0.4.2]: <https://github.com/vecorel/cli/compare/v0.4.1...v0.4.2>
 [v0.4.1]: <https://github.com/vecorel/cli/compare/v0.4.0...v0.4.1>
