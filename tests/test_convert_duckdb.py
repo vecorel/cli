@@ -171,6 +171,16 @@ def test_duckdb_converter_drops_sub_millisecond_precision(tmp_folder):
     ]
 
 
+def test_duckdb_converter_rejects_crs(tmp_folder):
+    src = _source_file(tmp_folder)
+    CrsConverter = type("CrsConverter", (Converter,), {"crs": "EPSG:3035"})
+
+    with pytest.raises(ValueError, match="don't support crs"):
+        CrsConverter().convert(
+            tmp_folder / "converted.parquet", input_files={str(src): "source.parquet"}
+        )
+
+
 def test_duckdb_converter_ignores_hive_style_folders(tmp_folder):
     source_folder = tmp_folder / "region=north"
     source_folder.mkdir()

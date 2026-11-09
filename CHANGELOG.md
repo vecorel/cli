@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `crs` on a converter: the CRS all sources are reprojected to. Converters with sources in
+  different CRS need it and fail with a clear error without it.
+
 ### Fixed
 
 - Writing GeoParquet no longer fails for date-times with more than millisecond precision: they
