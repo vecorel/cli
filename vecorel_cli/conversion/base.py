@@ -35,7 +35,14 @@ from ..vecorel.collection import Collection
 from ..vecorel.hilbert import hilbert_sort_geodataframe
 from ..vecorel.schemas import Schemas
 from ..vecorel.typing import Sources
-from ..vecorel.util import get_fs, merge_headers, name_from_uri, stream_file, suffix_duplicate_ids
+from ..vecorel.util import (
+    find_differing_crs,
+    get_fs,
+    merge_headers,
+    name_from_uri,
+    stream_file,
+    suffix_duplicate_ids,
+)
 from .deflate64 import deflate64_zip
 from .flatdict import FlatDict
 
@@ -87,8 +94,7 @@ class BaseConverter(LoggerMixin):
     # read_data() leaves them out, read_side_file() reads them, e.g. in migrate()
     side_files: Sequence[str] = ()
     side_paths: dict[str, str] = {}
-    # The CRS the sources are reprojected to. Without it, sources in different CRS are
-    # reprojected to EPSG:4326, otherwise their CRS is kept.
+    # The CRS all sources are reprojected to; required if they are in different CRS
     crs: Optional[str] = None
     variant: Optional[str] = None
 
@@ -693,20 +699,25 @@ class BaseConverter(LoggerMixin):
                 raise ValueError("Per-file/layer migration function must return a GeoDataFrame")
             gdfs.append((data, path))
 
-        return pd.concat(self._common_crs(gdfs))
+        return pd.concat(self._reproject_sources(gdfs))
 
-    def _common_crs(self, gdfs) -> list[GeoDataFrame]:
-        missing = [path for gdf, path in gdfs if gdf.crs is None]
-        if missing and (self.crs or len(missing) < len(gdfs)):
-            raise ValueError(
-                f"No CRS for {', '.join(dict.fromkeys(missing))}, set one in file_migration()"
-            )
-        crs = self.crs
-        if crs is None and len({gdf.crs for gdf, _ in gdfs if gdf.crs is not None}) > 1:
-            crs = "EPSG:4326"
-        if crs is None:
+    def _reproject_sources(self, gdfs) -> list[GeoDataFrame]:
+        if self.crs is None:
+            # sources without a CRS take the CRS of the others when concatenated
+            with_crs = [(gdf, path) for gdf, path in gdfs if gdf.crs is not None]
+            differing = find_differing_crs([gdf.crs for gdf, _ in with_crs])
+            if differing is not None:
+                raise ValueError(
+                    f"{with_crs[differing][1]} is in another CRS than {with_crs[0][1]}, "
+                    "set `crs` on the converter to reproject the sources to one"
+                )
             return [gdf for gdf, _ in gdfs]
-        return [gdf if gdf.crs == crs else gdf.to_crs(crs) for gdf, _ in gdfs]
+        missing = [path for gdf, path in gdfs if gdf.crs is None]
+        if missing:
+            raise ValueError(
+                f"Can't reproject to {self.crs}, no CRS for {', '.join(dict.fromkeys(missing))}"
+            )
+        return [gdf if gdf.crs == self.crs else gdf.to_crs(self.crs) for gdf, _ in gdfs]
 
     def filter_rows(self, gdf):
         if len(self.column_filters) > 0:

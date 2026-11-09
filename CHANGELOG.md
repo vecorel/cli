@@ -9,12 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- `crs` on a converter: the CRS all sources are reprojected to.
-
-### Fixed
-
-- Converters no longer fail on sources in different CRS: without `crs`, they are reprojected to
-  EPSG:4326. Sources without a CRS next to others with one fail with a clear error.
+- `crs` on a converter: the CRS all sources are reprojected to. Converters with sources in
+  different CRS need it and fail with a clear error without it.
 
 ## [v0.4.3] - 2026-11-07
 

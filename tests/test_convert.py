@@ -628,11 +628,13 @@ def _sources_in_crs(folder, *crs_list):
     [
         (("EPSG:4326", "EPSG:4326"), None, "EPSG:4326"),
         (("EPSG:32632", "EPSG:32632"), None, "EPSG:32632"),
-        (("EPSG:3857", "EPSG:32632", "EPSG:4326"), None, "EPSG:4326"),
-        (("EPSG:3857", "EPSG:32632"), "EPSG:3035", "EPSG:3035"),
+        # as before, the single CRS of the other sources applies
+        (("EPSG:4326", None), None, "EPSG:4326"),
+        (("EPSG:3857", "EPSG:32632", "EPSG:4326"), "EPSG:4326", "EPSG:4326"),
+        (("EPSG:32632", "EPSG:32632"), "EPSG:3035", "EPSG:3035"),
     ],
 )
-def test_sources_in_different_crs_are_reprojected(tmp_folder, crs_list, target, expected):
+def test_sources_are_reprojected_to_the_converters_crs(tmp_folder, crs_list, target, expected):
     Converter = type("Converter", (BaseConverter,), {**CONFIG, "crs": target})
     dest = tmp_folder / "converted.parquet"
     Converter().convert(dest, input_files=_sources_in_crs(tmp_folder, *crs_list))
@@ -643,11 +645,35 @@ def test_sources_in_different_crs_are_reprojected(tmp_folder, crs_list, target, 
     assert [round(p.x, 3) for p in centroids] == [10.005 + i for i in range(len(crs_list))]
 
 
-def test_sources_without_crs_next_to_others_fail(tmp_folder):
+def test_sources_in_different_crs_require_the_converters_crs(tmp_folder):
     Converter = type("Converter", (BaseConverter,), CONFIG)
-    sources = _sources_in_crs(tmp_folder, "EPSG:4326", None)
-    with pytest.raises(ValueError, match=r"No CRS for .*source_1\.gpkg"):
+    sources = _sources_in_crs(tmp_folder, "EPSG:3857", "EPSG:32632")
+    with pytest.raises(
+        ValueError, match=r"source_1\.gpkg is in another CRS than .*source_0\.gpkg, set `crs`"
+    ):
         Converter().convert(tmp_folder / "converted.parquet", input_files=sources)
+
+
+def test_sources_without_crs_can_not_be_reprojected(tmp_folder):
+    Converter = type("Converter", (BaseConverter,), {**CONFIG, "crs": "EPSG:4326"})
+    sources = _sources_in_crs(tmp_folder, "EPSG:3857", None)
+    with pytest.raises(ValueError, match=r"no CRS for .*source_1\.gpkg"):
+        Converter().convert(tmp_folder / "converted.parquet", input_files=sources)
+
+
+def test_equal_crs_with_a_different_wkt_are_not_reprojected():
+    import shapely
+    from pyproj import CRS
+
+    epsg = CRS.from_epsg(25832)
+    # e.g. a shapefile's .prj: equal to the EPSG code, but with another WKT and hash
+    esri = CRS.from_wkt(epsg.to_wkt("WKT1_ESRI"))
+    assert epsg == esri and hash(epsg) != hash(esri)
+    gdfs = [
+        (gpd.GeoDataFrame(geometry=[shapely.Point(500000, 5500000)], crs=crs), str(i))
+        for i, crs in enumerate([epsg, esri])
+    ]
+    assert [gdf.crs for gdf in BaseConverter()._reproject_sources(gdfs)] == [epsg, esri]
 
 
 @pytest.mark.parametrize("bom", [False, True], ids=["without-bom", "with-bom"])

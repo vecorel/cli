@@ -113,6 +113,9 @@ class DuckDBBaseConverter(BaseConverter):
         if self.side_files:
             # the sources are read in SQL, without the read_data() and migrate() side files need
             raise ValueError(f"{type(self).__name__}: DuckDB converters don't support side_files")
+        if self.crs:
+            # the sources are combined in SQL without reprojection
+            raise ValueError(f"{type(self).__name__}: DuckDB converters don't support crs")
         self._prewarm_schemas()
 
         directory = os.path.dirname(output_file)
