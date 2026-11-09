@@ -185,7 +185,7 @@ def test_write_drops_sub_millisecond_precision(tmp_parquet_file, with_schema):
     from geopandas import GeoDataFrame
     from shapely.geometry import box
 
-    times = ["2021-01-01 10:00:00.123456", "2021-01-01 10:00:00.999999999", None]
+    times = ["2021-01-01 10:00:00.123456", "1969-12-31 23:59:59.999500", None]
     gdf = GeoDataFrame(
         {
             "id": ["1", "2", "3"],
@@ -217,7 +217,7 @@ def test_write_drops_sub_millisecond_precision(tmp_parquet_file, with_schema):
     written = pq.read_table(tmp_parquet_file, columns=["t"]).column("t").to_pylist()
     assert [t.isoformat() if t else None for t in written] == [
         "2021-01-01T10:00:00.123000+00:00",
-        "2021-01-01T10:00:00.999000+00:00",
+        "1969-12-31T23:59:59.999000+00:00",
         None,
     ]
 

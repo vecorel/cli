@@ -294,13 +294,24 @@ class GeoParquet(BaseEncoding):
     @staticmethod
     def _truncate_timestamps(tbl, schema):
         # date-times are stored in milliseconds; the specification accepts losing finer precision
+        units = {"s": 1, "ms": 10**3, "us": 10**6, "ns": 10**9}
         for field in schema:
             if field.name not in tbl.column_names or not pa.types.is_timestamp(field.type):
                 continue
             column = tbl[field.name]
-            if pa.types.is_timestamp(column.type) and column.type.unit != field.type.unit:
-                index = tbl.column_names.index(field.name)
-                tbl = tbl.set_column(index, field.name, pc.cast(column, field.type, safe=False))
+            if not pa.types.is_timestamp(column.type):
+                continue
+            factor = units[column.type.unit] // units[field.type.unit]
+            if factor <= 1:
+                continue
+            # floored like pandas' dt.floor, also before 1970, so the safe cast loses nothing
+            values = column.cast(pa.int64())
+            floored = pc.divide(values, factor)
+            floored = pc.if_else(
+                pc.greater(pc.multiply(floored, factor), values), pc.subtract(floored, 1), floored
+            )
+            floored = floored.cast(pa.timestamp(field.type.unit, tz=column.type.tz))
+            tbl = tbl.set_column(tbl.column_names.index(field.name), field.name, floored)
         return tbl
 
     def postprocess(
