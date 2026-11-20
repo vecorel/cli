@@ -241,6 +241,7 @@ See [Implement a converter](#implement-a-converter) for details about how to
 ## Development
 
 This project uses [Pixi](https://pixi.sh/) for dependency management and development workflows.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the guidelines.
 
 ```bash
 # Install all dependencies including development tools
